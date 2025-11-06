@@ -13,9 +13,6 @@ services:
       - NODE_ENV=production
       - JWT_SECRET=changeme_in_production
       - PORT=2222
-      - UID=1000
-      - GID=1000
-    user: "1000:1000"  # Utiliser l'utilisateur node
     restart: unless-stopped
     networks:
       - nginx_default
