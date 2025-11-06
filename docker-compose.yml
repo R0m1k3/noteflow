@@ -13,6 +13,9 @@ services:
       - NODE_ENV=production
       - JWT_SECRET=changeme_in_production
       - PORT=2222
+      - UID=1000
+      - GID=1000
+    user: "1000:1000"  # Utiliser l'utilisateur node
     restart: unless-stopped
     networks:
       - nginx_default
@@ -20,16 +23,3 @@ services:
 networks:
   nginx_default:
     external: true
-
-# Nginx configuration example:
-# location /notes/ {
-#     proxy_pass http://notes-todo-app:2222/;
-#     proxy_http_version 1.1;
-#     proxy_set_header Upgrade $http_upgrade;
-#     proxy_set_header Connection 'upgrade';
-#     proxy_set_header Host $host;
-#     proxy_set_header X-Real-IP $remote_addr;
-#     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-#     proxy_cache_bypass $http_upgrade;
-#     client_max_body_size 10M;
-# }

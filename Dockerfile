@@ -9,12 +9,11 @@ RUN npm install
 # Copy app source
 COPY . .
 
-# Create necessary directories with correct permissions
+# Create directories and set permissions
 RUN mkdir -p /app/data /app/public/uploads && \
-    chown -R node:node /app/data /app/public/uploads
-
-# Switch to non-root user
-USER node
+    chown -R node:node /app && \
+    chmod -R 755 /app && \
+    chmod -R 777 /app/data /app/public/uploads
 
 # Expose port
 EXPOSE 2222
