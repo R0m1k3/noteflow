@@ -1,18 +1,14 @@
 FROM node:18-alpine
 
-# Switch to non-root user and set working directory
-USER node
+# Create app directory
 WORKDIR /home/node/app
 
-# Create necessary directories
-RUN mkdir -p /home/node/app/data /home/node/app/public/uploads
-
-# Copy package files with correct ownership
-COPY --chown=node:node package*.json ./
+# Copy package files
+COPY package*.json ./
 RUN npm install
 
-# Copy application files with correct ownership
-COPY --chown=node:node . .
+# Copy application files
+COPY . .
 
 # Expose port
 EXPOSE 2222

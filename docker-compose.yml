@@ -4,6 +4,7 @@ services:
   notes-app:
     build: .
     container_name: notes-todo-app
+    user: "1000:1000"  # Utilise l'UID et GID standard pour le premier utilisateur
     ports:
       - "2222:2222"
     volumes:

@@ -1,11 +1,11 @@
-#!/bin/sh
+#!/bin/bash
 
-# Create necessary directories if they don't exist
+# Créer les répertoires nécessaires
 mkdir -p data
 mkdir -p public/uploads
 
-# Set permissions
-chmod -R 777 data
-chmod -R 777 public/uploads
-
-echo "Directories created and permissions set"
+# Définir les permissions (1000:1000 est l'UID:GID standard pour le premier utilisateur)
+chown -R 1000:1000 data
+chown -R 1000:1000 public/uploads
+chmod -R 755 data
+chmod -R 755 public/uploads
