@@ -5,18 +5,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Notes & Todos</title>
     <style>
-        /* Base styles */
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600&display=swap');
 
         :root {
-            --primary-color: #3B82F6;
-            --secondary-color: #2563EB;
-            --background-color: #FAFAFA;
-            --card-background: #FFFFFF;
-            --text-primary: #111827;
-            --text-secondary: #4B5563;
-            --text-muted: #6B7280;
-            --border-color: #E5E7EB;
+            /* Colors */
+            --bg-gradient: linear-gradient(to bottom right, #ffffff, #f8fafc);
+            --primary: #0ea5e9;
+            --primary-light: #e0f2fe;
+            --primary-dark: #0369a1;
+            --surface: #ffffff;
+            --text: #0f172a;
+            --text-light: #64748b;
+            --border: #e2e8f0;
+            --success: #10b981;
+            --error: #ef4444;
+            
+            /* Effects */
+            --shadow-sm: 0 2px 8px -2px rgba(0, 0, 0, 0.05);
+            --shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.08);
+            --shadow-lg: 0 8px 24px -4px rgba(0, 0, 0, 0.12);
+            --glow: 0 0 0 3px rgba(14, 165, 233, 0.15);
         }
 
         * {
@@ -26,639 +34,452 @@
         }
 
         body {
-            font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            line-height: 1.5;
-            color: var(--text-primary);
-            background-color: var(--background-color);
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background: var(--bg-gradient);
+            color: var(--text);
+            min-height: 100vh;
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
         }
 
         /* Layout */
-        .container {
-            width: 100%;
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 0 1rem;
+        .app {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 1rem;
+            height: 100vh;
+            padding: 1rem;
         }
 
-        aside {
-            position: fixed;
-            left: 0;
-            top: 0;
-            height: 100%;
-            width: 16rem;
-            background-color: white;
-            border-right: 1px solid var(--border-color);
-            overflow-y: auto;
-            z-index: 10;
-        }
-
-        main {
-            margin-left: 16rem;
-            padding: 2rem;
-        }
-
-        /* Typography */
-        h1, h2, h3, h4, h5, h6 {
-            font-weight: 700;
-            line-height: 1.2;
-        }
-
-        h1 {
-            font-size: 1.5rem;
-        }
-
-        h2 {
-            font-size: 1.25rem;
-        }
-
-        h3 {
-            font-size: 1.125rem;
-        }
-
-        /* Utility classes */
-        .hidden {
-            display: none !important;
-        }
-
-        .bg-white {
-            background-color: white;
-        }
-
-        .bg-gray-50 {
-            background-color: #F9FAFB;
-        }
-
-        .text-center {
-            text-align: center;
-        }
-
-        .font-bold {
-            font-weight: 700;
-        }
-
-        .font-medium {
-            font-weight: 500;
-        }
-
-        .text-2xl {
-            font-size: 1.5rem;
-        }
-
-        .text-xl {
-            font-size: 1.25rem;
-        }
-
-        .text-sm {
-            font-size: 0.875rem;
-        }
-
-        /* Margin & Padding */
-        .m-0 { margin: 0; }
-        .m-1 { margin: 0.25rem; }
-        .m-2 { margin: 0.5rem; }
-        .m-4 { margin: 1rem; }
-        .m-6 { margin: 1.5rem; }
-        .m-8 { margin: 2rem; }
-
-        .mt-1 { margin-top: 0.25rem; }
-        .mt-2 { margin-top: 0.5rem; }
-        .mt-4 { margin-top: 1rem; }
-        .mt-6 { margin-top: 1.5rem; }
-        .mt-8 { margin-top: 2rem; }
-
-        .mb-1 { margin-bottom: 0.25rem; }
-        .mb-2 { margin-bottom: 0.5rem; }
-        .mb-4 { margin-bottom: 1rem; }
-        .mb-6 { margin-bottom: 1.5rem; }
-        .mb-8 { margin-bottom: 2rem; }
-
-        .ml-1 { margin-left: 0.25rem; }
-        .ml-2 { margin-left: 0.5rem; }
-        .ml-4 { margin-left: 1rem; }
-        .ml-6 { margin-left: 1.5rem; }
-        .ml-8 { margin-left: 2rem; }
-        .ml-auto { margin-left: auto; }
-
-        .mr-1 { margin-right: 0.25rem; }
-        .mr-2 { margin-right: 0.5rem; }
-        .mr-4 { margin-right: 1rem; }
-        .mr-6 { margin-right: 1.5rem; }
-        .mr-8 { margin-right: 2rem; }
-        .mr-auto { margin-right: auto; }
-
-        .mx-auto { margin-left: auto; margin-right: auto; }
-        .my-4 { margin-top: 1rem; margin-bottom: 1rem; }
-
-        .p-1 { padding: 0.25rem; }
-        .p-2 { padding: 0.5rem; }
-        .p-4 { padding: 1rem; }
-        .p-6 { padding: 1.5rem; }
-        .p-8 { padding: 2rem; }
-
-        .px-1 { padding-left: 0.25rem; padding-right: 0.25rem; }
-        .px-2 { padding-left: 0.5rem; padding-right: 0.5rem; }
-        .px-4 { padding-left: 1rem; padding-right: 1rem; }
-        .px-6 { padding-left: 1.5rem; padding-right: 1.5rem; }
-        .px-8 { padding-left: 2rem; padding-right: 2rem; }
-
-        .py-1 { padding-top: 0.25rem; padding-bottom: 0.25rem; }
-        .py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
-        .py-4 { padding-top: 1rem; padding-bottom: 1rem; }
-        .py-6 { padding-top: 1.5rem; padding-bottom: 1.5rem; }
-        .py-8 { padding-top: 2rem; padding-bottom: 2rem; }
-
-        .pt-1 { padding-top: 0.25rem; }
-        .pt-2 { padding-top: 0.5rem; }
-        .pt-4 { padding-top: 1rem; }
-        .pt-6 { padding-top: 1.5rem; }
-        .pt-8 { padding-top: 2rem; }
-
-        .pb-1 { padding-bottom: 0.25rem; }
-        .pb-2 { padding-bottom: 0.5rem; }
-        .pb-4 { padding-bottom: 1rem; }
-        .pb-6 { padding-bottom: 1.5rem; }
-        .pb-8 { padding-bottom: 2rem; }
-
-        .pl-1 { padding-left: 0.25rem; }
-        .pl-2 { padding-left: 0.5rem; }
-        .pl-4 { padding-left: 1rem; }
-        .pl-6 { padding-left: 1.5rem; }
-        .pl-8 { padding-left: 2rem; }
-        .pl-8 { padding-left: 8rem; }
-
-        .pr-1 { padding-right: 0.25rem; }
-        .pr-2 { padding-right: 0.5rem; }
-        .pr-4 { padding-right: 1rem; }
-        .pr-6 { padding-right: 1.5rem; }
-        .pr-8 { padding-right: 2rem; }
-
-        /* Flex & Grid */
-        .flex { display: flex; }
-        .inline-flex { display: inline-flex; }
-        .flex-col { flex-direction: column; }
-        .flex-row { flex-direction: row; }
-        .flex-wrap { flex-wrap: wrap; }
-        .flex-nowrap { flex-wrap: nowrap; }
-        .flex-1 { flex: 1 1 0%; }
-        .flex-auto { flex: 1 1 auto; }
-        .flex-initial { flex: 0 1 auto; }
-        .flex-none { flex: none; }
-        .flex-grow { flex-grow: 1; }
-        .flex-shrink { flex-shrink: 1; }
-        .flex-grow-0 { flex-grow: 0; }
-        .flex-shrink-0 { flex-shrink: 0; }
-
-        .items-start { align-items: flex-start; }
-        .items-end { align-items: flex-end; }
-        .items-center { align-items: center; }
-        .items-baseline { align-items: baseline; }
-        .items-stretch { align-items: stretch; }
-
-        .justify-start { justify-content: flex-start; }
-        .justify-end { justify-content: flex-end; }
-        .justify-center { justify-content: center; }
-        .justify-between { justify-content: space-between; }
-        .justify-around { justify-content: space-around; }
-        .justify-evenly { justify-content: space-evenly; }
-
-        .grid { display: grid; }
-        .grid-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
-        .grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-        .grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-        .grid-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-        .gap-1 { gap: 0.25rem; }
-        .gap-2 { gap: 0.5rem; }
-        .gap-4 { gap: 1rem; }
-        .gap-6 { gap: 1.5rem; }
-        .gap-8 { gap: 2rem; }
-
-        /* Spacing */
-        .space-y-1 > * + * { margin-top: 0.25rem; }
-        .space-y-2 > * + * { margin-top: 0.5rem; }
-        .space-y-4 > * + * { margin-top: 1rem; }
-        .space-y-6 > * + * { margin-top: 1.5rem; }
-        .space-y-8 > * + * { margin-top: 2rem; }
-
-        .space-x-1 > * + * { margin-left: 0.25rem; }
-        .space-x-2 > * + * { margin-left: 0.5rem; }
-        .space-x-4 > * + * { margin-left: 1rem; }
-        .space-x-6 > * + * { margin-left: 1.5rem; }
-        .space-x-8 > * + * { margin-left: 2rem; }
-
-        /* Sizing */
-        .w-full { width: 100%; }
-        .w-auto { width: auto; }
-        .w-96 { width: 24rem; }
-        .w-64 { width: 16rem; }
-        .w-48 { width: 12rem; }
-        .w-32 { width: 8rem; }
-        .w-24 { width: 6rem; }
-        .w-16 { width: 4rem; }
-        .w-8 { width: 2rem; }
-        .w-4 { width: 1rem; }
-        .w-2 { width: 0.5rem; }
-        .w-1 { width: 0.25rem; }
-
-        .h-full { height: 100%; }
-        .h-auto { height: auto; }
-        .h-screen { height: 100vh; }
-        .h-96 { height: 24rem; }
-        .h-64 { height: 16rem; }
-        .h-48 { height: 12rem; }
-        .h-32 { height: 8rem; }
-        .h-24 { height: 6rem; }
-        .h-16 { height: 4rem; }
-        .h-8 { height: 2rem; }
-        .h-4 { height: 1rem; }
-        .h-2 { height: 0.5rem; }
-        .h-1 { height: 0.25rem; }
-
-        .min-h-screen { min-height: 100vh; }
-        .min-h-\[200px\] { min-height: 200px; }
-        .max-w-4xl { max-width: 56rem; }
-
-        /* Positioning */
-        .relative { position: relative; }
-        .absolute { position: absolute; }
-        .fixed { position: fixed; }
-        .sticky { position: sticky; }
-        .static { position: static; }
-
-        .inset-0 { top: 0; right: 0; bottom: 0; left: 0; }
-        .top-0 { top: 0; }
-        .right-0 { right: 0; }
-        .bottom-0 { bottom: 0; }
-        .left-0 { left: 0; }
-        .top-2 { top: 0.5rem; }
-        .right-2 { right: 0.5rem; }
-        .bottom-2 { bottom: 0.5rem; }
-        .left-2 { left: 0.5rem; }
-        .top-2\.5 { top: 0.625rem; }
-
-        /* Borders & Shadows */
-        .rounded { border-radius: 0.25rem; }
-        .rounded-md { border-radius: 0.375rem; }
-        .rounded-lg { border-radius: 0.5rem; }
-        .rounded-full { border-radius: 9999px; }
-
-        .border { border: 1px solid var(--border-color); }
-        .border-t { border-top: 1px solid var(--border-color); }
-        .border-r { border-right: 1px solid var(--border-color); }
-        .border-b { border-bottom: 1px solid var(--border-color); }
-        .border-l { border-left: 1px solid var(--border-color); }
-        .border-none { border: none; }
-
-        .shadow-sm { box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); }
-        .shadow { box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06); }
-        .shadow-md { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
-        .shadow-lg { box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); }
-
-        /* Text & Colors */
-        .text-white { color: white; }
-        .text-gray-400 { color: #9CA3AF; }
-        .text-gray-500 { color: #6B7280; }
-        .text-gray-600 { color: #4B5563; }
-        .text-gray-900 { color: #111827; }
-        .text-red-600 { color: #DC2626; }
-        .text-blue-600 { color: #2563EB; }
-
-        .bg-opacity-50 { --tw-bg-opacity: 0.5; }
-        .bg-black { background-color: black; }
-        .bg-blue-600 { background-color: #2563EB; }
-
-        .truncate {
+        /* Sidebar */
+        .sidebar {
+            background: var(--surface);
+            border-radius: 24px;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            box-shadow: var(--shadow);
+            height: calc(100vh - 2rem);
+            position: relative;
             overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
         }
 
-        .overflow-hidden { overflow: hidden; }
-        .overflow-y-auto { overflow-y: auto; }
-        .overflow-x-hidden { overflow-x: hidden; }
+        .sidebar::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 80px;
+            background: linear-gradient(to bottom, var(--surface) 60%, transparent);
+            z-index: 2;
+            pointer-events: none;
+        }
 
-        /* Hover & Focus states */
-        .hover\:bg-gray-100:hover { background-color: #F3F4F6; }
-        .hover\:text-gray-900:hover { color: #111827; }
-        .hover\:text-red-600:hover { color: #DC2626; }
-        .focus\:outline-none:focus { outline: none; }
+        .sidebar::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 80px;
+            background: linear-gradient(to top, var(--surface) 60%, transparent);
+            z-index: 2;
+            pointer-events: none;
+        }
 
-        /* Transitions */
-        .transition { transition: all 200ms ease-in-out; }
+        /* Main Content */
+        .main-content {
+            background: var(--surface);
+            border-radius: 24px;
+            padding: 2rem;
+            box-shadow: var(--shadow);
+            height: calc(100vh - 2rem);
+            overflow-y: auto;
+            position: relative;
+        }
 
-        /* Form elements */
-        input[type="text"],
-        input[type="password"],
-        textarea {
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            position: relative;
+            z-index: 3;
+        }
+
+        .app-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            position: relative;
+        }
+
+        /* Search */
+        .search-container {
+            position: relative;
+            z-index: 3;
+        }
+
+        .search-input {
             width: 100%;
-            padding: 0.5rem 0.75rem;
-            border: 1px solid var(--border-color);
-            border-radius: 0.375rem;
-            background-color: white;
+            padding: 0.875rem 1rem 0.875rem 2.75rem;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            font-size: 0.9375rem;
+            background: #f8fafc;
+            transition: all 0.2s ease;
         }
 
-        input[type="text"]:focus,
-        input[type="password"]:focus,
-        textarea:focus {
+        .search-input:focus {
             outline: none;
-            border-color: var(--primary-color);
-            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+            border-color: var(--primary);
+            box-shadow: var(--glow);
+            background: var(--surface);
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-light);
+            pointer-events: none;
+            transition: all 0.2s ease;
+        }
+
+        .search-input:focus + .search-icon {
+            color: var(--primary);
+        }
+
+        /* Notes List */
+        .notes-list {
+            margin-top: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            padding: 0.5rem;
+            overflow-y: auto;
+            max-height: calc(100% - 140px);
+            position: relative;
+            z-index: 1;
+        }
+
+        .note-item {
+            padding: 1rem;
+            background: #f8fafc;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: 1px solid transparent;
+        }
+
+        .note-item:hover {
+            transform: translateY(-2px);
+            background: var(--surface);
+            border-color: var(--border);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .note-item.active {
+            background: var(--primary-light);
+            border-color: var(--primary);
+        }
+
+        .note-title {
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 0.25rem;
+        }
+
+        .note-preview {
+            font-size: 0.875rem;
+            color: var(--text-light);
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        /* Editor */
+        .editor {
+            background: var(--surface);
+            border-radius: 16px;
+            height: 100%;
+        }
+
+        .editor-title {
+            width: 100%;
+            padding: 1rem;
+            font-size: 1.5rem;
+            font-weight: 600;
+            border: none;
+            border-bottom: 1px solid var(--border);
+            background: transparent;
+            transition: all 0.2s ease;
+        }
+
+        .editor-title:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .editor-content {
+            padding: 1rem;
+            min-height: 300px;
+            outline: none;
         }
 
         /* Buttons */
-        button {
-            cursor: pointer;
-        }
-
         .btn {
+            padding: 0.75rem 1.5rem;
+            border-radius: 12px;
+            font-weight: 500;
+            font-size: 0.9375rem;
+            transition: all 0.2s ease;
+            border: none;
+            cursor: pointer;
             display: inline-flex;
             align-items: center;
-            justify-content: center;
-            padding: 0.5rem 1rem;
-            border-radius: 0.375rem;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 200ms;
-            border: none;
+            gap: 0.5rem;
         }
 
         .btn-primary {
-            background-color: var(--primary-color);
+            background: var(--primary);
             color: white;
         }
 
         .btn-primary:hover {
-            background-color: var(--secondary-color);
-        }
-
-        .btn-secondary {
-            background-color: #E5E7EB;
-            color: #4B5563;
-        }
-
-        .btn-secondary:hover {
-            background-color: #D1D5DB;
-        }
-
-        .btn-danger {
-            background-color: #EF4444;
-            color: white;
-        }
-
-        .btn-danger:hover {
-            background-color: #DC2626;
+            background: var(--primary-dark);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-sm);
         }
 
         .btn-icon {
             padding: 0.5rem;
-            border-radius: 9999px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
+            border-radius: 10px;
+            color: var(--text-light);
+            background: transparent;
+            transition: all 0.2s ease;
         }
 
-        /* Note item in sidebar */
-        .note-item {
-            padding: 0.75rem;
-            border-radius: 0.375rem;
-            cursor: pointer;
-            transition: background-color 200ms;
+        .btn-icon:hover {
+            background: var(--primary-light);
+            color: var(--primary);
+            transform: translateY(-1px);
         }
 
-        .note-item:hover {
-            background-color: #F3F4F6;
-        }
-
-        .note-item.active {
-            background-color: #EFF6FF;
-            border-left: 3px solid var(--primary-color);
-        }
-
-        /* Todo items */
+        /* Todo Items */
         .todo-item {
             display: flex;
             align-items: center;
-            padding: 0.5rem;
-            border-radius: 0.375rem;
-            background-color: #F9FAFB;
+            padding: 0.75rem;
+            background: #f8fafc;
+            border-radius: 10px;
+            margin-bottom: 0.5rem;
+            transition: all 0.2s ease;
         }
 
-        .todo-item input[type="checkbox"] {
+        .todo-item:hover {
+            background: var(--surface);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .todo-checkbox {
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--border);
+            border-radius: 6px;
             margin-right: 0.75rem;
-        }
-
-        .todo-item.completed {
-            text-decoration: line-through;
-            color: #6B7280;
-        }
-
-        /* Image thumbnails */
-        .image-thumbnail {
+            cursor: pointer;
+            transition: all 0.2s ease;
             position: relative;
-            aspect-ratio: 1;
-            border-radius: 0.375rem;
-            overflow: hidden;
         }
 
-        .image-thumbnail img {
+        .todo-checkbox:checked {
+            background: var(--success);
+            border-color: var(--success);
+        }
+
+        .todo-checkbox:checked::after {
+            content: '✓';
+            position: absolute;
+            color: white;
+            font-size: 12px;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .todo-text {
+            flex: 1;
+            transition: all 0.2s ease;
+        }
+
+        .todo-item.completed .todo-text {
+            color: var(--text-light);
+            text-decoration: line-through;
+        }
+
+        /* Images Grid */
+        .images-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 1rem;
+            padding: 1rem;
+        }
+
+        .image-item {
+            position: relative;
+            border-radius: 12px;
+            overflow: hidden;
+            aspect-ratio: 1;
+            transition: all 0.2s ease;
+        }
+
+        .image-item:hover {
+            transform: scale(1.05);
+            box-shadow: var(--shadow);
+        }
+
+        .image-item img {
             width: 100%;
             height: 100%;
             object-fit: cover;
         }
 
-        .image-thumbnail .delete-btn {
+        .image-delete {
             position: absolute;
-            top: 0.25rem;
-            right: 0.25rem;
+            top: 0.5rem;
+            right: 0.5rem;
             padding: 0.25rem;
-            background-color: rgba(0, 0, 0, 0.5);
-            border-radius: 9999px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 6px;
             color: white;
-            cursor: pointer;
+            opacity: 0;
+            transition: all 0.2s ease;
         }
 
-        /* Admin panel styles */
-        .user-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 0.75rem;
-            background-color: #F9FAFB;
-            border-radius: 0.375rem;
+        .image-item:hover .image-delete {
+            opacity: 1;
         }
 
-        .user-item .actions {
-            display: flex;
-            gap: 0.5rem;
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-light);
         }
 
         /* Animations */
         @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
         .fade-in {
-            animation: fadeIn 200ms ease-in-out;
+            animation: fadeIn 0.3s ease forwards;
         }
 
-        /* Responsive adjustments */
+        /* Responsive */
         @media (max-width: 768px) {
-            aside {
-                width: 100%;
-                height: auto;
-                position: relative;
+            .app {
+                grid-template-columns: 1fr;
             }
 
-            main {
+            .sidebar {
+                display: none;
+            }
+
+            .main-content {
                 margin-left: 0;
-            }
-
-            .note-editor {
-                margin: 1rem;
-            }
-            
-            .grid-cols-4 {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
-            }
-        }
-
-        @media (max-width: 480px) {
-            .grid-cols-4 {
-                grid-template-columns: repeat(1, minmax(0, 1fr));
-            }
-            
-            .w-96 {
-                width: 100%;
             }
         }
     </style>
 </head>
-<body class="bg-gray-50">
-    <!-- Auth Container -->
-    <div id="auth-container" class="min-h-screen flex items-center justify-center">
-        <div class="bg-white p-8 rounded-lg shadow-md w-96">
-            <h1 class="text-2xl font-bold mb-6 text-center">Connexion</h1>
-            <form id="login-form" class="space-y-4">
-                <div>
-                    <label class="block text-sm font-medium mb-1">Nom d'utilisateur</label>
-                    <input type="text" id="username" class="w-full p-2 border rounded" required>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium mb-1">Mot de passe</label>
-                    <input type="password" id="password" class="w-full p-2 border rounded" required>
-                </div>
-                <button type="submit" class="btn btn-primary w-full">
-                    Se connecter
-                </button>
-            </form>
-        </div>
-    </div>
-
-    <!-- Main App Container -->
-    <div id="app-container" class="hidden min-h-screen">
-        <!-- Sidebar -->
+<body>
+    <div class="app">
         <aside class="sidebar">
-            <div class="p-4">
-                <div class="flex items-center justify-between mb-6">
-                    <h1 class="text-xl font-bold">Notes & Todos</h1>
-                    <button id="new-note-btn" class="btn-icon hover:bg-gray-100">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                    </button>
-                </div>
-                <div class="search-container relative mb-4">
-                    <input type="text" id="search-notes" placeholder="Rechercher..." 
-                           class="w-full pl-8 pr-3 py-2 border rounded bg-gray-50">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="absolute left-2 top-2.5 text-gray-400 w-4 h-4"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                </div>
-                <div id="notes-list" class="notes-list space-y-2">
-                    <!-- Notes will be dynamically inserted here -->
-                </div>
+            <div class="header">
+                <h1 class="app-title">Notes</h1>
+                <button class="btn-icon" id="new-note-btn">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="search-container">
+                <input type="text" class="search-input" placeholder="Rechercher...">
+                <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+            </div>
+
+            <div class="notes-list" id="notes-list">
+                <!-- Notes will be dynamically inserted here -->
             </div>
         </aside>
 
-        <!-- Main Content -->
         <main class="main-content">
-            <header class="main-header flex justify-between items-center mb-8">
-                <div class="note-actions flex items-center space-x-4">
-                    <button id="archive-note-btn" class="text-gray-600 hover:text-gray-900">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"></polyline><rect x="1" y="3" width="22" height="5"></rect><line x1="10" y1="12" x2="14" y2="12"></line></svg>
-                    </button>
-                    <button id="delete-note-btn" class="text-gray-600 hover:text-red-600">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
-                    </button>
-                </div>
-                <div class="user-controls flex items-center space-x-4">
-                    <span id="user-info" class="text-sm text-gray-600"></span>
-                    <button id="logout-btn" class="text-gray-600 hover:text-gray-900">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
-                    </button>
-                </div>
-            </header>
+            <div class="editor">
+                <input type="text" class="editor-title" placeholder="Titre de la note" id="note-title">
+                <div class="editor-content" contenteditable="true" id="note-content"></div>
 
-            <div id="note-editor" class="note-editor bg-white rounded-lg shadow-sm p-6 max-w-4xl mx-auto">
-                <!-- Note Title -->
-                <div class="note-title-container mb-4">
-                    <input type="text" id="note-title" placeholder="Titre" 
-                           class="w-full text-2xl font-bold border-none focus:outline-none">
-                </div>
-                
-                <!-- Note Content -->
-                <div class="note-content-container mb-4">
-                    <div id="note-content" contenteditable="true" 
-                         class="min-h-[200px] focus:outline-none"></div>
-                </div>
-                
-                <!-- Todos Section -->
-                <div class="todos-section border-t pt-4">
-                    <div class="flex items-center mb-4">
-                        <h3 class="font-medium">Todos</h3>
-                        <button id="add-todo-btn" class="ml-2 btn-icon hover:bg-gray-100">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                <div class="todos-section">
+                    <div class="header">
+                        <h2>Tâches</h2>
+                        <button class="btn-icon" id="add-todo-btn">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                            </svg>
                         </button>
                     </div>
-                    <div id="todos-list" class="space-y-2">
+                    <div id="todos-list">
                         <!-- Todos will be dynamically inserted here -->
                     </div>
                 </div>
 
-                <!-- Images Section -->
-                <div class="images-section border-t mt-4 pt-4">
-                    <div class="flex items-center mb-4">
-                        <h3 class="font-medium">Images</h3>
-                        <label for="image-upload" class="ml-2 btn-icon hover:bg-gray-100 cursor-pointer">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                <div class="images-section">
+                    <div class="header">
+                        <h2>Images</h2>
+                        <label class="btn-icon" for="image-upload">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                                <polyline points="21 15 16 10 5 21"></polyline>
+                            </svg>
                         </label>
-                        <input type="file" id="image-upload" class="hidden" accept="image/*">
+                        <input type="file" id="image-upload" hidden accept="image/*">
                     </div>
-                    <div id="images-list" class="grid grid-cols-4 gap-4">
+                    <div class="images-grid" id="images-list">
                         <!-- Images will be dynamically inserted here -->
                     </div>
                 </div>
             </div>
         </main>
-
-        <!-- Admin Panel -->
-        <div id="admin-panel" class="admin-panel hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-            <div class="bg-white rounded-lg p-6" style="width: 600px; max-width: 90vw;">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-xl font-bold">Gestion des utilisateurs</h2>
-                    <button id="close-admin-btn" class="text-gray-600 hover:text-gray-900">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                    </button>
-                </div>
-                <div class="mb-4">
-                    <button id="add-user-btn" class="btn btn-primary">
-                        Ajouter un utilisateur
-                    </button>
-                </div>
-                <div id="users-list" class="space-y-2">
-                    <!-- Users will be dynamically inserted here -->
-                </div>
-            </div>
-        </div>
     </div>
 
-    <!-- Scripts -->
     <script src="/js/auth.js"></script>
     <script src="/js/notes.js"></script>
     <script src="/js/admin.js"></script>
