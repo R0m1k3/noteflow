@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "build:css": "mkdir -p public/css/dist && tailwindcss -i ./src/globals.css -o ./public/css/dist/styles.css --minify"
+    "build:css": "mkdir -p public/css/dist && npx tailwindcss build -i ./src/globals.css -o ./public/css/dist/styles.css --minify"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.90.7",

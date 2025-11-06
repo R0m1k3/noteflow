@@ -12,11 +12,18 @@ RUN mkdir -p public/css/dist data public/uploads
 COPY package*.json ./
 RUN npm install
 
-# Copy application files
-COPY . .
+# Copy configuration files
+COPY postcss.config.js tailwind.config.js ./
 
-# Build CSS
-RUN npm run build:css
+# Copy source files
+COPY src ./src
+COPY public ./public
+
+# Build CSS with verbose output
+RUN NODE_ENV=production npx tailwindcss -i ./src/globals.css -o ./public/css/dist/styles.css --minify -v
+
+# Copy remaining files
+COPY . .
 
 # Set correct permissions
 RUN chown -R node:node .
