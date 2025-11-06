@@ -2,6 +2,12 @@ FROM node:20-alpine
 
 WORKDIR /home/node/app
 
+# Install build dependencies
+RUN apk add --no-cache python3 make g++
+
+# Create necessary directories
+RUN mkdir -p public/css/dist data public/uploads
+
 # Install dependencies first (better layer caching)
 COPY package*.json ./
 RUN npm install
@@ -12,9 +18,8 @@ COPY . .
 # Build CSS
 RUN npm run build:css
 
-# Create data and uploads directories
-RUN mkdir -p data public/uploads && \
-    chown -R node:node .
+# Set correct permissions
+RUN chown -R node:node .
 
 # Switch to non-root user
 USER node
