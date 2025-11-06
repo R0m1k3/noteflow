@@ -50,7 +50,7 @@ class NotesService {
     }
 
     async loadNotes() {
-        if (!window.auth.token) {
+        if (!window.auth || !window.auth.token) {
             console.log('Not authenticated, skipping notes loading');
             return;
         }
@@ -83,14 +83,16 @@ class NotesService {
         
         const filteredNotes = searchTerm 
             ? this.notes.filter(note => 
-                note.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (note.title && note.title.toLowerCase().includes(searchTerm.toLowerCase())) ||
                 (note.content && note.content.toLowerCase().includes(searchTerm.toLowerCase()))
               )
             : this.notes;
 
         filteredNotes.forEach(note => {
+            if (!note) return;
+            
             const noteElement = document.createElement('div');
-            noteElement.className = `note-item ${note.id === this.currentNote?.id ? 'active' : ''}`;
+            noteElement.className = `note-item ${note.id === (this.currentNote && this.currentNote.id) ? 'active' : ''}`;
             noteElement.innerHTML = `
                 <h3 class="font-medium">${note.title || 'Sans titre'}</h3>
                 <p class="text-sm text-gray-500 truncate">${note.content || ''}</p>
@@ -101,6 +103,8 @@ class NotesService {
     }
 
     selectNote(note) {
+        if (!note) return;
+        
         this.currentNote = note;
         if (this.noteTitle) this.noteTitle.value = note.title || '';
         if (this.noteContent) this.noteContent.innerHTML = note.content || '';
@@ -110,35 +114,47 @@ class NotesService {
     }
 
     renderTodos() {
-        if (!this.todosList || !this.currentNote || !this.currentNote.todos) return;
+        if (!this.todosList || !this.currentNote) return;
+        
+        const todos = this.currentNote.todos || [];
         
         this.todosList.innerHTML = '';
-        this.currentNote.todos.forEach((todo, index) => {
+        todos.forEach((todo, index) => {
+            if (!todo) return;
+            
             const todoElement = document.createElement('div');
             todoElement.className = `todo-item ${todo.completed ? 'completed' : ''}`;
             todoElement.innerHTML = `
                 <input type="checkbox" ${todo.completed ? 'checked' : ''}>
-                <span>${todo.text}</span>
+                <span>${todo.text || ''}</span>
                 <button class="ml-auto text-gray-400 hover:text-red-500">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                 </button>
             `;
             
             const checkbox = todoElement.querySelector('input');
-            checkbox.addEventListener('change', () => this.toggleTodo(index));
+            if (checkbox) {
+                checkbox.addEventListener('change', () => this.toggleTodo(index));
+            }
             
             const deleteBtn = todoElement.querySelector('button');
-            deleteBtn.addEventListener('click', () => this.deleteTodo(index));
+            if (deleteBtn) {
+                deleteBtn.addEventListener('click', () => this.deleteTodo(index));
+            }
             
             this.todosList.appendChild(todoElement);
         });
     }
 
     renderImages() {
-        if (!this.imagesList || !this.currentNote || !this.currentNote.images) return;
+        if (!this.imagesList || !this.currentNote) return;
+        
+        const images = this.currentNote.images || [];
         
         this.imagesList.innerHTML = '';
-        this.currentNote.images.forEach((image) => {
+        images.forEach((image, index) => {
+            if (!image || !image.filename) return;
+            
             const imageElement = document.createElement('div');
             imageElement.className = 'image-thumbnail';
             imageElement.innerHTML = `
@@ -149,13 +165,17 @@ class NotesService {
             `;
             
             const deleteBtn = imageElement.querySelector('button');
-            deleteBtn.addEventListener('click', () => this.deleteImage(image.id));
+            if (deleteBtn) {
+                deleteBtn.addEventListener('click', () => this.deleteImage(image.id));
+            }
             
             this.imagesList.appendChild(imageElement);
         });
     }
 
     async createNewNote() {
+        if (!window.auth || !window.auth.getHeaders) return;
+        
         try {
             const response = await fetch('/api/notes', {
                 method: 'POST',
@@ -168,33 +188,37 @@ class NotesService {
             });
             
             const newNote = await response.json();
-            this.notes.unshift(newNote);
-            this.renderNotesList();
-            this.selectNote(newNote);
+            if (newNote) {
+                this.notes.unshift(newNote);
+                this.renderNotesList();
+                this.selectNote(newNote);
+            }
         } catch (error) {
             console.error('Error creating note:', error);
         }
     }
 
     async autoSave() {
-        if (!this.currentNote) return;
+        if (!this.currentNote || !window.auth || !window.auth.getHeaders) return;
         
         clearTimeout(this.saveTimeout);
         this.saveTimeout = setTimeout(async () => {
             try {
+                if (!this.noteTitle || !this.noteContent) return;
+                
                 await fetch(`/api/notes/${this.currentNote.id}`, {
                     method: 'PUT',
                     headers: window.auth.getHeaders(),
                     body: JSON.stringify({
-                        title: this.noteTitle.value,
-                        content: this.noteContent.innerHTML,
-                        todos: this.currentNote.todos
+                        title: this.noteTitle.value || '',
+                        content: this.noteContent.innerHTML || '',
+                        todos: this.currentNote.todos || []
                     })
                 });
                 
                 // Update local note
-                this.currentNote.title = this.noteTitle.value;
-                this.currentNote.content = this.noteContent.innerHTML;
+                this.currentNote.title = this.noteTitle.value || '';
+                this.currentNote.content = this.noteContent.innerHTML || '';
                 this.renderNotesList();
             } catch (error) {
                 console.error('Error saving note:', error);
@@ -203,7 +227,7 @@ class NotesService {
     }
 
     async toggleArchiveNote() {
-        if (!this.currentNote) return;
+        if (!this.currentNote || !window.auth || !window.auth.getHeaders) return;
         
         try {
             await fetch(`/api/notes/${this.currentNote.id}`, {
@@ -223,7 +247,8 @@ class NotesService {
     }
 
     async deleteNote() {
-        if (!this.currentNote || !confirm('Êtes-vous sûr de vouloir supprimer cette note ?')) return;
+        if (!this.currentNote || !window.auth || !window.auth.getHeaders) return;
+        if (!confirm('Êtes-vous sûr de vouloir supprimer cette note ?')) return;
         
         try {
             await fetch(`/api/notes/${this.currentNote.id}`, {
@@ -232,7 +257,9 @@ class NotesService {
             });
             
             const index = this.notes.findIndex(n => n.id === this.currentNote.id);
-            this.notes.splice(index, 1);
+            if (index !== -1) {
+                this.notes.splice(index, 1);
+            }
             this.currentNote = null;
             this.renderNotesList();
             if (this.noteTitle) this.noteTitle.value = '';
@@ -261,6 +288,7 @@ class NotesService {
 
     async toggleTodo(index) {
         if (!this.currentNote || !this.currentNote.todos) return;
+        if (index < 0 || index >= this.currentNote.todos.length) return;
         
         this.currentNote.todos[index].completed = !this.currentNote.todos[index].completed;
         this.renderTodos();
@@ -269,6 +297,7 @@ class NotesService {
 
     async deleteTodo(index) {
         if (!this.currentNote || !this.currentNote.todos) return;
+        if (index < 0 || index >= this.currentNote.todos.length) return;
         
         this.currentNote.todos.splice(index, 1);
         this.renderTodos();
@@ -276,7 +305,8 @@ class NotesService {
     }
 
     async handleImageUpload(event) {
-        if (!this.currentNote || !event.target.files.length) return;
+        if (!this.currentNote || !event.target || !event.target.files || !event.target.files.length) return;
+        if (!window.auth || !window.auth.getHeaders) return;
         
         const formData = new FormData();
         formData.append('image', event.target.files[0]);
@@ -298,11 +328,15 @@ class NotesService {
             console.error('Error uploading image:', error);
         }
         
-        event.target.value = ''; // Reset input
+        if (event.target) {
+            event.target.value = ''; // Reset input
+        }
     }
 
     async deleteImage(imageId) {
-        if (!this.currentNote || !this.currentNote.images || !confirm('Supprimer cette image ?')) return;
+        if (!this.currentNote || !this.currentNote.images) return;
+        if (!window.auth || !window.auth.getHeaders) return;
+        if (!confirm('Supprimer cette image ?')) return;
         
         try {
             await fetch(`/api/notes/${this.currentNote.id}/images/${imageId}`, {
@@ -311,7 +345,9 @@ class NotesService {
             });
             
             const index = this.currentNote.images.findIndex(img => img.id === imageId);
-            this.currentNote.images.splice(index, 1);
+            if (index !== -1) {
+                this.currentNote.images.splice(index, 1);
+            }
             this.renderImages();
         } catch (error) {
             console.error('Error deleting image:', error);
@@ -319,7 +355,8 @@ class NotesService {
     }
 
     handleSearch(event) {
-        this.renderNotesList(event.target.value);
+        if (!event || !event.target) return;
+        this.renderNotesList(event.target.value || '');
     }
 }
 

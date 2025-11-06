@@ -43,7 +43,9 @@ class AuthService {
             localStorage.setItem('user', JSON.stringify(this.user));
 
             this.updateUI();
-            window.app.init(); // Initialize main app after login
+            if (window.app && typeof window.app.init === 'function') {
+                window.app.init(); // Initialize main app after login
+            }
         } catch (error) {
             alert(error.message);
         }
@@ -64,30 +66,32 @@ class AuthService {
         const adminPanel = document.getElementById('admin-panel');
 
         if (this.token && this.user) {
-            authContainer.classList.add('hidden');
-            appContainer.classList.remove('hidden');
-            this.userInfo.textContent = this.user.username;
+            if (authContainer) authContainer.classList.add('hidden');
+            if (appContainer) appContainer.classList.remove('hidden');
+            if (this.userInfo) this.userInfo.textContent = this.user.username;
             
             // Show admin panel button if user is admin
             if (this.user.is_admin) {
                 const adminBtnExists = document.querySelector('.admin-btn');
-                if (!adminBtnExists) {
+                if (!adminBtnExists && this.userInfo && this.userInfo.parentNode) {
                     const adminBtn = document.createElement('button');
                     adminBtn.className = 'admin-btn ml-4 text-sm text-gray-600 hover:text-gray-900';
                     adminBtn.textContent = 'Admin';
-                    adminBtn.onclick = () => adminPanel.classList.remove('hidden');
+                    adminBtn.onclick = () => {
+                        if (adminPanel) adminPanel.classList.remove('hidden');
+                    };
                     this.userInfo.parentNode.insertBefore(adminBtn, this.logoutBtn);
                 }
             }
         } else {
-            authContainer.classList.remove('hidden');
-            appContainer.classList.add('hidden');
+            if (authContainer) authContainer.classList.remove('hidden');
+            if (appContainer) appContainer.classList.add('hidden');
         }
     }
 
     getHeaders() {
         return {
-            'Authorization': `Bearer ${this.token}`,
+            'Authorization': `Bearer ${this.token || ''}`,
             'Content-Type': 'application/json'
         };
     }
