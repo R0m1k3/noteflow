@@ -9,6 +9,7 @@ import Index from "./pages/Index";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 import AuthService from "./services/AuthService";
+import "./globals.css";
 
 const queryClient = new QueryClient();
 
