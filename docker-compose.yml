@@ -4,12 +4,11 @@ services:
   notes-app:
     build: .
     container_name: notes-todo-app
-    user: "1000:1000"  # Utilise l'UID et GID standard pour le premier utilisateur
     ports:
       - "2222:2222"
     volumes:
-      - ./data:/home/node/app/data
-      - ./public/uploads:/home/node/app/public/uploads
+      - notes_data:/home/node/app/data
+      - notes_uploads:/home/node/app/public/uploads
     environment:
       - NODE_ENV=production
       - JWT_SECRET=changeme_in_production
@@ -17,6 +16,10 @@ services:
     restart: unless-stopped
     networks:
       - nginx_default
+
+volumes:
+  notes_data:
+  notes_uploads:
 
 networks:
   nginx_default:
