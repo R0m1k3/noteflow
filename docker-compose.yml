@@ -5,14 +5,14 @@ services:
     build: .
     container_name: notes-todo-app
     ports:
-      - "3000:3000"
+      - "2222:2222"
     volumes:
       - ./data:/app/data
       - ./public/uploads:/app/public/uploads
     environment:
       - NODE_ENV=production
       - JWT_SECRET=changeme_in_production
-      - PORT=3000
+      - PORT=2222
     restart: unless-stopped
     networks:
       - nginx_default
@@ -23,7 +23,7 @@ networks:
 
 # Nginx configuration example:
 # location /notes/ {
-#     proxy_pass http://notes-todo-app:3000/;
+#     proxy_pass http://notes-todo-app:2222/;
 #     proxy_http_version 1.1;
 #     proxy_set_header Upgrade $http_upgrade;
 #     proxy_set_header Connection 'upgrade';
