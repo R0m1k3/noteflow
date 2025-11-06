@@ -42,7 +42,15 @@ app.use(helmet({
 }));
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public'));
+
+// Serve static files with correct MIME types
+app.use(express.static('public', {
+    setHeaders: (res, path) => {
+        if (path.endsWith('.css')) {
+            res.setHeader('Content-Type', 'text/css');
+        }
+    }
+}));
 
 // Set JWT_SECRET environment variable if not set
 if (!process.env.JWT_SECRET) {
