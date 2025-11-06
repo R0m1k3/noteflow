@@ -1,22 +1,23 @@
-FROM node:20-alpine
+FROM node:18-alpine
 
-# Create app directory
 WORKDIR /app
 
-# Install app dependencies
+# Install dependencies
 COPY package*.json ./
 RUN npm install
 
-# Bundle app source
+# Copy app source
 COPY . .
 
-# Create uploads directory
-RUN mkdir -p public/uploads
+# Create necessary directories with correct permissions
+RUN mkdir -p /app/data /app/public/uploads && \
+    chown -R node:node /app/data /app/public/uploads
 
-# Create non-root user
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
-RUN chown -R appuser:appgroup /app
-USER appuser
+# Switch to non-root user
+USER node
 
-EXPOSE 3000
-CMD [ "node", "server.js" ]
+# Expose port
+EXPOSE 2222
+
+# Start the app
+CMD ["node", "server.js"]
