@@ -1,29 +1,21 @@
 FROM node:18-alpine
 
-WORKDIR /app
+# Switch to non-root user and set working directory
+USER node
+WORKDIR /home/node/app
 
-# Install dependencies
-COPY package*.json ./
+# Create necessary directories
+RUN mkdir -p /home/node/app/data /home/node/app/public/uploads
+
+# Copy package files with correct ownership
+COPY --chown=node:node package*.json ./
 RUN npm install
 
-# Copy entrypoint script first
-COPY docker-entrypoint.sh /app/
-RUN chmod +x /app/docker-entrypoint.sh
-
-# Copy app source
-COPY . .
-
-# Create directories and set permissions
-RUN mkdir -p /app/data /app/public/uploads && \
-    chown -R node:node /app && \
-    chmod -R 755 /app && \
-    chmod -R 777 /app/data /app/public/uploads
-
-# Switch to non-root user
-USER node
+# Copy application files with correct ownership
+COPY --chown=node:node . .
 
 # Expose port
 EXPOSE 2222
 
-# Use the entrypoint script
-ENTRYPOINT ["/app/docker-entrypoint.sh"]
+# Start the application
+CMD ["node", "server.js"]

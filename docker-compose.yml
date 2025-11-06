@@ -7,8 +7,8 @@ services:
     ports:
       - "2222:2222"
     volumes:
-      - ./data:/app/data
-      - ./public/uploads:/app/public/uploads
+      - ./data:/home/node/app/data
+      - ./public/uploads:/home/node/app/public/uploads
     environment:
       - NODE_ENV=production
       - JWT_SECRET=changeme_in_production
