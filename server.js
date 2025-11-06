@@ -3,7 +3,14 @@ const cors = require('cors');
 const helmet = require('helmet');
 const path = require('path');
 const winston = require('winston');
+const fs = require('fs');
 const { db } = require('./config/database');
+
+// Ensure uploads directory exists
+const uploadsDir = path.join(__dirname, 'public/uploads');
+if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+}
 
 // Configure logger
 const logger = winston.createLogger({
@@ -25,15 +32,23 @@ app.use(helmet({
     contentSecurityPolicy: {
         directives: {
             defaultSrc: ["'self'"],
-            scriptSrc: ["'self'", "'unsafe-inline'"],
-            styleSrc: ["'self'", "'unsafe-inline'"],
+            scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+            styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+            fontSrc: ["'self'", "https://fonts.gstatic.com"],
             imgSrc: ["'self'", "data:"],
+            connectSrc: ["'self'"]
         }
     }
 }));
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
+
+// Set JWT_SECRET environment variable if not set
+if (!process.env.JWT_SECRET) {
+    process.env.JWT_SECRET = 'default_development_secret';
+    logger.warn('JWT_SECRET not set, using default (insecure) value');
+}
 
 // Routes
 app.use('/api/auth', require('./routes/auth.routes'));

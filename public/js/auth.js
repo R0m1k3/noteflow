@@ -1,7 +1,7 @@
 class AuthService {
     constructor() {
         this.token = localStorage.getItem('token');
-        this.user = JSON.parse(localStorage.getItem('user'));
+        this.user = JSON.parse(localStorage.getItem('user') || 'null');
         this.loginForm = document.getElementById('login-form');
         this.logoutBtn = document.getElementById('logout-btn');
         this.userInfo = document.getElementById('user-info');
@@ -11,8 +11,12 @@ class AuthService {
     }
 
     setupEventListeners() {
-        this.loginForm.addEventListener('submit', (e) => this.handleLogin(e));
-        this.logoutBtn.addEventListener('click', () => this.handleLogout());
+        if (this.loginForm) {
+            this.loginForm.addEventListener('submit', (e) => this.handleLogin(e));
+        }
+        if (this.logoutBtn) {
+            this.logoutBtn.addEventListener('click', () => this.handleLogout());
+        }
     }
 
     async handleLogin(e) {
@@ -66,11 +70,14 @@ class AuthService {
             
             // Show admin panel button if user is admin
             if (this.user.is_admin) {
-                const adminBtn = document.createElement('button');
-                adminBtn.className = 'ml-4 text-sm text-gray-600 hover:text-gray-900';
-                adminBtn.textContent = 'Admin';
-                adminBtn.onclick = () => adminPanel.classList.remove('hidden');
-                this.userInfo.parentNode.insertBefore(adminBtn, this.logoutBtn);
+                const adminBtnExists = document.querySelector('.admin-btn');
+                if (!adminBtnExists) {
+                    const adminBtn = document.createElement('button');
+                    adminBtn.className = 'admin-btn ml-4 text-sm text-gray-600 hover:text-gray-900';
+                    adminBtn.textContent = 'Admin';
+                    adminBtn.onclick = () => adminPanel.classList.remove('hidden');
+                    this.userInfo.parentNode.insertBefore(adminBtn, this.logoutBtn);
+                }
             }
         } else {
             authContainer.classList.remove('hidden');

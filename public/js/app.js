@@ -10,7 +10,7 @@ class App {
         // Load initial data if authenticated
         if (this.auth.token) {
             this.notes.loadNotes();
-            if (this.auth.user.is_admin) {
+            if (this.auth.user && this.auth.user.is_admin) {
                 this.admin.loadUsers();
             }
         }
@@ -19,3 +19,8 @@ class App {
 
 // Initialize main app
 window.app = new App();
+
+// Initialize app when DOM is loaded
+document.addEventListener('DOMContentLoaded', () => {
+    window.app.init();
+});
