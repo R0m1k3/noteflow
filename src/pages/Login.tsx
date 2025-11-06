@@ -2,40 +2,26 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
-import { showError, showSuccess } from "@/utils/toast";
 import { MadeWithDyad } from "@/components/made-with-dyad";
+import AuthService from "@/services/AuthService";
+import { useNavigate } from "react-router-dom";
 
 const Login = () => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const navigate = useNavigate();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     
-    try {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Erreur de connexion");
-      }
-
-      localStorage.setItem("token", data.token);
-      localStorage.setItem("user", JSON.stringify(data.user));
-      showSuccess("Connexion réussie");
-      window.location.href = "/";
-    } catch (error) {
-      showError(error instanceof Error ? error.message : "Erreur de connexion");
-    } finally {
-      setIsLoading(false);
+    const success = await AuthService.login(username, password);
+    if (success) {
+      navigate("/");
     }
+    
+    setIsLoading(false);
   };
 
   return (

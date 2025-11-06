@@ -8,13 +8,14 @@ import { useEffect, useState } from "react";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
+import AuthService from "./services/AuthService";
 
 const queryClient = new QueryClient();
 
 // Protected Route Component
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const token = localStorage.getItem("token");
-  if (!token) {
+  const isAuthenticated = AuthService.isAuthenticated();
+  if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
   return <>{children}</>;
@@ -25,24 +26,12 @@ const App = () => {
 
   useEffect(() => {
     // Vérifier le token au démarrage
-    const token = localStorage.getItem("token");
-    if (token) {
-      // Optionnel: Vérifier la validité du token avec le serveur
-      fetch("/api/auth/me", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
-        .catch(() => {
-          localStorage.removeItem("token");
-          localStorage.removeItem("user");
-        })
-        .finally(() => {
-          setIsLoading(false);
-        });
-    } else {
+    const checkAuth = async () => {
+      const isValid = await AuthService.checkTokenValidity();
       setIsLoading(false);
-    }
+    };
+    
+    checkAuth();
   }, []);
 
   if (isLoading) {
