@@ -27,8 +27,13 @@ const App = () => {
   useEffect(() => {
     // Vérifier le token au démarrage
     const checkAuth = async () => {
-      const isValid = await AuthService.checkTokenValidity();
-      setIsLoading(false);
+      try {
+        await AuthService.checkTokenValidity();
+      } catch (error) {
+        console.error("Error checking token validity:", error);
+      } finally {
+        setIsLoading(false);
+      }
     };
     
     checkAuth();

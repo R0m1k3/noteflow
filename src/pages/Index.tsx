@@ -13,36 +13,44 @@ import AdminService from "@/services/AdminService";
 import NotesService, { Note } from "@/services/NotesService";
 import { useNavigate } from "react-router-dom";
 
+interface UserType {
+  id: number;
+  username: string;
+  is_admin: boolean;
+}
+
 const Index = () => {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<UserType | null>(null);
   const [showAdmin, setShowAdmin] = useState(false);
   const [activeTab, setActiveTab] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [notes, setNotes] = useState<Note[]>([]);
   const [currentNote, setCurrentNote] = useState<Note | null>(null);
-  const [users, setUsers] = useState<any[]>([]);
+  const [users, setUsers] = useState<UserType[]>([]);
   const navigate = useNavigate();
 
   useEffect(() => {
-    const user = AuthService.getUser();
-    if (user) {
-      setUser(user);
+    const userFromAuth = AuthService.getUser();
+    if (userFromAuth) {
+      setUser(userFromAuth);
       loadNotes();
+    } else {
+      navigate("/login");
     }
-  }, []);
+  }, [navigate]);
 
   const loadNotes = async () => {
-    const notes = await NotesService.getNotes();
-    setNotes(notes);
-    if (notes.length > 0) {
-      setCurrentNote(notes[0]);
+    const fetchedNotes = await NotesService.getNotes();
+    setNotes(fetchedNotes || []);
+    if (fetchedNotes && fetchedNotes.length > 0) {
+      setCurrentNote(fetchedNotes[0]);
     }
   };
 
   const loadUsers = async () => {
     if (user?.is_admin) {
-      const users = await AdminService.getUsers();
-      setUsers(users);
+      const fetchedUsers = await AdminService.getUsers();
+      setUsers(fetchedUsers || []);
     }
   };
 
@@ -62,7 +70,13 @@ const Index = () => {
   const handleUpdateNote = async (updatedFields: Partial<Note>) => {
     if (!currentNote) return;
     
-    const updatedNote = { ...currentNote, ...updatedFields };
+    const updatedNote = { 
+      ...currentNote, 
+      ...updatedFields,
+      todos: currentNote.todos || [],
+      images: currentNote.images || []
+    };
+    
     const success = await NotesService.updateNote(updatedNote);
     
     if (success) {
@@ -137,7 +151,7 @@ const Index = () => {
     (activeTab === "all" || (activeTab === "archived" && note.archived)) &&
     (searchQuery === "" || 
      note.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-     note.content.toLowerCase().includes(searchQuery.toLowerCase()))
+     (note.content && note.content.toLowerCase().includes(searchQuery.toLowerCase())))
   );
 
   return (
@@ -165,33 +179,35 @@ const Index = () => {
             </div>
             
             <div className="flex items-center gap-4">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="flex items-center gap-2">
-                    <Avatar className="h-8 w-8">
-                      <AvatarFallback className="bg-primary/10 text-primary">
-                        {user?.username?.charAt(0).toUpperCase() || "U"}
-                      </AvatarFallback>
-                    </Avatar>
-                    <span className="font-medium">{user?.username}</span>
-                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuLabel>Mon compte</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  {user?.is_admin && (
-                    <DropdownMenuItem onClick={() => setShowAdmin(true)}>
-                      <Settings className="mr-2 h-4 w-4" />
-                      <span>Administration</span>
+              {user && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" className="flex items-center gap-2">
+                      <Avatar className="h-8 w-8">
+                        <AvatarFallback className="bg-primary/10 text-primary">
+                          {user.username?.charAt(0).toUpperCase() || "U"}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="font-medium">{user.username}</span>
+                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuLabel>Mon compte</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {user.is_admin && (
+                      <DropdownMenuItem onClick={() => setShowAdmin(true)}>
+                        <Settings className="mr-2 h-4 w-4" />
+                        <span>Administration</span>
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuItem onClick={handleLogout}>
+                      <LogOut className="mr-2 h-4 w-4" />
+                      <span>Déconnexion</span>
                     </DropdownMenuItem>
-                  )}
-                  <DropdownMenuItem onClick={handleLogout}>
-                    <LogOut className="mr-2 h-4 w-4" />
-                    <span>Déconnexion</span>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             </div>
           </div>
         </div>
@@ -259,7 +275,7 @@ const Index = () => {
                   type="text"
                   placeholder="Titre de la note"
                   className="text-xl font-semibold border-none shadow-none text-2xl h-auto px-0 focus-visible:ring-0"
-                  value={currentNote.title}
+                  value={currentNote.title || ""}
                   onChange={(e) => handleUpdateNote({ title: e.target.value })}
                 />
                 
@@ -295,7 +311,7 @@ const Index = () => {
                         className="min-h-[500px] outline-none"
                         contentEditable
                         suppressContentEditableWarning
-                        dangerouslySetInnerHTML={{ __html: currentNote.content }}
+                        dangerouslySetInnerHTML={{ __html: currentNote.content || "" }}
                         onBlur={(e) => handleUpdateNote({ content: e.currentTarget.innerHTML })}
                       />
                     </CardContent>
@@ -331,7 +347,7 @@ const Index = () => {
                                 type="checkbox" 
                                 checked={todo.completed} 
                                 onChange={() => {
-                                  const updatedTodos = [...currentNote.todos];
+                                  const updatedTodos = [...(currentNote.todos || [])];
                                   updatedTodos[index].completed = !updatedTodos[index].completed;
                                   handleUpdateNote({ todos: updatedTodos });
                                 }}
@@ -345,7 +361,7 @@ const Index = () => {
                                 size="icon" 
                                 className="ml-auto h-6 w-6"
                                 onClick={() => {
-                                  const updatedTodos = [...currentNote.todos];
+                                  const updatedTodos = [...(currentNote.todos || [])];
                                   updatedTodos.splice(index, 1);
                                   handleUpdateNote({ todos: updatedTodos });
                                 }}
@@ -412,7 +428,7 @@ const Index = () => {
                                   if (image.id && currentNote.id) {
                                     const success = await NotesService.deleteImage(currentNote.id, image.id);
                                     if (success) {
-                                      const updatedImages = currentNote.images.filter((_, i) => i !== index);
+                                      const updatedImages = (currentNote.images || []).filter((_, i) => i !== index);
                                       handleUpdateNote({ images: updatedImages });
                                     }
                                   }

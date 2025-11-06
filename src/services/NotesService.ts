@@ -35,7 +35,14 @@ class NotesService {
         throw new Error("Erreur lors de la récupération des notes");
       }
       
-      return await response.json();
+      const notes = await response.json();
+      
+      // Ensure todos and images are always arrays
+      return notes.map((note: Note) => ({
+        ...note,
+        todos: note.todos || [],
+        images: note.images || []
+      }));
     } catch (error) {
       showError(error instanceof Error ? error.message : "Erreur serveur");
       return [];
@@ -55,7 +62,12 @@ class NotesService {
       }
       
       showSuccess("Note créée avec succès");
-      return await response.json();
+      const note = await response.json();
+      return {
+        ...note,
+        todos: note.todos || [],
+        images: note.images || []
+      };
     } catch (error) {
       showError(error instanceof Error ? error.message : "Erreur serveur");
       return null;
@@ -69,7 +81,11 @@ class NotesService {
       const response = await fetch(`/api/notes/${note.id}`, {
         method: "PUT",
         headers: AuthService.getHeaders(),
-        body: JSON.stringify(note)
+        body: JSON.stringify({
+          ...note,
+          todos: note.todos || [],
+          images: note.images || []
+        })
       });
       
       if (!response.ok) {

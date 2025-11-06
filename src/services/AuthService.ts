@@ -30,7 +30,7 @@ class AuthService {
 
   getHeaders(): Record<string, string> {
     return {
-      "Authorization": `Bearer ${this.token}`,
+      "Authorization": `Bearer ${this.token || ""}`,
       "Content-Type": "application/json"
     };
   }
@@ -51,8 +51,8 @@ class AuthService {
 
       this.token = data.token;
       this.user = data.user;
-      localStorage.setItem("token", this.token);
-      localStorage.setItem("user", JSON.stringify(this.user));
+      localStorage.setItem("token", this.token || "");
+      localStorage.setItem("user", JSON.stringify(this.user || {}));
       
       showSuccess("Connexion réussie");
       return true;
