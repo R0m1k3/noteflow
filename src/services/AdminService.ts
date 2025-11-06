@@ -19,7 +19,14 @@ class AdminService {
         throw new Error("Erreur lors de la récupération des utilisateurs");
       }
       
-      return await response.json();
+      const users = await response.json();
+      
+      // Vérifier que les données sont un tableau
+      if (!Array.isArray(users)) {
+        return [];
+      }
+      
+      return users;
     } catch (error) {
       showError(error instanceof Error ? error.message : "Erreur serveur");
       return [];
@@ -107,4 +114,6 @@ class AdminService {
   }
 }
 
-export default new AdminService();
+// Créer une instance unique
+const adminServiceInstance = new AdminService();
+export default adminServiceInstance;

@@ -28,7 +28,10 @@ const App = () => {
     // Vérifier le token au démarrage
     const checkAuth = async () => {
       try {
-        await AuthService.checkTokenValidity();
+        // Vérifier si le token est valide
+        if (AuthService.getToken()) {
+          await AuthService.checkTokenValidity();
+        }
       } catch (error) {
         console.error("Error checking token validity:", error);
       } finally {

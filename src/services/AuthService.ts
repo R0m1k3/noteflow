@@ -51,11 +51,16 @@ class AuthService {
 
       this.token = data.token;
       this.user = data.user;
-      localStorage.setItem("token", this.token || "");
-      localStorage.setItem("user", JSON.stringify(this.user || {}));
       
-      showSuccess("Connexion réussie");
-      return true;
+      // Vérifier que les données sont valides avant de les stocker
+      if (this.token && this.user) {
+        localStorage.setItem("token", this.token);
+        localStorage.setItem("user", JSON.stringify(this.user));
+        showSuccess("Connexion réussie");
+        return true;
+      } else {
+        throw new Error("Données d'authentification invalides");
+      }
     } catch (error) {
       showError(error instanceof Error ? error.message : "Erreur de connexion");
       return false;
@@ -91,4 +96,6 @@ class AuthService {
   }
 }
 
-export default new AuthService();
+// Créer une instance unique
+const authServiceInstance = new AuthService();
+export default authServiceInstance;

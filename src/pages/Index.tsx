@@ -12,6 +12,7 @@ import AuthService from "@/services/AuthService";
 import AdminService from "@/services/AdminService";
 import NotesService, { Note } from "@/services/NotesService";
 import { useNavigate } from "react-router-dom";
+import { showError } from "@/utils/toast";
 
 interface UserType {
   id: number;
@@ -30,27 +31,45 @@ const Index = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
+    // Récupérer l'utilisateur et vérifier l'authentification
     const userFromAuth = AuthService.getUser();
     if (userFromAuth) {
       setUser(userFromAuth);
-      loadNotes();
+      loadNotes().catch(err => {
+        console.error("Erreur lors du chargement des notes:", err);
+        showError("Erreur lors du chargement des notes");
+      });
     } else {
       navigate("/login");
     }
   }, [navigate]);
 
   const loadNotes = async () => {
-    const fetchedNotes = await NotesService.getNotes();
-    setNotes(fetchedNotes || []);
-    if (fetchedNotes && fetchedNotes.length > 0) {
-      setCurrentNote(fetchedNotes[0]);
+    try {
+      const fetchedNotes = await NotesService.getNotes();
+      if (Array.isArray(fetchedNotes)) {
+        setNotes(fetchedNotes);
+        if (fetchedNotes.length > 0) {
+          setCurrentNote(fetchedNotes[0]);
+        }
+      }
+    } catch (error) {
+      console.error("Erreur lors du chargement des notes:", error);
+      throw error;
     }
   };
 
   const loadUsers = async () => {
     if (user?.is_admin) {
-      const fetchedUsers = await AdminService.getUsers();
-      setUsers(fetchedUsers || []);
+      try {
+        const fetchedUsers = await AdminService.getUsers();
+        if (Array.isArray(fetchedUsers)) {
+          setUsers(fetchedUsers);
+        }
+      } catch (error) {
+        console.error("Erreur lors du chargement des utilisateurs:", error);
+        showError("Erreur lors du chargement des utilisateurs");
+      }
     }
   };
 
@@ -60,28 +79,38 @@ const Index = () => {
   };
 
   const handleCreateNote = async () => {
-    const newNote = await NotesService.createNote("Nouvelle note");
-    if (newNote) {
-      setNotes([newNote, ...notes]);
-      setCurrentNote(newNote);
+    try {
+      const newNote = await NotesService.createNote("Nouvelle note");
+      if (newNote) {
+        setNotes([newNote, ...notes]);
+        setCurrentNote(newNote);
+      }
+    } catch (error) {
+      console.error("Erreur lors de la création de la note:", error);
+      showError("Erreur lors de la création de la note");
     }
   };
 
   const handleUpdateNote = async (updatedFields: Partial<Note>) => {
     if (!currentNote) return;
     
-    const updatedNote = { 
-      ...currentNote, 
-      ...updatedFields,
-      todos: currentNote.todos || [],
-      images: currentNote.images || []
-    };
-    
-    const success = await NotesService.updateNote(updatedNote);
-    
-    if (success) {
-      setCurrentNote(updatedNote);
-      setNotes(notes.map(note => note.id === updatedNote.id ? updatedNote : note));
+    try {
+      const updatedNote = { 
+        ...currentNote, 
+        ...updatedFields,
+        todos: currentNote.todos || [],
+        images: currentNote.images || []
+      };
+      
+      const success = await NotesService.updateNote(updatedNote);
+      
+      if (success) {
+        setCurrentNote(updatedNote);
+        setNotes(notes.map(note => note.id === updatedNote.id ? updatedNote : note));
+      }
+    } catch (error) {
+      console.error("Erreur lors de la mise à jour de la note:", error);
+      showError("Erreur lors de la mise à jour de la note");
     }
   };
 
@@ -89,12 +118,17 @@ const Index = () => {
     if (!currentNote?.id) return;
     
     if (window.confirm("Êtes-vous sûr de vouloir supprimer cette note ?")) {
-      const success = await NotesService.deleteNote(currentNote.id);
-      
-      if (success) {
-        const updatedNotes = notes.filter(note => note.id !== currentNote.id);
-        setNotes(updatedNotes);
-        setCurrentNote(updatedNotes.length > 0 ? updatedNotes[0] : null);
+      try {
+        const success = await NotesService.deleteNote(currentNote.id);
+        
+        if (success) {
+          const updatedNotes = notes.filter(note => note.id !== currentNote.id);
+          setNotes(updatedNotes);
+          setCurrentNote(updatedNotes.length > 0 ? updatedNotes[0] : null);
+        }
+      } catch (error) {
+        console.error("Erreur lors de la suppression de la note:", error);
+        showError("Erreur lors de la suppression de la note");
       }
     }
   };
@@ -108,9 +142,14 @@ const Index = () => {
 
     const isAdmin = window.confirm("Donner les droits administrateur ?");
     
-    const newUser = await AdminService.createUser(username, password, isAdmin);
-    if (newUser) {
-      loadUsers();
+    try {
+      const newUser = await AdminService.createUser(username, password, isAdmin);
+      if (newUser) {
+        loadUsers();
+      }
+    } catch (error) {
+      console.error("Erreur lors de la création de l'utilisateur:", error);
+      showError("Erreur lors de la création de l'utilisateur");
     }
   };
 
@@ -118,24 +157,39 @@ const Index = () => {
     const password = prompt("Nouveau mot de passe:");
     if (!password) return;
     
-    const success = await AdminService.updateUserPassword(userId, password);
-    if (success) {
-      loadUsers();
+    try {
+      const success = await AdminService.updateUserPassword(userId, password);
+      if (success) {
+        loadUsers();
+      }
+    } catch (error) {
+      console.error("Erreur lors de la modification du mot de passe:", error);
+      showError("Erreur lors de la modification du mot de passe");
     }
   };
 
   const handleToggleAdmin = async (userId: number, currentStatus: boolean) => {
-    const success = await AdminService.toggleAdminStatus(userId, currentStatus);
-    if (success) {
-      loadUsers();
+    try {
+      const success = await AdminService.toggleAdminStatus(userId, currentStatus);
+      if (success) {
+        loadUsers();
+      }
+    } catch (error) {
+      console.error("Erreur lors de la modification des droits:", error);
+      showError("Erreur lors de la modification des droits");
     }
   };
 
   const handleDeleteUser = async (userId: number) => {
     if (window.confirm("Êtes-vous sûr de vouloir supprimer cet utilisateur ?")) {
-      const success = await AdminService.deleteUser(userId);
-      if (success) {
-        loadUsers();
+      try {
+        const success = await AdminService.deleteUser(userId);
+        if (success) {
+          loadUsers();
+        }
+      } catch (error) {
+        console.error("Erreur lors de la suppression de l'utilisateur:", error);
+        showError("Erreur lors de la suppression de l'utilisateur");
       }
     }
   };
@@ -150,7 +204,7 @@ const Index = () => {
   const filteredNotes = notes.filter(note => 
     (activeTab === "all" || (activeTab === "archived" && note.archived)) &&
     (searchQuery === "" || 
-     note.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+     (note.title && note.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
      (note.content && note.content.toLowerCase().includes(searchQuery.toLowerCase())))
   );
 
@@ -185,7 +239,7 @@ const Index = () => {
                     <Button variant="ghost" className="flex items-center gap-2">
                       <Avatar className="h-8 w-8">
                         <AvatarFallback className="bg-primary/10 text-primary">
-                          {user.username?.charAt(0).toUpperCase() || "U"}
+                          {user.username ? user.username.charAt(0).toUpperCase() : "U"}
                         </AvatarFallback>
                       </Avatar>
                       <span className="font-medium">{user.username}</span>
@@ -399,12 +453,18 @@ const Index = () => {
                             className="hidden"
                             onChange={async (e) => {
                               if (e.target.files && e.target.files[0] && currentNote.id) {
-                                const image = await NotesService.uploadImage(currentNote.id, e.target.files[0]);
-                                if (image) {
-                                  const updatedImages = [...(currentNote.images || []), image];
-                                  handleUpdateNote({ images: updatedImages });
+                                try {
+                                  const image = await NotesService.uploadImage(currentNote.id, e.target.files[0]);
+                                  if (image) {
+                                    const updatedImages = [...(currentNote.images || []), image];
+                                    handleUpdateNote({ images: updatedImages });
+                                  }
+                                } catch (error) {
+                                  console.error("Erreur lors de l'upload de l'image:", error);
+                                  showError("Erreur lors de l'upload de l'image");
+                                } finally {
+                                  e.target.value = '';
                                 }
-                                e.target.value = '';
                               }
                             }}
                           />
@@ -426,10 +486,15 @@ const Index = () => {
                                 className="absolute top-1 right-1 h-6 w-6 rounded-full"
                                 onClick={async () => {
                                   if (image.id && currentNote.id) {
-                                    const success = await NotesService.deleteImage(currentNote.id, image.id);
-                                    if (success) {
-                                      const updatedImages = (currentNote.images || []).filter((_, i) => i !== index);
-                                      handleUpdateNote({ images: updatedImages });
+                                    try {
+                                      const success = await NotesService.deleteImage(currentNote.id, image.id);
+                                      if (success) {
+                                        const updatedImages = (currentNote.images || []).filter((_, i) => i !== index);
+                                        handleUpdateNote({ images: updatedImages });
+                                      }
+                                    } catch (error) {
+                                      console.error("Erreur lors de la suppression de l'image:", error);
+                                      showError("Erreur lors de la suppression de l'image");
                                     }
                                   }
                                 }}
@@ -495,7 +560,7 @@ const Index = () => {
                       <CardContent className="p-4 flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           <Avatar>
-                            <AvatarFallback>{user.username.charAt(0).toUpperCase()}</AvatarFallback>
+                            <AvatarFallback>{user.username ? user.username.charAt(0).toUpperCase() : "U"}</AvatarFallback>
                           </Avatar>
                           <div>
                             <p className="font-medium">{user.username}</p>
