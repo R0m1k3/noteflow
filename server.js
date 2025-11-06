@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const path = require('path');
-const { logger } = require('./config/database');
+const { db, logger } = require('./config/database');
 
 // Create Express app
 const app = express();
