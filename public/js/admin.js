@@ -7,6 +7,7 @@ class AdminService {
         this.closeAdminBtn = document.getElementById('close-admin-btn');
         this.addUserBtn = document.getElementById('add-user-btn');
         this.usersList = document.getElementById('users-list');
+        this.adminBtn = document.getElementById('admin-btn');
 
         if (this.adminPanel && this.closeAdminBtn && this.addUserBtn && this.usersList) {
             this.setupEventListeners();
@@ -19,6 +20,13 @@ class AdminService {
         }
         if (this.addUserBtn) {
             this.addUserBtn.addEventListener('click', () => this.showAddUserForm());
+        }
+        if (this.adminBtn) {
+            this.adminBtn.addEventListener('click', () => {
+                if (this.adminPanel) {
+                    this.adminPanel.classList.remove('hidden');
+                }
+            });
         }
     }
 

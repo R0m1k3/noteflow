@@ -5,6 +5,7 @@ class AuthService {
         this.loginForm = document.getElementById('login-form');
         this.logoutBtn = document.getElementById('logout-btn');
         this.userInfo = document.getElementById('user-info');
+        this.adminPanel = document.getElementById('admin-panel');
         
         this.setupEventListeners();
         this.updateUI();
@@ -63,7 +64,11 @@ class AuthService {
     updateUI() {
         const authContainer = document.getElementById('auth-container');
         const appContainer = document.getElementById('app-container');
-        const adminPanel = document.getElementById('admin-panel');
+        
+        // S'assurer que le panneau d'administration est caché au démarrage
+        if (this.adminPanel) {
+            this.adminPanel.classList.add('hidden');
+        }
 
         if (this.token && this.user) {
             if (authContainer) authContainer.classList.add('hidden');
@@ -78,7 +83,7 @@ class AuthService {
                     adminBtn.className = 'admin-btn ml-4 text-sm text-gray-600 hover:text-gray-900';
                     adminBtn.textContent = 'Admin';
                     adminBtn.onclick = () => {
-                        if (adminPanel) adminPanel.classList.remove('hidden');
+                        if (this.adminPanel) this.adminPanel.classList.remove('hidden');
                     };
                     this.userInfo.parentNode.insertBefore(adminBtn, this.logoutBtn);
                 }
