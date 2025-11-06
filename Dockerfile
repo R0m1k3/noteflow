@@ -1,21 +1,27 @@
-FROM node:18-alpine
+FROM node:20-alpine
 
-WORKDIR /app
+WORKDIR /home/node/app
 
-# Install build dependencies
-RUN apk add --no-cache python3 make g++
-
-# Copy package files
+# Install dependencies first (better layer caching)
 COPY package*.json ./
-
-# Install dependencies
 RUN npm install
 
-# Copy source code
+# Copy application files
 COPY . .
 
 # Build CSS
 RUN npm run build:css
+
+# Create data and uploads directories
+RUN mkdir -p data public/uploads && \
+    chown -R node:node .
+
+# Switch to non-root user
+USER node
+
+# Set environment variables
+ENV NODE_ENV=production \
+    PORT=2222
 
 # Expose port
 EXPOSE 2222
