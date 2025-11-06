@@ -1,0 +1,90 @@
+class AuthService {
+    constructor() {
+        this.token = localStorage.getItem('token');
+        this.user = JSON.parse(localStorage.getItem('user'));
+        this.loginForm = document.getElementById('login-form');
+        this.logoutBtn = document.getElementById('logout-btn');
+        this.userInfo = document.getElementById('user-info');
+        
+        this.setupEventListeners();
+        this.updateUI();
+    }
+
+    setupEventListeners() {
+        this.loginForm.addEventListener('submit', (e) => this.handleLogin(e));
+        this.logoutBtn.addEventListener('click', () => this.handleLogout());
+    }
+
+    async handleLogin(e) {
+        e.preventDefault();
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+
+        try {
+            const response = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.message || 'Erreur de connexion');
+            }
+
+            this.token = data.token;
+            this.user = data.user;
+            localStorage.setItem('token', this.token);
+            localStorage.setItem('user', JSON.stringify(this.user));
+
+            this.updateUI();
+            window.app.init(); // Initialize main app after login
+        } catch (error) {
+            alert(error.message);
+        }
+    }
+
+    handleLogout() {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        this.token = null;
+        this.user = null;
+        this.updateUI();
+        window.location.reload();
+    }
+
+    updateUI() {
+        const authContainer = document.getElementById('auth-container');
+        const appContainer = document.getElementById('app-container');
+        const adminPanel = document.getElementById('admin-panel');
+
+        if (this.token && this.user) {
+            authContainer.classList.add('hidden');
+            appContainer.classList.remove('hidden');
+            this.userInfo.textContent = this.user.username;
+            
+            // Show admin panel button if user is admin
+            if (this.user.is_admin) {
+                const adminBtn = document.createElement('button');
+                adminBtn.className = 'ml-4 text-sm text-gray-600 hover:text-gray-900';
+                adminBtn.textContent = 'Admin';
+                adminBtn.onclick = () => adminPanel.classList.remove('hidden');
+                this.userInfo.parentNode.insertBefore(adminBtn, this.logoutBtn);
+            }
+        } else {
+            authContainer.classList.remove('hidden');
+            appContainer.classList.add('hidden');
+        }
+    }
+
+    getHeaders() {
+        return {
+            'Authorization': `Bearer ${this.token}`,
+            'Content-Type': 'application/json'
+        };
+    }
+}
+
+// Initialize auth service
+window.auth = new AuthService();
