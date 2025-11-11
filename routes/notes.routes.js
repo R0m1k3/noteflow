@@ -58,7 +58,7 @@ router.get('/', async (req, res) => {
       ORDER BY n.updated_at DESC
     `, [req.user.id, archivedFilter]);
 
-    // Charger les todos pour chaque note
+    // Charger les todos et fichiers pour chaque note
     for (const note of notes) {
       const todos = await getAll(`
         SELECT id, text, completed, position
@@ -67,6 +67,15 @@ router.get('/', async (req, res) => {
         ORDER BY position ASC, id ASC
       `, [note.id]);
       note.todos = todos || [];
+
+      const files = await getAll(`
+        SELECT id, filename, original_name, file_size, mime_type, created_at
+        FROM note_files
+        WHERE note_id = ?
+        ORDER BY created_at DESC
+      `, [note.id]);
+      note.files = files || [];
+      note.files_count = files?.length || 0;
     }
 
     res.json(notes || []);
@@ -477,6 +486,172 @@ const searchNotes = async (req, res) => {
     res.status(500).json({ error: 'Erreur serveur' });
   }
 };
+
+// ==================== FILE ATTACHMENTS ====================
+
+// Configuration multer pour tous types de fichiers
+const fileStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const filesDir = path.join(__dirname, '../public/uploads/files');
+    // Créer le dossier s'il n'existe pas
+    if (!fs.existsSync(filesDir)) {
+      fs.mkdirSync(filesDir, { recursive: true });
+    }
+    cb(null, filesDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueName = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${file.originalname}`;
+    cb(null, uniqueName);
+  }
+});
+
+const fileUpload = multer({
+  storage: fileStorage,
+  limits: { fileSize: parseInt(process.env.MAX_FILE_SIZE) || 10 * 1024 * 1024 } // 10MB
+});
+
+/**
+ * POST /api/notes/:id/files
+ * Ajouter un fichier à une note
+ */
+router.post('/:id/files', fileUpload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'Aucun fichier fourni' });
+    }
+
+    // Vérifier que la note appartient à l'utilisateur
+    const note = await getOne('SELECT id FROM notes WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+    if (!note) {
+      // Supprimer le fichier uploadé
+      fs.unlinkSync(req.file.path);
+      return res.status(404).json({ error: 'Note non trouvée' });
+    }
+
+    // Enregistrer le fichier dans la base de données
+    const result = await runQuery(`
+      INSERT INTO note_files (note_id, filename, original_name, file_size, mime_type)
+      VALUES (?, ?, ?, ?, ?)
+    `, [req.params.id, req.file.filename, req.file.originalname, req.file.size, req.file.mimetype]);
+
+    // Mettre à jour la date de modification de la note
+    await runQuery('UPDATE notes SET updated_at = CURRENT_TIMESTAMP WHERE id = ?', [req.params.id]);
+
+    logger.info(`Fichier ajouté à la note ${req.params.id}: ${req.file.originalname}`);
+
+    res.json({
+      message: 'Fichier ajouté avec succès',
+      file: {
+        id: result.id,
+        filename: req.file.filename,
+        original_name: req.file.originalname,
+        file_size: req.file.size,
+        mime_type: req.file.mimetype
+      }
+    });
+  } catch (error) {
+    logger.error('Erreur lors de l\'ajout du fichier:', error);
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+/**
+ * GET /api/notes/:id/files
+ * Liste les fichiers d'une note
+ */
+router.get('/:id/files', async (req, res) => {
+  try {
+    // Vérifier que la note appartient à l'utilisateur
+    const note = await getOne('SELECT id FROM notes WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+    if (!note) {
+      return res.status(404).json({ error: 'Note non trouvée' });
+    }
+
+    const files = await getAll(`
+      SELECT id, filename, original_name, file_size, mime_type, created_at
+      FROM note_files
+      WHERE note_id = ?
+      ORDER BY created_at DESC
+    `, [req.params.id]);
+
+    res.json(files);
+  } catch (error) {
+    logger.error('Erreur lors de la récupération des fichiers:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+/**
+ * GET /api/notes/files/:fileId/download
+ * Télécharger un fichier
+ */
+router.get('/files/:fileId/download', async (req, res) => {
+  try {
+    // Vérifier que le fichier appartient à une note de l'utilisateur
+    const file = await getOne(`
+      SELECT nf.id, nf.filename, nf.original_name, nf.mime_type
+      FROM note_files nf
+      JOIN notes n ON nf.note_id = n.id
+      WHERE nf.id = ? AND n.user_id = ?
+    `, [req.params.fileId, req.user.id]);
+
+    if (!file) {
+      return res.status(404).json({ error: 'Fichier non trouvé' });
+    }
+
+    const filePath = path.join(__dirname, '../public/uploads/files', file.filename);
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'Fichier physique non trouvé' });
+    }
+
+    res.download(filePath, file.original_name);
+  } catch (error) {
+    logger.error('Erreur lors du téléchargement du fichier:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+/**
+ * DELETE /api/notes/files/:fileId
+ * Supprimer un fichier
+ */
+router.delete('/files/:fileId', async (req, res) => {
+  try {
+    // Vérifier que le fichier appartient à une note de l'utilisateur
+    const file = await getOne(`
+      SELECT nf.id, nf.note_id, nf.filename
+      FROM note_files nf
+      JOIN notes n ON nf.note_id = n.id
+      WHERE nf.id = ? AND n.user_id = ?
+    `, [req.params.fileId, req.user.id]);
+
+    if (!file) {
+      return res.status(404).json({ error: 'Fichier non trouvé' });
+    }
+
+    // Supprimer le fichier physique
+    const filePath = path.join(__dirname, '../public/uploads/files', file.filename);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+
+    // Supprimer de la base de données
+    await runQuery('DELETE FROM note_files WHERE id = ?', [req.params.fileId]);
+
+    // Mettre à jour la date de modification de la note
+    await runQuery('UPDATE notes SET updated_at = CURRENT_TIMESTAMP WHERE id = ?', [file.note_id]);
+
+    logger.info(`Fichier supprimé: ${file.filename}`);
+
+    res.json({ message: 'Fichier supprimé avec succès' });
+  } catch (error) {
+    logger.error('Erreur lors de la suppression du fichier:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
 
 module.exports = router;
 module.exports.searchNotes = searchNotes;
