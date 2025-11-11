@@ -173,14 +173,13 @@ router.get('/articles', async (req, res) => {
 
 /**
  * POST /api/rss/summarize
- * Générer un résumé des 5 derniers articles avec OpenRouter
+ * Générer un résumé PAR ARTICLE (100 mots max) avec lien
  */
-router.post('/summarize', requireAdmin, async (req, res) => {
+router.post('/summarize', async (req, res) => {
   try {
     // Récupérer les paramètres
     const apiKey = await getOne('SELECT value FROM settings WHERE key = ?', ['openrouter_api_key']);
     const model = await getOne('SELECT value FROM settings WHERE key = ?', ['openrouter_model']);
-    const prompt = await getOne('SELECT value FROM settings WHERE key = ?', ['rss_summary_prompt']);
 
     if (!apiKey || !apiKey.value) {
       return res.status(400).json({ error: 'Clé API OpenRouter non configurée' });
@@ -189,10 +188,11 @@ router.post('/summarize', requireAdmin, async (req, res) => {
     // Récupérer les 5 derniers articles
     const articles = await getAll(`
       SELECT
-        a.title, a.description, a.link, a.pub_date,
-        f.title as feed_title
+        a.id, a.title, a.description, a.link, a.pub_date, a.content,
+        COALESCE(f.title, f.url) as feed_title
       FROM rss_articles a
-      JOIN rss_feeds f ON a.feed_id = f.id
+      LEFT JOIN rss_feeds f ON a.feed_id = f.id
+      WHERE a.pub_date IS NOT NULL
       ORDER BY a.pub_date DESC
       LIMIT 5
     `);
@@ -201,72 +201,85 @@ router.post('/summarize', requireAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Aucun article à résumer' });
     }
 
-    // Construire le prompt
-    const defaultPrompt = prompt?.value || `Tu es un assistant spécialisé dans la synthèse d'actualités. Analyse les articles suivants et crée un résumé structuré et informatif.
-
-Pour chaque article, identifie:
-- Le sujet principal
-- Les points clés
-- L'importance de l'information
-
-Ensuite, génère un résumé global qui:
-1. Regroupe les thèmes communs
-2. Hiérarchise les informations par importance
-3. Présente une vue d'ensemble claire et concise
-4. Utilise un style professionnel mais accessible
-
-Format de sortie en Markdown avec des sections claires.`;
-
-    const articlesText = articles.map((a, i) =>
-      `## Article ${i + 1}: ${a.title}\n**Source**: ${a.feed_title}\n**Date**: ${new Date(a.pub_date).toLocaleDateString('fr-FR')}\n**Description**: ${a.description}\n**Lien**: ${a.link}\n`
-    ).join('\n---\n');
-
-    const fullPrompt = `${defaultPrompt}\n\n# Articles à résumer:\n\n${articlesText}`;
-
-    // Appeler OpenRouter
+    // Générer un résumé pour CHAQUE article (en parallèle)
     const selectedModel = model?.value || 'openai/gpt-3.5-turbo';
+    logger.info(`Génération de ${articles.length} résumés avec ${selectedModel}...`);
 
-    logger.info(`Génération du résumé avec le modèle ${selectedModel}...`);
+    const summaryPromises = articles.map(async (article) => {
+      const prompt = `Résume cet article en maximum 100 mots. Sois concis et informatif.
 
-    const response = await axios.post(
-      'https://openrouter.ai/api/v1/chat/completions',
-      {
-        model: selectedModel,
-        messages: [
+Titre: ${article.title}
+Source: ${article.feed_title}
+Description: ${article.description || ''}
+${article.content ? `Contenu: ${article.content.substring(0, 1000)}` : ''}
+
+Résumé (100 mots max):`;
+
+      try {
+        const response = await axios.post(
+          'https://openrouter.ai/api/v1/chat/completions',
           {
-            role: 'user',
-            content: fullPrompt
+            model: selectedModel,
+            messages: [
+              {
+                role: 'user',
+                content: prompt
+              }
+            ],
+            max_tokens: 200
+          },
+          {
+            headers: {
+              'Authorization': `Bearer ${apiKey.value}`,
+              'HTTP-Referer': 'https://noteflow.app',
+              'X-Title': 'NoteFlow RSS Summarizer',
+              'Content-Type': 'application/json'
+            },
+            timeout: 30000
           }
-        ]
-      },
-      {
-        headers: {
-          'Authorization': `Bearer ${apiKey.value}`,
-          'HTTP-Referer': 'https://noteflow.app',
-          'X-Title': 'NoteFlow RSS Summarizer',
-          'Content-Type': 'application/json'
-        },
-        timeout: 60000
+        );
+
+        const summary = response.data.choices[0].message.content;
+
+        // Sauvegarder le résumé individuel
+        await runQuery(
+          'INSERT INTO rss_summaries (summary, model, articles_count, created_at) VALUES (?, ?, ?, datetime("now"))',
+          [`**${article.title}**\n\n${summary}\n\n🔗 [Lire l'article](${article.link})`, selectedModel, 1]
+        );
+
+        return {
+          article_id: article.id,
+          title: article.title,
+          link: article.link,
+          feed_title: article.feed_title,
+          summary: summary,
+          pub_date: article.pub_date
+        };
+      } catch (err) {
+        logger.error(`Erreur résumé article "${article.title}":`, err.message);
+        return {
+          article_id: article.id,
+          title: article.title,
+          link: article.link,
+          feed_title: article.feed_title,
+          summary: article.description || 'Résumé non disponible',
+          pub_date: article.pub_date,
+          error: true
+        };
       }
-    );
+    });
 
-    const summary = response.data.choices[0].message.content;
+    const summaries = await Promise.all(summaryPromises);
 
-    // Sauvegarder le résumé en base de données
-    await runQuery(
-      'INSERT INTO rss_summaries (summary, model, articles_count) VALUES (?, ?, ?)',
-      [summary, selectedModel, articles.length]
-    );
-
-    logger.info('Résumé généré et sauvegardé avec succès');
+    logger.info(`${summaries.length} résumés générés avec succès`);
 
     res.json({
-      summary,
+      summaries,
       model: selectedModel,
       articles_count: articles.length
     });
   } catch (error) {
-    logger.error('Erreur lors de la génération du résumé:', error);
+    logger.error('Erreur lors de la génération des résumés:', error);
 
     if (error.response) {
       logger.error('Réponse OpenRouter:', error.response.data);

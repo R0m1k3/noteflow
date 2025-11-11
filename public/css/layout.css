@@ -551,6 +551,49 @@ body {
   font-style: italic;
 }
 
+.rss-summary-content a.rss-link {
+  color: var(--color-accent);
+  text-decoration: none;
+  font-weight: var(--font-weight-medium);
+  transition: all var(--transition-fast);
+  border-bottom: 1px solid transparent;
+}
+
+.rss-summary-content a.rss-link:hover {
+  border-bottom-color: var(--color-accent);
+  opacity: 0.8;
+}
+
+/* Nouveau style pour résumés par article */
+.rss-summary-article {
+  padding: var(--spacing-md);
+  background: var(--color-background);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  margin-bottom: var(--spacing-md);
+  transition: all var(--transition-fast);
+}
+
+.rss-summary-article:hover {
+  border-color: var(--color-accent);
+  box-shadow: var(--shadow-sm);
+}
+
+.rss-summary-article .rss-summary-content {
+  font-size: var(--font-size-sm);
+  line-height: 1.6;
+}
+
+.rss-summary-article .rss-summary-meta {
+  margin-top: var(--spacing-sm);
+  padding-top: var(--spacing-sm);
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  gap: var(--spacing-md);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+
 /* Responsive */
 @media (max-width: 1200px) {
   .content-container {

@@ -1569,18 +1569,37 @@ function renderRssSummaries(summaries) {
     return;
   }
 
-  container.innerHTML = summaries.map(summary => `
-    <div class="rss-summary">
-      <div class="rss-summary-header">
-        <div class="rss-summary-title">📰 Résumé ${new Date(summary.created_at).toLocaleDateString('fr-FR')}</div>
-        <div class="rss-summary-meta">
-          <span>${summary.articles_count} articles</span>
-          ${summary.model ? `<span>${escapeHtml(summary.model.split('/')[1] || summary.model)}</span>` : ''}
+  // Nouvelle structure : afficher les résumés PAR ARTICLE avec titre + résumé + lien
+  container.innerHTML = summaries.map(summary => {
+    // Le résumé peut être soit l'ancien format (global) soit le nouveau (par article depuis DB)
+    // Si c'est un résumé DB, il contient déjà le titre et le lien formatés
+    if (summary.summary && summary.summary.includes('🔗')) {
+      // Ancien format sauvegardé en DB avec titre et lien
+      return `
+        <div class="rss-summary rss-summary-article">
+          <div class="rss-summary-content">${formatSummary(summary.summary)}</div>
+          <div class="rss-summary-meta">
+            ${summary.created_at ? `<span>${new Date(summary.created_at).toLocaleDateString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>` : ''}
+            ${summary.model ? `<span>${escapeHtml(summary.model.split('/')[1] || summary.model)}</span>` : ''}
+          </div>
         </div>
-      </div>
-      <div class="rss-summary-content">${formatSummary(summary.summary)}</div>
-    </div>
-  `).join('');
+      `;
+    } else {
+      // Ancien format (résumé global)
+      return `
+        <div class="rss-summary">
+          <div class="rss-summary-header">
+            <div class="rss-summary-title">📰 Résumé ${new Date(summary.created_at).toLocaleDateString('fr-FR')}</div>
+            <div class="rss-summary-meta">
+              <span>${summary.articles_count} articles</span>
+              ${summary.model ? `<span>${escapeHtml(summary.model.split('/')[1] || summary.model)}</span>` : ''}
+            </div>
+          </div>
+          <div class="rss-summary-content">${formatSummary(summary.summary)}</div>
+        </div>
+      `;
+    }
+  }).join('');
 }
 
 function formatSummary(summary) {
@@ -1598,11 +1617,17 @@ function formatSummary(summary) {
   // Listes numérotées
   html = html.replace(/\n\d+\. (.*?)(?=\n|$)/g, '<li>$1</li>');
 
-  // Gras
+  // Gras (avant les liens pour éviter les conflits)
   html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
 
   // Italique
   html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+
+  // Liens markdown [texte](url) - convertir en liens cliquables
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="rss-link">$1</a>');
+
+  // Emoji lien avec texte - gérer 🔗 suivi d'espace
+  html = html.replace(/🔗\s*/g, '🔗 ');
 
   // Sauts de ligne
   html = html.replace(/\n\n/g, '<br><br>');
@@ -1628,21 +1653,29 @@ async function summarizeRss() {
 
     if (summaryEnabled) {
       // Si les résumés sont activés, juste recharger le bloc RSS
-      alert('Résumé généré avec succès !');
+      alert(`${result.articles_count} résumés générés avec succès !`);
       await loadRssArticles();
     } else {
-      // Sinon créer une note avec le résumé
-      const newNote = await api.post('/api/notes', {
-        title: `📰 Résumé RSS - ${new Date().toLocaleDateString('fr-FR')}`,
-        content: result.summary
-      });
+      // Sinon créer une note avec TOUS les résumés par article
+      if (result.summaries && result.summaries.length > 0) {
+        const allSummaries = result.summaries.map(s =>
+          `**${s.title}**\n_${s.feed_title} - ${new Date(s.pub_date).toLocaleDateString('fr-FR')}_\n\n${s.summary}\n\n🔗 [Lire l'article](${s.link})`
+        ).join('\n\n---\n\n');
 
-      alert('Résumé généré et sauvegardé dans une nouvelle note !');
-      await loadNotes();
+        const newNote = await api.post('/api/notes', {
+          title: `📰 Résumés RSS - ${new Date().toLocaleDateString('fr-FR')}`,
+          content: allSummaries
+        });
 
-      // Expand the new note
-      state.expandedNoteId = newNote.id;
-      renderNotes();
+        alert(`${result.articles_count} résumés générés et sauvegardés dans une nouvelle note !`);
+        await loadNotes();
+
+        // Expand the new note
+        state.expandedNoteId = newNote.id;
+        renderNotes();
+      } else {
+        alert('Aucun résumé généré');
+      }
     }
   } catch (error) {
     console.error('Erreur génération résumé RSS:', error);
