@@ -13,22 +13,21 @@ const { initDatabase } = require('./config/database');
 const app = express();
 const PORT = process.env.PORT || 2222;
 
-// Créer les dossiers nécessaires
+// Créer les dossiers nécessaires (silencieusement, ils peuvent déjà exister via les volumes Docker)
 const dataDir = path.join(__dirname, 'data');
 const uploadsDir = path.join(__dirname, 'public', 'uploads');
 
 [dataDir, uploadsDir].forEach(dir => {
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-    logger.info(`Dossier créé: ${dir}`);
+  try {
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+      logger.info(`Dossier créé: ${dir}`);
+    }
+  } catch (error) {
+    // Ignorer les erreurs si les dossiers existent déjà ou sont montés via Docker
+    logger.debug(`Dossier déjà existant: ${dir}`);
   }
 });
-
-// Créer un fichier .gitkeep dans uploads pour le tracking git
-const gitkeepPath = path.join(uploadsDir, '.gitkeep');
-if (!fs.existsSync(gitkeepPath)) {
-  fs.writeFileSync(gitkeepPath, '');
-}
 
 // Configuration de la sécurité avec Helmet
 app.use(helmet({
