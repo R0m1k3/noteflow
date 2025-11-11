@@ -323,7 +323,7 @@ let currentNoteId = null;
 
 async function openNoteModal(noteId = null) {
   currentNoteId = noteId;
-  const modal = document.getElementById('noteModal');
+  const modal = document.getElementById('noteEditorBackdrop');
   const titleInput = document.getElementById('noteTitle');
   const contentTextarea = document.getElementById('noteContent');
   const imageContainer = document.getElementById('noteImageContainer');
@@ -477,9 +477,28 @@ async function deleteNoteTodo(todoId) {
 }
 
 function closeNoteModal() {
-  document.getElementById('noteModal').style.display = 'none';
+  document.getElementById('noteEditorBackdrop').style.display = 'none';
   currentNoteId = null;
   state.currentNote = null;
+}
+
+async function saveCurrentNote() {
+  if (!currentNoteId) return;
+
+  const titleInput = document.getElementById('noteTitle');
+  const contentTextarea = document.getElementById('noteContent');
+
+  try {
+    await api.put(`/api/notes/${currentNoteId}`, {
+      title: titleInput.value,
+      content: contentTextarea.value
+    });
+
+    await loadNotes();
+  } catch (error) {
+    console.error('Erreur sauvegarde:', error);
+    throw error;
+  }
 }
 
 async function deleteCurrentNote() {
@@ -692,11 +711,14 @@ function renderUsersTable(users) {
       <td>${user.is_admin ? '✓ Oui' : '✗ Non'}</td>
       <td>${new Date(user.created_at).toLocaleDateString('fr-FR')}</td>
       <td>
+        <button class="btn-edit-user" data-user-id="${user.id}" data-username="${escapeHtml(user.username)}">
+          🔑 Mot de passe
+        </button>
         ${user.id !== state.user.id ? `
           <button class="btn-delete-user" data-user-id="${user.id}" data-username="${escapeHtml(user.username)}">
             🗑️ Supprimer
           </button>
-        ` : '<span style="color: var(--text-secondary);">Vous-même</span>'}
+        ` : ''}
       </td>
     </tr>
   `).join('');
@@ -753,6 +775,32 @@ async function createUser() {
   } catch (error) {
     console.error('Erreur création utilisateur:', error);
     alert('Erreur lors de la création de l\'utilisateur. Il existe peut-être déjà.');
+  }
+}
+
+async function changeUserPassword(id, username) {
+  const password = prompt(`Nouveau mot de passe pour "${username}" :`);
+
+  if (!password) return;
+
+  if (password.length < 6) {
+    alert('Le mot de passe doit contenir au moins 6 caractères');
+    return;
+  }
+
+  const confirmPassword = prompt('Confirmer le nouveau mot de passe :');
+
+  if (password !== confirmPassword) {
+    alert('Les mots de passe ne correspondent pas');
+    return;
+  }
+
+  try {
+    await api.put(`/api/users/${id}`, { password });
+    alert('Mot de passe modifié avec succès');
+  } catch (error) {
+    console.error('Erreur modification mot de passe:', error);
+    alert('Erreur lors de la modification du mot de passe');
   }
 }
 
@@ -816,9 +864,19 @@ async function init() {
     });
   }
 
-  const closeModal = document.getElementById('closeModal');
-  if (closeModal) {
-    closeModal.addEventListener('click', closeNoteModal);
+  const closeEditor = document.getElementById('closeEditor');
+  if (closeEditor) {
+    closeEditor.addEventListener('click', closeNoteModal);
+  }
+
+  const saveNoteBtn = document.getElementById('saveNote');
+  if (saveNoteBtn) {
+    saveNoteBtn.addEventListener('click', async () => {
+      if (currentNoteId) {
+        await saveCurrentNote();
+        alert('Note enregistrée !');
+      }
+    });
   }
 
   const deleteNote = document.getElementById('deleteNote');
@@ -899,11 +957,19 @@ async function init() {
     });
   }
 
-  // Event delegation pour les boutons de suppression d'utilisateurs
+  // Event delegation pour les boutons d'administration des utilisateurs
   const usersTableBody = document.getElementById('usersTableBody');
   if (usersTableBody) {
     usersTableBody.addEventListener('click', (e) => {
-      if (e.target.classList.contains('btn-delete-user') || e.target.closest('.btn-delete-user')) {
+      // Bouton changer mot de passe
+      if (e.target.classList.contains('btn-edit-user') || e.target.closest('.btn-edit-user')) {
+        const btn = e.target.classList.contains('btn-edit-user') ? e.target : e.target.closest('.btn-edit-user');
+        const userId = parseInt(btn.dataset.userId);
+        const username = btn.dataset.username;
+        changeUserPassword(userId, username);
+      }
+      // Bouton supprimer utilisateur
+      else if (e.target.classList.contains('btn-delete-user') || e.target.closest('.btn-delete-user')) {
         const btn = e.target.classList.contains('btn-delete-user') ? e.target : e.target.closest('.btn-delete-user');
         const userId = parseInt(btn.dataset.userId);
         const username = btn.dataset.username;
@@ -912,11 +978,11 @@ async function init() {
     });
   }
 
-  // Close modal on backdrop click
-  const noteModal = document.getElementById('noteModal');
-  if (noteModal) {
-    noteModal.addEventListener('click', (e) => {
-      if (e.target === noteModal) closeNoteModal();
+  // Close editor on backdrop click
+  const noteEditorBackdrop = document.getElementById('noteEditorBackdrop');
+  if (noteEditorBackdrop) {
+    noteEditorBackdrop.addEventListener('click', (e) => {
+      if (e.target === noteEditorBackdrop) closeNoteModal();
     });
   }
 

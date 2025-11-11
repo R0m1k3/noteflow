@@ -3,7 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NoteFlow - Notes & Todo</title>
+    <title>NoteFlow - Notes & Tasks</title>
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 
     <!-- CSS -->
     <link rel="stylesheet" href="/css/reset.css">
@@ -13,103 +16,184 @@
     <link rel="stylesheet" href="/css/animations.css">
 </head>
 <body>
-    <!-- Header fixe -->
+    <!-- Header -->
     <header class="header">
-        <div class="header-content">
-            <div class="header-logo">
-                <h1>📝 NoteFlow</h1>
+        <div class="header-container">
+            <!-- Logo -->
+            <div class="logo">
+                <svg class="logo-icon" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="8" y="6" width="24" height="28" rx="2" fill="currentColor"/>
+                    <rect x="10" y="8" width="20" height="24" rx="1" fill="white"/>
+                    <line x1="13" y1="13" x2="27" y2="13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                    <line x1="13" y1="18" x2="24" y2="18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                    <line x1="13" y1="23" x2="27" y2="23" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                    <circle cx="15" cy="28" r="2" fill="none" stroke="currentColor" stroke-width="1.2"/>
+                    <path d="M 14 28 L 14.8 28.8 L 16.5 27" stroke="currentColor" stroke-width="1.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span class="logo-text">NoteFlow</span>
             </div>
 
-            <div class="header-search">
+            <!-- Search -->
+            <div class="search-container">
+                <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <path d="m21 21-4.35-4.35"></path>
+                </svg>
                 <input type="text" id="searchInput" placeholder="Rechercher des notes..." class="search-input">
-                <button id="searchClear" class="search-clear" style="display: none;">✕</button>
+                <button id="searchClear" class="search-clear" style="display: none;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
             </div>
 
-            <div class="header-user">
-                <div class="user-info" id="userInfo">
-                    <span class="user-avatar">👤</span>
-                    <span class="user-name" id="userName">User</span>
-                    <span class="user-dropdown-icon">▼</span>
-                </div>
+            <!-- User -->
+            <div class="user-menu">
+                <button class="user-button" id="userInfo">
+                    <svg class="user-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="12" cy="7" r="4"></circle>
+                    </svg>
+                    <span id="userName">User</span>
+                    <svg class="dropdown-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                </button>
                 <div class="user-dropdown" id="userDropdown">
-                    <button class="dropdown-item" id="adminBtn" style="display: none;">⚙️ Administration</button>
-                    <button class="dropdown-item" id="logoutBtn">🚪 Déconnexion</button>
+                    <button class="dropdown-item" id="adminBtn" style="display: none;">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path d="M12 1v6m0 6v6m5.657-13.657L14 9l-2.343-2.343M9 14l-3.657 3.657M1 12h6m6 0h6m-13.657 5.657L9 14l2.343 2.343M14 9l3.657-3.657"></path>
+                        </svg>
+                        Administration
+                    </button>
+                    <button class="dropdown-item" id="logoutBtn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                            <polyline points="16 17 21 12 16 7"></polyline>
+                            <line x1="21" y1="12" x2="9" y2="12"></line>
+                        </svg>
+                        Déconnexion
+                    </button>
                 </div>
             </div>
         </div>
     </header>
 
-    <!-- Container principal -->
-    <div class="main-container">
-        <!-- Zone des notes (70%) -->
-        <main class="notes-area">
-            <div class="notes-grid" id="notesGrid">
-                <!-- Les cards de notes seront insérées ici dynamiquement -->
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="content-container">
+            <!-- Notes Grid -->
+            <div class="notes-section">
+                <div class="section-header">
+                    <h2 class="section-title">Notes</h2>
+                    <button class="btn-new-note" id="newNoteBtn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                        Nouvelle note
+                    </button>
+                </div>
+                <div class="notes-grid" id="notesGrid">
+                    <!-- Notes will be inserted here -->
+                </div>
             </div>
 
-            <button class="fab" id="newNoteBtn" title="Nouvelle note">+</button>
-        </main>
+            <!-- Todo Box -->
+            <div class="todo-box">
+                <div class="todo-box-header">
+                    <h2 class="todo-box-title">Quick Tasks</h2>
+                    <span class="todo-counter" id="todoCounter">0 tâches</span>
+                </div>
 
-        <!-- Sidebar Todo (30%) -->
-        <aside class="todo-sidebar">
-            <h2 class="sidebar-title">Quick Tasks</h2>
+                <div class="todo-input-wrapper">
+                    <input type="text" id="todoInput" class="todo-input" placeholder="Ajouter une tâche...">
+                    <button id="addTodoBtn" class="btn-add-todo">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                    </button>
+                </div>
 
-            <div class="todo-input-container">
-                <input type="text" id="todoInput" class="todo-input" placeholder="Ajouter une tâche...">
-                <button id="addTodoBtn" class="todo-add-btn">+</button>
+                <div class="todo-filters">
+                    <button class="filter-btn active" data-filter="all">Toutes</button>
+                    <button class="filter-btn" data-filter="active">Actives</button>
+                    <button class="filter-btn" data-filter="completed">Terminées</button>
+                </div>
+
+                <div class="todo-list" id="todoList">
+                    <!-- Todos will be inserted here -->
+                </div>
             </div>
+        </div>
+    </main>
 
-            <div class="todo-filters">
-                <button class="filter-btn active" data-filter="all">Toutes</button>
-                <button class="filter-btn" data-filter="active">Actives</button>
-                <button class="filter-btn" data-filter="completed">Terminées</button>
-            </div>
-
-            <div class="todo-counter">
-                <span id="todoCounter">0 tâches restantes</span>
-            </div>
-
-            <div class="todo-list" id="todoList">
-                <!-- Les todos seront insérées ici dynamiquement -->
-            </div>
-        </aside>
-    </div>
-
-    <!-- Modal Note -->
-    <div class="modal-backdrop" id="noteModal" style="display: none;">
-        <div class="modal-content note-modal">
-            <div class="modal-header">
-                <button class="modal-close" id="closeModal">✕</button>
-                <button class="modal-delete" id="deleteNote">🗑️</button>
+    <!-- Note Editor (Expanded in page) -->
+    <div class="note-editor-backdrop" id="noteEditorBackdrop" style="display: none;">
+        <div class="note-editor" id="noteEditor">
+            <div class="note-editor-header">
+                <button class="btn-close-editor" id="closeEditor">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+                <div class="note-editor-actions">
+                    <button class="btn-icon" id="deleteNote" title="Supprimer">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                    </button>
+                    <button class="btn-primary" id="saveNote">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                        Enregistrer
+                    </button>
+                </div>
             </div>
 
             <input type="text" id="noteTitle" class="note-title-input" placeholder="Titre de la note">
 
-            <div class="note-divider"></div>
-
-            <textarea id="noteContent" class="note-content-textarea" placeholder="Contenu de la note..."></textarea>
+            <textarea id="noteContent" class="note-content-textarea" placeholder="Commencez à écrire..."></textarea>
 
             <div id="noteImageContainer" class="note-image-container" style="display: none;">
                 <img id="noteImage" class="note-image" alt="Image de la note">
-                <button class="note-image-remove" id="removeImage">✕</button>
+                <button class="btn-remove-image" id="removeImage">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
             </div>
 
             <div class="note-todos-section">
                 <h3 class="note-section-title">Todos dans cette note</h3>
                 <div id="noteTodosList" class="note-todos-list">
-                    <!-- Les todos de la note seront insérés ici -->
+                    <!-- Note todos will be inserted here -->
                 </div>
-                <button class="note-add-todo-btn" id="addNoteTodo">+ Ajouter un todo</button>
+                <button class="btn-add-note-todo" id="addNoteTodo">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                    </svg>
+                    Ajouter un todo
+                </button>
             </div>
 
-            <div class="note-divider"></div>
-
-            <div class="modal-actions">
-                <button class="action-btn" id="addImageBtn">📷 Ajouter une image</button>
+            <div class="note-editor-footer">
+                <button class="btn-icon" id="addImageBtn" title="Ajouter une image">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                        <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                        <polyline points="21 15 16 10 5 21"></polyline>
+                    </svg>
+                </button>
                 <input type="file" id="imageInput" accept="image/*" style="display: none;">
-            </div>
-
-            <div class="modal-footer">
                 <span id="noteMetadata" class="note-metadata"></span>
             </div>
         </div>
@@ -139,7 +223,7 @@
                         </tr>
                     </thead>
                     <tbody id="usersTableBody">
-                        <!-- Les utilisateurs seront insérés ici -->
+                        <!-- Users will be inserted here -->
                     </tbody>
                 </table>
             </div>
