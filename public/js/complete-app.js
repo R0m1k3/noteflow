@@ -174,8 +174,10 @@ const state = {
   notes: [],
   todos: [],
   currentNote: null,
+  expandedNoteId: null,
   filter: 'all',
   searchQuery: '',
+  view: 'active',
   user: null
 };
 
@@ -241,7 +243,8 @@ async function initAuth() {
 // ==================== NOTES ====================
 async function loadNotes() {
   try {
-    const response = await api.get('/api/notes');
+    const archived = state.view === 'archived';
+    const response = await api.get(`/api/notes?archived=${archived}`);
     // S'assurer que response est un tableau
     state.notes = Array.isArray(response) ? response : [];
     renderNotes();
@@ -287,28 +290,123 @@ function renderNotes() {
 
 function createNoteCard(note) {
   const card = document.createElement('div');
-  card.className = 'note-card';
-  card.onclick = () => openNoteModal(note.id);
+  const isExpanded = state.expandedNoteId === note.id;
+  card.className = `note-card ${isExpanded ? 'expanded' : ''}`;
+  card.dataset.noteId = note.id;
 
-  let html = `<div class="note-card-title">${escapeHtml(note.title)}</div>`;
+  if (isExpanded) {
+    // Mode édition inline
+    card.innerHTML = `
+      <div class="note-card-header">
+        <input type="text" class="note-title-input-inline" value="${escapeHtml(note.title)}" placeholder="Titre" data-note-id="${note.id}">
+        <div class="note-actions">
+          <button class="btn-icon-small btn-archive-note" data-note-id="${note.id}" data-archived="${note.archived}" title="${note.archived ? 'Désarchiver' : 'Archiver'}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="21 8 21 21 3 21 3 8"></polyline>
+              <rect x="1" y="3" width="22" height="5"></rect>
+            </svg>
+          </button>
+          <button class="btn-icon-small btn-delete-note-inline" data-note-id="${note.id}" title="Supprimer">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
+          </button>
+          <button class="btn-icon-small btn-collapse-note" title="Fermer">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+      </div>
+      <textarea class="note-content-textarea-inline" placeholder="Contenu..." data-note-id="${note.id}">${escapeHtml(note.content || '')}</textarea>
+      ${note.image_filename ? `
+        <div class="note-image-container-inline">
+          <img src="/uploads/${note.image_filename}" class="note-card-image" alt="">
+          <button class="btn-remove-image-inline" data-note-id="${note.id}">✕</button>
+        </div>
+      ` : ''}
+      <div class="note-todos-inline">
+        <h4>Todos</h4>
+        <div class="todos-list-inline" id="todos-${note.id}">
+          ${renderInlineTodos(note.todos || [])}
+        </div>
+        <button class="btn-add-todo-inline" data-note-id="${note.id}">+ Ajouter une tâche</button>
+      </div>
+      <div class="note-footer-inline">
+        <button class="btn-add-image-inline" data-note-id="${note.id}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            <circle cx="8.5" cy="8.5" r="1.5"></circle>
+            <polyline points="21 15 16 10 5 21"></polyline>
+          </svg>
+        </button>
+        <span class="note-meta-inline">${utils.formatDate(note.updated_at)}</span>
+      </div>
+    `;
 
-  if (note.content) {
-    html += `<div class="note-card-content">${escapeHtml(utils.truncate(note.content))}</div>`;
+    // Auto-save sur changement
+    setTimeout(() => {
+      const titleInput = card.querySelector('.note-title-input-inline');
+      const contentTextarea = card.querySelector('.note-content-textarea-inline');
+      if (titleInput) titleInput.oninput = utils.debounce(() => saveNoteInline(note.id), 1000);
+      if (contentTextarea) contentTextarea.oninput = utils.debounce(() => saveNoteInline(note.id), 1000);
+    }, 0);
+  } else {
+    // Mode compact
+    let html = `
+      <div class="note-card-compact" data-note-id="${note.id}">
+        <div class="note-card-title">${escapeHtml(note.title)}</div>
+    `;
+
+    if (note.content) {
+      html += `<div class="note-card-preview">${escapeHtml(utils.truncate(note.content, 100))}</div>`;
+    }
+
+    if (note.image_filename) {
+      html += `<img src="/uploads/${note.image_filename}" class="note-card-image" alt="">`;
+    }
+
+    // Afficher les todos
+    if (note.todos && note.todos.length > 0) {
+      const displayTodos = note.todos.slice(0, 3);
+      html += `<div class="note-todos-preview">`;
+      displayTodos.forEach(todo => {
+        html += `<div class="todo-preview ${todo.completed ? 'completed' : ''}">
+          <span class="todo-checkbox-preview">${todo.completed ? '☑' : '☐'}</span>
+          <span class="todo-text-preview">${escapeHtml(todo.text)}</span>
+        </div>`;
+      });
+      if (note.todos.length > 3) {
+        html += `<div class="todo-more">+${note.todos.length - 3} autre(s)</div>`;
+      }
+      html += `</div>`;
+    }
+
+    html += `
+        <div class="note-card-meta">
+          <span class="note-card-date">${utils.formatDate(note.updated_at)}</span>
+          ${note.todos_count > 0 ? `<span class="note-card-todos-count">${note.todos_completed}/${note.todos_count}</span>` : ''}
+        </div>
+      </div>
+    `;
+
+    card.innerHTML = html;
   }
 
-  if (note.image_filename) {
-    html += `<img src="/uploads/${note.image_filename}" class="note-card-image" alt="">`;
-  }
-
-  html += `<div class="note-card-meta">`;
-  html += `<span>${utils.formatDate(note.updated_at)}</span>`;
-  if (note.todos_count > 0) {
-    html += `<span class="note-card-badge">${note.todos_count} tasks</span>`;
-  }
-  html += `</div>`;
-
-  card.innerHTML = html;
   return card;
+}
+
+function renderInlineTodos(todos) {
+  if (!todos || todos.length === 0) return '<p class="no-todos">Aucune tâche</p>';
+  return todos.map(todo => `
+    <div class="todo-item-inline" data-todo-inline-id="${todo.id}">
+      <input type="checkbox" class="todo-checkbox-inline" ${todo.completed ? 'checked' : ''} data-todo-inline-id="${todo.id}">
+      <span class="todo-text-inline ${todo.completed ? 'completed' : ''}">${escapeHtml(todo.text)}</span>
+      <button class="todo-delete-inline" data-todo-inline-id="${todo.id}">✕</button>
+    </div>
+  `).join('');
 }
 
 function escapeHtml(text) {
@@ -317,7 +415,244 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
-// ==================== MODAL ====================
+// ==================== INLINE NOTE EXPANSION ====================
+function expandNote(noteId) {
+  state.expandedNoteId = noteId;
+  renderNotes();
+}
+
+function collapseNote() {
+  state.expandedNoteId = null;
+  renderNotes();
+}
+
+async function saveNoteInline(noteId) {
+  const card = document.querySelector(`.note-card[data-note-id="${noteId}"]`);
+  if (!card) return;
+
+  const titleInput = card.querySelector('.note-title-input-inline');
+  const contentTextarea = card.querySelector('.note-content-textarea-inline');
+
+  if (!titleInput) return;
+
+  try {
+    await api.put(`/api/notes/${noteId}`, {
+      title: titleInput.value,
+      content: contentTextarea ? contentTextarea.value : ''
+    });
+
+    // Update state without full reload
+    const noteIndex = state.notes.findIndex(n => n.id === noteId);
+    if (noteIndex !== -1) {
+      state.notes[noteIndex].title = titleInput.value;
+      state.notes[noteIndex].content = contentTextarea ? contentTextarea.value : '';
+      state.notes[noteIndex].updated_at = new Date().toISOString();
+    }
+  } catch (error) {
+    console.error('Erreur sauvegarde note:', error);
+  }
+}
+
+async function archiveNote(noteId, archived) {
+  try {
+    await api.put(`/api/notes/${noteId}/archive`, { archived });
+    collapseNote();
+    await loadNotes();
+  } catch (error) {
+    console.error('Erreur archivage note:', error);
+    alert('Erreur lors de l\'archivage de la note');
+  }
+}
+
+async function deleteNoteInline(noteId) {
+  const confirmed = await confirmDialog.show({
+    icon: '🗑️',
+    title: 'Supprimer cette note',
+    message: 'Êtes-vous sûr de vouloir supprimer cette note ?\n\nTous les todos associés seront également supprimés.',
+    okText: 'Supprimer'
+  });
+
+  if (!confirmed) return;
+
+  try {
+    await api.delete(`/api/notes/${noteId}`);
+    collapseNote();
+    await loadNotes();
+  } catch (error) {
+    console.error('Erreur suppression note:', error);
+    alert('Erreur lors de la suppression de la note');
+  }
+}
+
+async function addNoteTodoInline(noteId) {
+  const text = prompt('Texte du todo:');
+  if (!text || !text.trim()) return;
+
+  try {
+    await api.post(`/api/notes/${noteId}/todos`, { text: text.trim() });
+
+    // Recharger seulement cette note
+    const note = await api.get(`/api/notes/${noteId}`);
+    const noteIndex = state.notes.findIndex(n => n.id === noteId);
+    if (noteIndex !== -1) {
+      state.notes[noteIndex] = note;
+    }
+
+    // Re-render la liste des todos inline
+    const todosList = document.getElementById(`todos-${noteId}`);
+    if (todosList) {
+      todosList.innerHTML = renderInlineTodos(note.todos || []);
+    }
+  } catch (error) {
+    console.error('Erreur ajout todo:', error);
+    alert('Erreur lors de l\'ajout du todo');
+  }
+}
+
+async function toggleNoteTodoInline(todoId, completed) {
+  try {
+    await api.put(`/api/notes/todos/${todoId}`, { completed });
+    // Update UI optimistically
+    const todoItem = document.querySelector(`.todo-item-inline[data-todo-inline-id="${todoId}"]`);
+    if (todoItem) {
+      const textSpan = todoItem.querySelector('.todo-text-inline');
+      if (textSpan) {
+        if (completed) {
+          textSpan.classList.add('completed');
+        } else {
+          textSpan.classList.remove('completed');
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Erreur toggle todo:', error);
+  }
+}
+
+async function deleteNoteTodoInline(todoId) {
+  const confirmed = await confirmDialog.show({
+    icon: '🗑️',
+    title: 'Supprimer ce todo',
+    message: 'Êtes-vous sûr de vouloir supprimer ce todo ?',
+    okText: 'Supprimer'
+  });
+
+  if (!confirmed) return;
+
+  try {
+    await api.delete(`/api/notes/todos/${todoId}`);
+    // Remove from DOM
+    const todoItem = document.querySelector(`.todo-item-inline[data-todo-inline-id="${todoId}"]`);
+    if (todoItem) {
+      todoItem.remove();
+    }
+  } catch (error) {
+    console.error('Erreur suppression todo:', error);
+  }
+}
+
+function triggerImageUpload(noteId) {
+  const imageInput = document.getElementById('imageInput');
+  if (imageInput) {
+    imageInput.dataset.noteId = noteId;
+    imageInput.click();
+  }
+}
+
+async function removeImageInline(noteId) {
+  const confirmed = await confirmDialog.show({
+    icon: '🖼️',
+    title: 'Supprimer l\'image',
+    message: 'Êtes-vous sûr de vouloir supprimer cette image ?',
+    okText: 'Supprimer'
+  });
+
+  if (!confirmed) return;
+
+  try {
+    await api.delete(`/api/notes/${noteId}/image`);
+
+    // Update state
+    const noteIndex = state.notes.findIndex(n => n.id === noteId);
+    if (noteIndex !== -1) {
+      state.notes[noteIndex].image_filename = null;
+    }
+
+    // Re-render expanded card
+    renderNotes();
+  } catch (error) {
+    console.error('Erreur suppression image:', error);
+    alert('Erreur lors de la suppression de l\'image');
+  }
+}
+
+async function handleImageUploadInline(event) {
+  const file = event.target.files[0];
+  const noteId = event.target.dataset.noteId;
+
+  if (!file || !noteId) return;
+
+  const formData = new FormData();
+  formData.append('image', file);
+
+  try {
+    const result = await api.uploadFile(`/api/notes/${noteId}/image`, formData);
+
+    // Update state
+    const noteIndex = state.notes.findIndex(n => n.id === parseInt(noteId));
+    if (noteIndex !== -1) {
+      state.notes[noteIndex].image_filename = result.filename;
+    }
+
+    // Re-render expanded card
+    renderNotes();
+  } catch (error) {
+    console.error('Erreur upload image:', error);
+    alert('Erreur lors de l\'upload de l\'image');
+  }
+
+  // Reset input
+  event.target.value = '';
+  event.target.dataset.noteId = '';
+}
+
+async function createNewNote() {
+  try {
+    const newNote = await api.post('/api/notes', {
+      title: 'Nouvelle note',
+      content: ''
+    });
+
+    // Reload notes
+    await loadNotes();
+
+    // Expand the new note
+    state.expandedNoteId = newNote.id;
+    renderNotes();
+
+    // Focus title input
+    setTimeout(() => {
+      const titleInput = document.querySelector('.note-title-input-inline');
+      if (titleInput) {
+        titleInput.focus();
+        titleInput.select();
+      }
+    }, 100);
+  } catch (error) {
+    console.error('Erreur création note:', error);
+    alert('Erreur lors de la création de la note');
+  }
+}
+
+function setNoteView(view) {
+  state.view = view;
+  document.querySelectorAll('.view-filter').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.view === view);
+  });
+  loadNotes();
+}
+
+// ==================== MODAL (OLD - DEPRECATED) ====================
 let saveTimeout;
 let currentNoteId = null;
 
@@ -838,8 +1173,13 @@ async function init() {
   // Event listeners
   const newNoteBtn = document.getElementById('newNoteBtn');
   if (newNoteBtn) {
-    newNoteBtn.addEventListener('click', () => openNoteModal());
+    newNoteBtn.addEventListener('click', createNewNote);
   }
+
+  // View filters (Active/Archived)
+  document.querySelectorAll('.view-filter').forEach(btn => {
+    btn.addEventListener('click', () => setNoteView(btn.dataset.view));
+  });
 
   // Admin button
   const adminBtn = document.getElementById('adminBtn');
@@ -891,7 +1231,7 @@ async function init() {
 
   const imageInput = document.getElementById('imageInput');
   if (imageInput) {
-    imageInput.addEventListener('change', handleImageUpload);
+    imageInput.addEventListener('change', handleImageUploadInline);
   }
 
   const removeImage = document.getElementById('removeImage');
@@ -986,11 +1326,91 @@ async function init() {
     });
   }
 
+  // Event delegation for notes grid
+  const notesGrid = document.getElementById('notesGrid');
+  if (notesGrid) {
+    // Click on compact note to expand
+    notesGrid.addEventListener('click', (e) => {
+      const compactNote = e.target.closest('.note-card-compact');
+      if (compactNote) {
+        const noteId = parseInt(compactNote.dataset.noteId);
+        expandNote(noteId);
+        return;
+      }
+
+      // Collapse note button
+      if (e.target.closest('.btn-collapse-note')) {
+        collapseNote();
+        return;
+      }
+
+      // Archive note button
+      const archiveBtn = e.target.closest('.btn-archive-note');
+      if (archiveBtn) {
+        const noteId = parseInt(archiveBtn.dataset.noteId);
+        const archived = archiveBtn.dataset.archived === 'true';
+        archiveNote(noteId, !archived);
+        return;
+      }
+
+      // Delete note button
+      const deleteBtn = e.target.closest('.btn-delete-note-inline');
+      if (deleteBtn) {
+        const noteId = parseInt(deleteBtn.dataset.noteId);
+        deleteNoteInline(noteId);
+        return;
+      }
+
+      // Add image button
+      const addImageBtn = e.target.closest('.btn-add-image-inline');
+      if (addImageBtn) {
+        const noteId = parseInt(addImageBtn.dataset.noteId);
+        triggerImageUpload(noteId);
+        return;
+      }
+
+      // Remove image button
+      const removeImageBtn = e.target.closest('.btn-remove-image-inline');
+      if (removeImageBtn) {
+        const noteId = parseInt(removeImageBtn.dataset.noteId);
+        removeImageInline(noteId);
+        return;
+      }
+
+      // Add todo button
+      const addTodoBtn = e.target.closest('.btn-add-todo-inline');
+      if (addTodoBtn) {
+        const noteId = parseInt(addTodoBtn.dataset.noteId);
+        addNoteTodoInline(noteId);
+        return;
+      }
+
+      // Delete todo inline button
+      if (e.target.classList.contains('todo-delete-inline')) {
+        const todoId = parseInt(e.target.dataset.todoInlineId);
+        deleteNoteTodoInline(todoId);
+        return;
+      }
+    });
+
+    // Checkbox change for inline todos
+    notesGrid.addEventListener('change', (e) => {
+      if (e.target.classList.contains('todo-checkbox-inline')) {
+        const todoId = parseInt(e.target.dataset.todoInlineId);
+        toggleNoteTodoInline(todoId, e.target.checked);
+      }
+    });
+  }
+
   // Close modal on Escape
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-      closeNoteModal();
-      document.getElementById('adminModal').style.display = 'none';
+      if (state.expandedNoteId) {
+        collapseNote();
+      } else {
+        closeNoteModal();
+        document.getElementById('adminModal').style.display = 'none';
+      }
     }
   });
 }
