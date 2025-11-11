@@ -23,12 +23,12 @@ RUN mkdir -p /app/data /app/public/uploads && \
 # Utiliser l'utilisateur node pour la sécurité
 USER node
 
-# Exposer le port 3000
-EXPOSE 3000
+# Exposer le port 2222
+EXPOSE 2222
 
 # Healthcheck pour vérifier que l'application fonctionne
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3000/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"
+  CMD node -e "require('http').get('http://localhost:2222/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"
 
 # Démarrer l'application
 CMD ["node", "server.js"]

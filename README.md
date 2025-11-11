@@ -61,7 +61,7 @@ cp .env.example .env
 
 Éditer le fichier `.env` :
 ```env
-PORT=3000
+PORT=2222
 JWT_SECRET=<générer_une_clé_secrète_forte>
 NODE_ENV=production
 ```
@@ -78,7 +78,7 @@ docker-compose up -d --build
 
 4. **Accéder à l'application**
 ```
-http://localhost:3000
+http://localhost:2222
 ```
 
 ### Identifiants par défaut
@@ -116,7 +116,7 @@ docker-compose restart
 
 ```nginx
 location /notes {
-    proxy_pass http://notes-todo-app:3000;
+    proxy_pass http://notes-todo-app:2222;
     proxy_http_version 1.1;
     proxy_set_header Upgrade $http_upgrade;
     proxy_set_header Connection 'upgrade';

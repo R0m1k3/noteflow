@@ -11,7 +11,7 @@ const { initDatabase } = require('./config/database');
 
 // Créer l'application Express
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 2222;
 
 // Créer les dossiers nécessaires
 const dataDir = path.join(__dirname, 'data');
