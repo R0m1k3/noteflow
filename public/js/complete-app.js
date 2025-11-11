@@ -1486,8 +1486,19 @@ async function fetchRssArticles() {
 
 async function loadRssArticles() {
   try {
-    const articles = await api.get('/api/rss/articles');
-    renderRssArticles(articles);
+    // Vérifier si les résumés sont activés
+    const settings = await api.get('/api/settings');
+    const summaryEnabled = settings.rss_summary_enabled === '1' || settings.rss_summary_enabled === 'true';
+
+    if (summaryEnabled) {
+      // Charger les résumés
+      const summaries = await api.get('/api/rss/summaries');
+      renderRssSummaries(summaries);
+    } else {
+      // Charger les articles normaux
+      const articles = await api.get('/api/rss/articles');
+      renderRssArticles(articles);
+    }
   } catch (error) {
     console.error('Erreur chargement articles RSS:', error);
   }
@@ -1514,6 +1525,57 @@ function renderRssArticles(articles) {
   `).join('');
 }
 
+function renderRssSummaries(summaries) {
+  const container = document.getElementById('rssArticlesList');
+  if (!container) return;
+
+  if (!summaries || summaries.length === 0) {
+    container.innerHTML = '<p class="rss-empty">Aucun résumé pour le moment</p>';
+    return;
+  }
+
+  container.innerHTML = summaries.map(summary => `
+    <div class="rss-summary">
+      <div class="rss-summary-header">
+        <div class="rss-summary-title">📰 Résumé ${new Date(summary.created_at).toLocaleDateString('fr-FR')}</div>
+        <div class="rss-summary-meta">
+          <span>${summary.articles_count} articles</span>
+          ${summary.model ? `<span>${escapeHtml(summary.model.split('/')[1] || summary.model)}</span>` : ''}
+        </div>
+      </div>
+      <div class="rss-summary-content">${formatSummary(summary.summary)}</div>
+    </div>
+  `).join('');
+}
+
+function formatSummary(summary) {
+  // Convertir le Markdown de base en HTML
+  let html = escapeHtml(summary);
+
+  // Titres
+  html = html.replace(/\n## (.*?)\n/g, '<h3>$1</h3>');
+  html = html.replace(/\n# (.*?)\n/g, '<h2>$1</h2>');
+
+  // Listes à puces
+  html = html.replace(/\n- (.*?)(?=\n|$)/g, '<li>$1</li>');
+  html = html.replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>');
+
+  // Listes numérotées
+  html = html.replace(/\n\d+\. (.*?)(?=\n|$)/g, '<li>$1</li>');
+
+  // Gras
+  html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+
+  // Italique
+  html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+
+  // Sauts de ligne
+  html = html.replace(/\n\n/g, '<br><br>');
+  html = html.replace(/\n/g, '<br>');
+
+  return html;
+}
+
 async function summarizeRss() {
   const btn = document.getElementById('summarizeRssBtn');
   if (!btn) return;
@@ -1525,18 +1587,28 @@ async function summarizeRss() {
   try {
     const result = await api.post('/api/rss/summarize', {});
 
-    // Create a new note with the summary
-    const newNote = await api.post('/api/notes', {
-      title: `📰 Résumé RSS - ${new Date().toLocaleDateString('fr-FR')}`,
-      content: result.summary
-    });
+    // Vérifier si les résumés sont activés
+    const settings = await api.get('/api/settings');
+    const summaryEnabled = settings.rss_summary_enabled === '1' || settings.rss_summary_enabled === 'true';
 
-    alert('Résumé généré et sauvegardé dans une nouvelle note !');
-    await loadNotes();
+    if (summaryEnabled) {
+      // Si les résumés sont activés, juste recharger le bloc RSS
+      alert('Résumé généré avec succès !');
+      await loadRssArticles();
+    } else {
+      // Sinon créer une note avec le résumé
+      const newNote = await api.post('/api/notes', {
+        title: `📰 Résumé RSS - ${new Date().toLocaleDateString('fr-FR')}`,
+        content: result.summary
+      });
 
-    // Expand the new note
-    state.expandedNoteId = newNote.id;
-    renderNotes();
+      alert('Résumé généré et sauvegardé dans une nouvelle note !');
+      await loadNotes();
+
+      // Expand the new note
+      state.expandedNoteId = newNote.id;
+      renderNotes();
+    }
   } catch (error) {
     console.error('Erreur génération résumé RSS:', error);
     if (error.message && error.message.includes('400')) {

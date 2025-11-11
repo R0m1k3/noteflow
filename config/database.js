@@ -126,6 +126,17 @@ function initDatabase() {
           )
         `);
 
+        // Table rss_summaries (résumés générés)
+        db.run(`
+          CREATE TABLE IF NOT EXISTS rss_summaries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            summary TEXT NOT NULL,
+            model TEXT,
+            articles_count INTEGER DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          )
+        `);
+
         // Créer les index pour la performance
         db.run('CREATE INDEX IF NOT EXISTS idx_notes_user ON notes(user_id)');
         db.run('CREATE INDEX IF NOT EXISTS idx_note_todos ON note_todos(note_id)');
