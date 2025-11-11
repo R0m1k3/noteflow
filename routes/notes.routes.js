@@ -39,20 +39,35 @@ const upload = multer({
 router.use(authenticateToken);
 
 /**
- * GET /api/notes
+ * GET /api/notes?archived=true/false
  * Liste toutes les notes de l'utilisateur
  */
 router.get('/', async (req, res) => {
   try {
+    const showArchived = req.query.archived === 'true';
+    const archivedFilter = showArchived ? 1 : 0;
+
     const notes = await getAll(`
       SELECT
-        n.id, n.title, n.content, n.image_filename,
+        n.id, n.title, n.content, n.image_filename, n.archived,
         n.created_at, n.updated_at,
-        (SELECT COUNT(*) FROM note_todos WHERE note_id = n.id) as todos_count
+        (SELECT COUNT(*) FROM note_todos WHERE note_id = n.id) as todos_count,
+        (SELECT COUNT(*) FROM note_todos WHERE note_id = n.id AND completed = 1) as todos_completed
       FROM notes n
-      WHERE n.user_id = ?
+      WHERE n.user_id = ? AND n.archived = ?
       ORDER BY n.updated_at DESC
-    `, [req.user.id]);
+    `, [req.user.id, archivedFilter]);
+
+    // Charger les todos pour chaque note
+    for (const note of notes) {
+      const todos = await getAll(`
+        SELECT id, text, completed, position
+        FROM note_todos
+        WHERE note_id = ?
+        ORDER BY position ASC, id ASC
+      `, [note.id]);
+      note.todos = todos || [];
+    }
 
     res.json(notes || []);
   } catch (error) {
@@ -178,6 +193,33 @@ router.put('/:id',
     }
   }
 );
+
+/**
+ * PUT /api/notes/:id/archive
+ * Archiver ou désarchiver une note
+ */
+router.put('/:id/archive', async (req, res) => {
+  try {
+    const { archived } = req.body;
+
+    // Vérifier que la note appartient à l'utilisateur
+    const note = await getOne('SELECT id FROM notes WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+    if (!note) {
+      return res.status(404).json({ error: 'Note non trouvée' });
+    }
+
+    await runQuery(
+      'UPDATE notes SET archived = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      [archived ? 1 : 0, req.params.id]
+    );
+
+    logger.info(`Note ${archived ? 'archivée' : 'désarchivée'}: ${req.params.id}`);
+    res.json({ message: `Note ${archived ? 'archivée' : 'désarchivée'} avec succès`, archived });
+  } catch (error) {
+    logger.error('Erreur lors de l\'archivage de la note:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
 
 /**
  * DELETE /api/notes/:id

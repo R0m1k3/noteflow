@@ -81,7 +81,7 @@ function initDatabase() {
 
         logger.info('✓ Tables de base de données créées avec succès');
 
-        // Migration: Ajouter image_filename si elle n'existe pas
+        // Migrations automatiques
         db.all("PRAGMA table_info(notes)", (err, columns) => {
           if (err) {
             logger.error('Erreur lors de la vérification de la structure de la table notes:', err);
@@ -89,6 +89,7 @@ function initDatabase() {
           }
 
           const hasImageFilename = columns.some(col => col.name === 'image_filename');
+          const hasArchived = columns.some(col => col.name === 'archived');
 
           if (!hasImageFilename) {
             logger.info('Migration: Ajout de la colonne image_filename...');
@@ -97,6 +98,17 @@ function initDatabase() {
                 logger.error('Erreur lors de l\'ajout de la colonne image_filename:', err);
               } else {
                 logger.info('✓ Colonne image_filename ajoutée avec succès');
+              }
+            });
+          }
+
+          if (!hasArchived) {
+            logger.info('Migration: Ajout de la colonne archived...');
+            db.run('ALTER TABLE notes ADD COLUMN archived BOOLEAN DEFAULT 0', (err) => {
+              if (err) {
+                logger.error('Erreur lors de l\'ajout de la colonne archived:', err);
+              } else {
+                logger.info('✓ Colonne archived ajoutée avec succès');
               }
             });
           }
