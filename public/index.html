@@ -84,20 +84,38 @@
     <!-- Main Content -->
     <main class="main-content">
         <div class="content-container">
-            <!-- Notes Grid -->
+            <!-- Notes Section -->
             <div class="notes-section">
                 <div class="section-header">
                     <h2 class="section-title">Notes</h2>
-                    <button class="btn-new-note" id="newNoteBtn">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <line x1="12" y1="5" x2="12" y2="19"></line>
-                            <line x1="5" y1="12" x2="19" y2="12"></line>
-                        </svg>
-                        Nouvelle note
-                    </button>
+                    <div class="section-actions">
+                        <div class="view-filters">
+                            <button class="view-filter active" data-view="active">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+                                </svg>
+                                Actives
+                            </button>
+                            <button class="view-filter" data-view="archived">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="21 8 21 21 3 21 3 8"></polyline>
+                                    <rect x="1" y="3" width="22" height="5"></rect>
+                                    <line x1="10" y1="12" x2="14" y2="12"></line>
+                                </svg>
+                                Archivées
+                            </button>
+                        </div>
+                        <button class="btn-new-note" id="newNoteBtn">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                            </svg>
+                            Nouvelle note
+                        </button>
+                    </div>
                 </div>
                 <div class="notes-grid" id="notesGrid">
-                    <!-- Notes will be inserted here -->
+                    <!-- Notes will be inserted here dynamically -->
                 </div>
             </div>
 
@@ -130,74 +148,6 @@
             </div>
         </div>
     </main>
-
-    <!-- Note Editor (Expanded in page) -->
-    <div class="note-editor-backdrop" id="noteEditorBackdrop" style="display: none;">
-        <div class="note-editor" id="noteEditor">
-            <div class="note-editor-header">
-                <button class="btn-close-editor" id="closeEditor">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <line x1="18" y1="6" x2="6" y2="18"></line>
-                        <line x1="6" y1="6" x2="18" y2="18"></line>
-                    </svg>
-                </button>
-                <div class="note-editor-actions">
-                    <button class="btn-icon" id="deleteNote" title="Supprimer">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <polyline points="3 6 5 6 21 6"></polyline>
-                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                        </svg>
-                    </button>
-                    <button class="btn-primary" id="saveNote">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <polyline points="20 6 9 17 4 12"></polyline>
-                        </svg>
-                        Enregistrer
-                    </button>
-                </div>
-            </div>
-
-            <input type="text" id="noteTitle" class="note-title-input" placeholder="Titre de la note">
-
-            <textarea id="noteContent" class="note-content-textarea" placeholder="Commencez à écrire..."></textarea>
-
-            <div id="noteImageContainer" class="note-image-container" style="display: none;">
-                <img id="noteImage" class="note-image" alt="Image de la note">
-                <button class="btn-remove-image" id="removeImage">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="18" y1="6" x2="6" y2="18"></line>
-                        <line x1="6" y1="6" x2="18" y2="18"></line>
-                    </svg>
-                </button>
-            </div>
-
-            <div class="note-todos-section">
-                <h3 class="note-section-title">Todos dans cette note</h3>
-                <div id="noteTodosList" class="note-todos-list">
-                    <!-- Note todos will be inserted here -->
-                </div>
-                <button class="btn-add-note-todo" id="addNoteTodo">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="12" y1="5" x2="12" y2="19"></line>
-                        <line x1="5" y1="12" x2="19" y2="12"></line>
-                    </svg>
-                    Ajouter un todo
-                </button>
-            </div>
-
-            <div class="note-editor-footer">
-                <button class="btn-icon" id="addImageBtn" title="Ajouter une image">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                        <circle cx="8.5" cy="8.5" r="1.5"></circle>
-                        <polyline points="21 15 16 10 5 21"></polyline>
-                    </svg>
-                </button>
-                <input type="file" id="imageInput" accept="image/*" style="display: none;">
-                <span id="noteMetadata" class="note-metadata"></span>
-            </div>
-        </div>
-    </div>
 
     <!-- Modal Admin -->
     <div class="modal-backdrop" id="adminModal" style="display: none;">
@@ -242,6 +192,9 @@
             </div>
         </div>
     </div>
+
+    <!-- Hidden file input -->
+    <input type="file" id="imageInput" accept="image/*" style="display: none;">
 
     <!-- JavaScript -->
     <script src="/js/complete-app.js"></script>
