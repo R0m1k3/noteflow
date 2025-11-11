@@ -175,7 +175,7 @@ const state = {
   todos: [],
   currentNote: null,
   expandedNoteId: null,
-  filter: 'all',
+  filter: 'active',
   searchQuery: '',
   view: 'active',
   user: null
