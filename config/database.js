@@ -81,6 +81,27 @@ function initDatabase() {
 
         logger.info('✓ Tables de base de données créées avec succès');
 
+        // Migration: Ajouter image_filename si elle n'existe pas
+        db.all("PRAGMA table_info(notes)", (err, columns) => {
+          if (err) {
+            logger.error('Erreur lors de la vérification de la structure de la table notes:', err);
+            return;
+          }
+
+          const hasImageFilename = columns.some(col => col.name === 'image_filename');
+
+          if (!hasImageFilename) {
+            logger.info('Migration: Ajout de la colonne image_filename...');
+            db.run('ALTER TABLE notes ADD COLUMN image_filename TEXT', (err) => {
+              if (err) {
+                logger.error('Erreur lors de l\'ajout de la colonne image_filename:', err);
+              } else {
+                logger.info('✓ Colonne image_filename ajoutée avec succès');
+              }
+            });
+          }
+        });
+
         // Créer l'utilisateur admin par défaut si la table est vide
         db.get('SELECT COUNT(*) as count FROM users', async (err, row) => {
           if (err) {
