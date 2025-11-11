@@ -323,7 +323,7 @@ let currentNoteId = null;
 
 async function openNoteModal(noteId = null) {
   currentNoteId = noteId;
-  const modal = document.getElementById('noteModal');
+  const modal = document.getElementById('noteEditorBackdrop');
   const titleInput = document.getElementById('noteTitle');
   const contentTextarea = document.getElementById('noteContent');
   const imageContainer = document.getElementById('noteImageContainer');
@@ -477,9 +477,28 @@ async function deleteNoteTodo(todoId) {
 }
 
 function closeNoteModal() {
-  document.getElementById('noteModal').style.display = 'none';
+  document.getElementById('noteEditorBackdrop').style.display = 'none';
   currentNoteId = null;
   state.currentNote = null;
+}
+
+async function saveCurrentNote() {
+  if (!currentNoteId) return;
+
+  const titleInput = document.getElementById('noteTitle');
+  const contentTextarea = document.getElementById('noteContent');
+
+  try {
+    await api.put(`/api/notes/${currentNoteId}`, {
+      title: titleInput.value,
+      content: contentTextarea.value
+    });
+
+    await loadNotes();
+  } catch (error) {
+    console.error('Erreur sauvegarde:', error);
+    throw error;
+  }
 }
 
 async function deleteCurrentNote() {
@@ -845,9 +864,19 @@ async function init() {
     });
   }
 
-  const closeModal = document.getElementById('closeModal');
-  if (closeModal) {
-    closeModal.addEventListener('click', closeNoteModal);
+  const closeEditor = document.getElementById('closeEditor');
+  if (closeEditor) {
+    closeEditor.addEventListener('click', closeNoteModal);
+  }
+
+  const saveNoteBtn = document.getElementById('saveNote');
+  if (saveNoteBtn) {
+    saveNoteBtn.addEventListener('click', async () => {
+      if (currentNoteId) {
+        await saveCurrentNote();
+        alert('Note enregistrée !');
+      }
+    });
   }
 
   const deleteNote = document.getElementById('deleteNote');
@@ -949,11 +978,11 @@ async function init() {
     });
   }
 
-  // Close modal on backdrop click
-  const noteModal = document.getElementById('noteModal');
-  if (noteModal) {
-    noteModal.addEventListener('click', (e) => {
-      if (e.target === noteModal) closeNoteModal();
+  // Close editor on backdrop click
+  const noteEditorBackdrop = document.getElementById('noteEditorBackdrop');
+  if (noteEditorBackdrop) {
+    noteEditorBackdrop.addEventListener('click', (e) => {
+      if (e.target === noteEditorBackdrop) closeNoteModal();
     });
   }
 
