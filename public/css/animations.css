@@ -116,6 +116,12 @@
   animation: spin 1s linear infinite;
 }
 
+.spinner {
+  animation: spin 1s linear infinite;
+  width: 20px;
+  height: 20px;
+}
+
 /* Smooth transitions */
 .smooth-transition {
   transition: all var(--transition-base);

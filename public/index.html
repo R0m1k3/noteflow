@@ -146,6 +146,24 @@
                     <!-- Todos will be inserted here -->
                 </div>
             </div>
+
+            <!-- RSS Box -->
+            <div class="rss-box">
+                <div class="rss-box-header">
+                    <h2 class="rss-box-title">📰 Actualités</h2>
+                    <button class="btn-summarize" id="summarizeRssBtn" title="Générer un résumé avec IA">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+                            <path d="M2 17l10 5 10-5"></path>
+                            <path d="M2 12l10 5 10-5"></path>
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="rss-articles-list" id="rssArticlesList">
+                    <p class="rss-empty">Aucun article pour le moment</p>
+                </div>
+            </div>
         </div>
     </main>
 
@@ -153,29 +171,109 @@
     <div class="modal-backdrop" id="adminModal" style="display: none;">
         <div class="modal-content admin-modal">
             <div class="modal-header">
-                <h2>Administration des utilisateurs</h2>
+                <h2>Administration</h2>
                 <button class="modal-close" id="closeAdminModal">✕</button>
             </div>
 
-            <div class="admin-actions">
-                <button class="action-btn" id="createUserBtn">+ Créer un utilisateur</button>
+            <div class="admin-tabs">
+                <button class="admin-tab active" data-tab="users">👥 Utilisateurs</button>
+                <button class="admin-tab" data-tab="rss">📰 Flux RSS</button>
+                <button class="admin-tab" data-tab="openrouter">🤖 OpenRouter</button>
             </div>
 
-            <div class="users-table-container">
-                <table class="users-table" id="usersTable">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Nom d'utilisateur</th>
-                            <th>Admin</th>
-                            <th>Créé le</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="usersTableBody">
-                        <!-- Users will be inserted here -->
-                    </tbody>
-                </table>
+            <!-- Onglet Utilisateurs -->
+            <div class="admin-tab-content" id="tab-users">
+                <div class="admin-actions">
+                    <button class="action-btn" id="createUserBtn">+ Créer un utilisateur</button>
+                </div>
+
+                <div class="users-table-container">
+                    <table class="users-table" id="usersTable">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Nom d'utilisateur</th>
+                                <th>Admin</th>
+                                <th>Créé le</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usersTableBody">
+                            <!-- Users will be inserted here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Onglet RSS -->
+            <div class="admin-tab-content" id="tab-rss" style="display: none;">
+                <div class="admin-actions">
+                    <input type="url" id="rssUrlInput" class="rss-url-input" placeholder="https://example.com/feed.xml">
+                    <button class="action-btn" id="addRssFeedBtn">+ Ajouter un flux</button>
+                    <button class="action-btn btn-secondary" id="fetchRssBtn">🔄 Récupérer les articles</button>
+                </div>
+
+                <div class="rss-feeds-list" id="rssFeedsList">
+                    <!-- Feeds will be inserted here -->
+                </div>
+            </div>
+
+            <!-- Onglet OpenRouter -->
+            <div class="admin-tab-content" id="tab-openrouter" style="display: none;">
+                <div class="openrouter-settings">
+                    <div class="setting-group">
+                        <label for="openrouterApiKey">Clé API OpenRouter</label>
+                        <input type="password" id="openrouterApiKey" class="setting-input" placeholder="sk-or-...">
+                        <small>Obtenez votre clé sur <a href="https://openrouter.ai" target="_blank">openrouter.ai</a></small>
+                    </div>
+
+                    <div class="setting-group">
+                        <label for="openrouterModel">Modèle</label>
+                        <input type="text" id="modelSearch" class="setting-input" placeholder="Rechercher un modèle...">
+                        <select id="openrouterModel" class="setting-select" size="8">
+                            <!-- Models will be inserted here -->
+                        </select>
+                    </div>
+
+                    <div class="setting-group">
+                        <label for="rssSummaryEnabled">
+                            <input type="checkbox" id="rssSummaryEnabled">
+                            Activer les résumés automatiques
+                        </label>
+                    </div>
+
+                    <div class="setting-group">
+                        <label for="rssSummaryPrompt">Prompt de résumé</label>
+                        <textarea id="rssSummaryPrompt" class="setting-textarea" rows="10" placeholder="Le prompt sera chargé..."></textarea>
+                    </div>
+
+                    <button class="action-btn" id="saveOpenRouterSettings">💾 Sauvegarder les paramètres</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Change Password -->
+    <div class="modal-backdrop" id="changePasswordModal" style="display: none;">
+        <div class="modal-content small-modal">
+            <div class="modal-header">
+                <h3>Changer le mot de passe</h3>
+                <button class="modal-close" id="closeChangePasswordModal">✕</button>
+            </div>
+            <div class="modal-body">
+                <p id="changePasswordUsername"></p>
+                <div class="form-group">
+                    <label for="newPassword">Nouveau mot de passe</label>
+                    <input type="password" id="newPassword" class="form-input" placeholder="Minimum 6 caractères">
+                </div>
+                <div class="form-group">
+                    <label for="confirmPassword">Confirmer le mot de passe</label>
+                    <input type="password" id="confirmPassword" class="form-input">
+                </div>
+                <div class="modal-actions">
+                    <button class="btn-cancel" id="cancelChangePassword">Annuler</button>
+                    <button class="btn-confirm" id="confirmChangePassword">Changer</button>
+                </div>
             </div>
         </div>
     </div>

@@ -1160,6 +1160,34 @@ function setupSearch() {
 }
 
 // ==================== ADMIN ====================
+
+// Tab switching
+function switchAdminTab(tabName) {
+  // Update tab buttons
+  document.querySelectorAll('.admin-tab').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === tabName);
+  });
+
+  // Update tab content
+  document.querySelectorAll('.admin-tab-content').forEach(content => {
+    content.style.display = 'none';
+  });
+
+  const targetTab = document.getElementById(`tab-${tabName}`);
+  if (targetTab) {
+    targetTab.style.display = 'block';
+  }
+
+  // Load data for the selected tab
+  if (tabName === 'users') {
+    loadUsers();
+  } else if (tabName === 'rss') {
+    loadRssFeeds();
+  } else if (tabName === 'openrouter') {
+    loadOpenRouterSettings();
+  }
+}
+
 async function loadUsers() {
   try {
     const users = await api.get('/api/users');
@@ -1200,7 +1228,9 @@ async function openAdminModal() {
 
   modal.style.display = 'flex';
   setTimeout(() => modal.classList.add('active'), 10);
-  await loadUsers();
+
+  // Switch to users tab by default
+  switchAdminTab('users');
 }
 
 function closeAdminModal() {
@@ -1248,30 +1278,72 @@ async function createUser() {
   }
 }
 
-async function changeUserPassword(id, username) {
-  const password = prompt(`Nouveau mot de passe pour "${username}" :`);
+// Password Change Modal
+let currentPasswordChangeUserId = null;
+let currentPasswordChangeUsername = null;
 
-  if (!password) return;
+function openPasswordChangeModal(userId, username) {
+  currentPasswordChangeUserId = userId;
+  currentPasswordChangeUsername = username;
 
-  if (password.length < 6) {
+  const modal = document.getElementById('changePasswordModal');
+  const usernameDisplay = document.getElementById('changePasswordUsername');
+  const newPasswordInput = document.getElementById('newPassword');
+  const confirmPasswordInput = document.getElementById('confirmPassword');
+
+  if (usernameDisplay) {
+    usernameDisplay.textContent = `Modifier le mot de passe de "${username}"`;
+  }
+
+  if (newPasswordInput) newPasswordInput.value = '';
+  if (confirmPasswordInput) confirmPasswordInput.value = '';
+
+  modal.style.display = 'flex';
+  setTimeout(() => modal.classList.add('active'), 10);
+
+  if (newPasswordInput) newPasswordInput.focus();
+}
+
+function closePasswordChangeModal() {
+  const modal = document.getElementById('changePasswordModal');
+  modal.classList.remove('active');
+  setTimeout(() => {
+    modal.style.display = 'none';
+  }, 300);
+
+  currentPasswordChangeUserId = null;
+  currentPasswordChangeUsername = null;
+}
+
+async function confirmPasswordChange() {
+  const newPasswordInput = document.getElementById('newPassword');
+  const confirmPasswordInput = document.getElementById('confirmPassword');
+
+  const newPassword = newPasswordInput.value;
+  const confirmPassword = confirmPasswordInput.value;
+
+  if (!newPassword || newPassword.length < 6) {
     alert('Le mot de passe doit contenir au moins 6 caractères');
     return;
   }
 
-  const confirmPassword = prompt('Confirmer le nouveau mot de passe :');
-
-  if (password !== confirmPassword) {
+  if (newPassword !== confirmPassword) {
     alert('Les mots de passe ne correspondent pas');
     return;
   }
 
   try {
-    await api.put(`/api/users/${id}`, { password });
+    await api.put(`/api/users/${currentPasswordChangeUserId}`, { password: newPassword });
     alert('Mot de passe modifié avec succès');
+    closePasswordChangeModal();
   } catch (error) {
     console.error('Erreur modification mot de passe:', error);
     alert('Erreur lors de la modification du mot de passe');
   }
+}
+
+async function changeUserPassword(id, username) {
+  openPasswordChangeModal(id, username);
 }
 
 async function deleteUser(id, username) {
@@ -1294,13 +1366,299 @@ async function deleteUser(id, username) {
   }
 }
 
+// ==================== RSS FEEDS ====================
+async function loadRssFeeds() {
+  try {
+    const feeds = await api.get('/api/rss/feeds');
+    renderRssFeeds(feeds);
+  } catch (error) {
+    console.error('Erreur chargement flux RSS:', error);
+    alert('Erreur lors du chargement des flux RSS');
+  }
+}
+
+function renderRssFeeds(feeds) {
+  const container = document.getElementById('rssFeedsList');
+  if (!container) return;
+
+  if (feeds.length === 0) {
+    container.innerHTML = '<p style="text-align: center; color: var(--color-text-secondary); padding: 20px;">Aucun flux RSS configuré</p>';
+    return;
+  }
+
+  container.innerHTML = feeds.map(feed => `
+    <div class="rss-feed-item">
+      <div class="rss-feed-info">
+        <div class="rss-feed-title">${escapeHtml(feed.title || feed.url)}</div>
+        <div class="rss-feed-url">${escapeHtml(feed.url)}</div>
+        ${feed.last_fetched_at ? `<div class="rss-feed-meta">Dernière maj: ${new Date(feed.last_fetched_at).toLocaleString('fr-FR')}</div>` : ''}
+      </div>
+      <div class="rss-feed-actions">
+        <label class="rss-feed-toggle">
+          <input type="checkbox" ${feed.enabled ? 'checked' : ''} data-feed-id="${feed.id}">
+          <span class="rss-toggle-slider"></span>
+        </label>
+        <button class="btn-delete-feed" data-feed-id="${feed.id}" title="Supprimer">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function addRssFeed() {
+  const input = document.getElementById('rssUrlInput');
+  const url = input.value.trim();
+
+  if (!url) {
+    alert('Veuillez entrer une URL de flux RSS');
+    return;
+  }
+
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    alert('L\'URL doit commencer par http:// ou https://');
+    return;
+  }
+
+  try {
+    await api.post('/api/rss/feeds', { url });
+    input.value = '';
+    alert('Flux RSS ajouté avec succès');
+    await loadRssFeeds();
+  } catch (error) {
+    console.error('Erreur ajout flux RSS:', error);
+    alert('Erreur lors de l\'ajout du flux RSS. Vérifiez l\'URL.');
+  }
+}
+
+async function toggleRssFeed(feedId, enabled) {
+  try {
+    await api.put(`/api/rss/feeds/${feedId}`, { enabled });
+  } catch (error) {
+    console.error('Erreur toggle flux RSS:', error);
+    alert('Erreur lors de la modification du flux RSS');
+  }
+}
+
+async function deleteRssFeed(feedId) {
+  const confirmed = await confirmDialog.show({
+    icon: '📰',
+    title: 'Supprimer ce flux RSS',
+    message: 'Êtes-vous sûr de vouloir supprimer ce flux RSS ?\n\nTous les articles associés seront également supprimés.',
+    okText: 'Supprimer'
+  });
+
+  if (!confirmed) return;
+
+  try {
+    await api.delete(`/api/rss/feeds/${feedId}`);
+    alert('Flux RSS supprimé avec succès');
+    await loadRssFeeds();
+  } catch (error) {
+    console.error('Erreur suppression flux RSS:', error);
+    alert('Erreur lors de la suppression du flux RSS');
+  }
+}
+
+async function fetchRssArticles() {
+  const btn = document.getElementById('fetchRssBtn');
+  if (!btn) return;
+
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '🔄 Récupération en cours...';
+
+  try {
+    const result = await api.post('/api/rss/fetch', {});
+    alert(result.message || 'Articles récupérés avec succès');
+    await loadRssArticles();
+  } catch (error) {
+    console.error('Erreur fetch articles RSS:', error);
+    alert('Erreur lors de la récupération des articles RSS');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
+}
+
+async function loadRssArticles() {
+  try {
+    const articles = await api.get('/api/rss/articles');
+    renderRssArticles(articles);
+  } catch (error) {
+    console.error('Erreur chargement articles RSS:', error);
+  }
+}
+
+function renderRssArticles(articles) {
+  const container = document.getElementById('rssArticlesList');
+  if (!container) return;
+
+  if (!articles || articles.length === 0) {
+    container.innerHTML = '<p class="rss-empty">Aucun article pour le moment</p>';
+    return;
+  }
+
+  container.innerHTML = articles.map(article => `
+    <div class="rss-article" data-link="${escapeHtml(article.link)}">
+      <div class="rss-article-title">${escapeHtml(article.title)}</div>
+      <div class="rss-article-meta">
+        <span class="rss-article-source">${escapeHtml(article.feed_title)}</span>
+        <span>${new Date(article.pub_date).toLocaleDateString('fr-FR')}</span>
+      </div>
+      ${article.description ? `<div class="rss-article-description">${escapeHtml(article.description)}</div>` : ''}
+    </div>
+  `).join('');
+}
+
+async function summarizeRss() {
+  const btn = document.getElementById('summarizeRssBtn');
+  if (!btn) return;
+
+  const originalHTML = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<svg class="spinner" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" opacity="0.25"/><path d="M12 2a10 10 0 0 1 10 10" opacity="0.75"/></svg>';
+
+  try {
+    const result = await api.post('/api/rss/summarize', {});
+
+    // Create a new note with the summary
+    const newNote = await api.post('/api/notes', {
+      title: `📰 Résumé RSS - ${new Date().toLocaleDateString('fr-FR')}`,
+      content: result.summary
+    });
+
+    alert('Résumé généré et sauvegardé dans une nouvelle note !');
+    await loadNotes();
+
+    // Expand the new note
+    state.expandedNoteId = newNote.id;
+    renderNotes();
+  } catch (error) {
+    console.error('Erreur génération résumé RSS:', error);
+    if (error.message && error.message.includes('400')) {
+      alert('Veuillez configurer votre clé API OpenRouter dans l\'administration');
+    } else {
+      alert('Erreur lors de la génération du résumé RSS');
+    }
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = originalHTML;
+  }
+}
+
+// ==================== OPENROUTER ====================
+let allModels = [];
+
+async function loadOpenRouterSettings() {
+  try {
+    const settings = await api.get('/api/settings');
+    const models = await api.get('/api/rss/models');
+
+    allModels = models;
+
+    // Populate form
+    const apiKeyInput = document.getElementById('openrouterApiKey');
+    const modelSelect = document.getElementById('openrouterModel');
+    const summaryEnabled = document.getElementById('rssSummaryEnabled');
+    const summaryPrompt = document.getElementById('rssSummaryPrompt');
+
+    if (apiKeyInput) {
+      apiKeyInput.value = settings.openrouter_api_key || '';
+    }
+
+    if (summaryEnabled) {
+      summaryEnabled.checked = settings.rss_summary_enabled === 'true' || settings.rss_summary_enabled === '1';
+    }
+
+    if (summaryPrompt) {
+      summaryPrompt.value = settings.rss_summary_prompt || `Tu es un assistant spécialisé dans la synthèse d'actualités. Analyse les articles suivants et crée un résumé structuré et informatif.
+
+Pour chaque article, identifie:
+- Le sujet principal
+- Les points clés
+- L'importance de l'information
+
+Ensuite, génère un résumé global qui:
+1. Regroupe les thèmes communs
+2. Hiérarchise les informations par importance
+3. Présente une vue d'ensemble claire et concise
+4. Utilise un style professionnel mais accessible
+
+Format de sortie en Markdown avec des sections claires.`;
+    }
+
+    // Populate model selector
+    renderModelSelect(models, settings.openrouter_model);
+
+  } catch (error) {
+    console.error('Erreur chargement paramètres OpenRouter:', error);
+  }
+}
+
+function renderModelSelect(models, selectedModel) {
+  const select = document.getElementById('openrouterModel');
+  if (!select) return;
+
+  select.innerHTML = models.map(model => `
+    <option value="${escapeHtml(model.id)}" ${model.id === selectedModel ? 'selected' : ''}>
+      ${escapeHtml(model.name)} (${escapeHtml(model.provider)})
+    </option>
+  `).join('');
+}
+
+function filterModels() {
+  const searchInput = document.getElementById('modelSearch');
+  const select = document.getElementById('openrouterModel');
+
+  if (!searchInput || !select) return;
+
+  const query = searchInput.value.toLowerCase();
+
+  if (!query) {
+    renderModelSelect(allModels, select.value);
+    return;
+  }
+
+  const filtered = allModels.filter(model =>
+    model.name.toLowerCase().includes(query) ||
+    model.provider.toLowerCase().includes(query) ||
+    model.id.toLowerCase().includes(query)
+  );
+
+  renderModelSelect(filtered, select.value);
+}
+
+async function saveOpenRouterSettings() {
+  const apiKeyInput = document.getElementById('openrouterApiKey');
+  const modelSelect = document.getElementById('openrouterModel');
+  const summaryEnabled = document.getElementById('rssSummaryEnabled');
+  const summaryPrompt = document.getElementById('rssSummaryPrompt');
+
+  try {
+    // Save all settings
+    await api.put('/api/settings/openrouter_api_key', { value: apiKeyInput.value });
+    await api.put('/api/settings/openrouter_model', { value: modelSelect.value });
+    await api.put('/api/settings/rss_summary_enabled', { value: summaryEnabled.checked ? '1' : '0' });
+    await api.put('/api/settings/rss_summary_prompt', { value: summaryPrompt.value });
+
+    alert('Paramètres OpenRouter sauvegardés avec succès');
+  } catch (error) {
+    console.error('Erreur sauvegarde paramètres OpenRouter:', error);
+    alert('Erreur lors de la sauvegarde des paramètres');
+  }
+}
+
 // ==================== INIT ====================
 async function init() {
   // Vérifier l'authentification
   await initAuth();
 
   // Charger les données
-  await Promise.all([loadNotes(), loadTodos()]);
+  await Promise.all([loadNotes(), loadTodos(), loadRssArticles()]);
 
   // Setup search
   setupSearch();
@@ -1584,10 +1942,110 @@ async function init() {
         collapseNote();
       } else {
         closeNoteModal();
-        document.getElementById('adminModal').style.display = 'none';
+        closeAdminModal();
+        closePasswordChangeModal();
       }
     }
   });
+
+  // ==================== ADMIN TAB SWITCHING ====================
+  document.querySelectorAll('.admin-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      switchAdminTab(tab.dataset.tab);
+    });
+  });
+
+  // ==================== PASSWORD CHANGE MODAL ====================
+  const closePasswordModal = document.getElementById('closeChangePasswordModal');
+  if (closePasswordModal) {
+    closePasswordModal.addEventListener('click', closePasswordChangeModal);
+  }
+
+  const cancelPasswordChange = document.getElementById('cancelChangePassword');
+  if (cancelPasswordChange) {
+    cancelPasswordChange.addEventListener('click', closePasswordChangeModal);
+  }
+
+  const confirmPasswordBtn = document.getElementById('confirmChangePassword');
+  if (confirmPasswordBtn) {
+    confirmPasswordBtn.addEventListener('click', confirmPasswordChange);
+  }
+
+  // Enter key to confirm password change
+  const newPasswordInput = document.getElementById('newPassword');
+  const confirmPasswordInput = document.getElementById('confirmPassword');
+  if (newPasswordInput && confirmPasswordInput) {
+    [newPasswordInput, confirmPasswordInput].forEach(input => {
+      input.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') confirmPasswordChange();
+      });
+    });
+  }
+
+  // ==================== RSS FEEDS ====================
+  const addRssFeedBtn = document.getElementById('addRssFeedBtn');
+  if (addRssFeedBtn) {
+    addRssFeedBtn.addEventListener('click', addRssFeed);
+  }
+
+  const rssUrlInput = document.getElementById('rssUrlInput');
+  if (rssUrlInput) {
+    rssUrlInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') addRssFeed();
+    });
+  }
+
+  const fetchRssBtn = document.getElementById('fetchRssBtn');
+  if (fetchRssBtn) {
+    fetchRssBtn.addEventListener('click', fetchRssArticles);
+  }
+
+  // Event delegation for RSS feeds list
+  const rssFeedsList = document.getElementById('rssFeedsList');
+  if (rssFeedsList) {
+    rssFeedsList.addEventListener('change', (e) => {
+      if (e.target.type === 'checkbox' && e.target.dataset.feedId) {
+        const feedId = parseInt(e.target.dataset.feedId);
+        toggleRssFeed(feedId, e.target.checked);
+      }
+    });
+
+    rssFeedsList.addEventListener('click', (e) => {
+      const deleteBtn = e.target.closest('.btn-delete-feed');
+      if (deleteBtn) {
+        const feedId = parseInt(deleteBtn.dataset.feedId);
+        deleteRssFeed(feedId);
+      }
+    });
+  }
+
+  // RSS articles click to open in new tab
+  const rssArticlesList = document.getElementById('rssArticlesList');
+  if (rssArticlesList) {
+    rssArticlesList.addEventListener('click', (e) => {
+      const article = e.target.closest('.rss-article');
+      if (article && article.dataset.link) {
+        window.open(article.dataset.link, '_blank');
+      }
+    });
+  }
+
+  // RSS summarize button
+  const summarizeRssBtn = document.getElementById('summarizeRssBtn');
+  if (summarizeRssBtn) {
+    summarizeRssBtn.addEventListener('click', summarizeRss);
+  }
+
+  // ==================== OPENROUTER ====================
+  const modelSearch = document.getElementById('modelSearch');
+  if (modelSearch) {
+    modelSearch.addEventListener('input', utils.debounce(filterModels, 300));
+  }
+
+  const saveOpenRouterBtn = document.getElementById('saveOpenRouterSettings');
+  if (saveOpenRouterBtn) {
+    saveOpenRouterBtn.addEventListener('click', saveOpenRouterSettings);
+  }
 }
 
 // Démarrer l'application
