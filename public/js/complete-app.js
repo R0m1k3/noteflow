@@ -583,6 +583,102 @@ function setupSearch() {
   }
 }
 
+// ==================== ADMIN ====================
+async function loadUsers() {
+  try {
+    const users = await api.get('/api/users');
+    renderUsersTable(users);
+  } catch (error) {
+    console.error('Erreur chargement utilisateurs:', error);
+    alert('Erreur lors du chargement des utilisateurs');
+  }
+}
+
+function renderUsersTable(users) {
+  const tbody = document.getElementById('usersTableBody');
+  if (!tbody) return;
+
+  tbody.innerHTML = users.map(user => `
+    <tr>
+      <td>${user.id}</td>
+      <td>${user.username}</td>
+      <td>${user.is_admin ? '✓ Oui' : '✗ Non'}</td>
+      <td>${new Date(user.created_at).toLocaleDateString('fr-FR')}</td>
+      <td>
+        ${user.id !== state.user.id ? `
+          <button class="btn-delete-user" onclick="deleteUser(${user.id}, '${user.username}')">
+            🗑️ Supprimer
+          </button>
+        ` : '<span style="color: var(--text-secondary);">Vous-même</span>'}
+      </td>
+    </tr>
+  `).join('');
+}
+
+async function openAdminModal() {
+  const modal = document.getElementById('adminModal');
+  if (!modal) return;
+
+  modal.style.display = 'flex';
+  setTimeout(() => modal.classList.add('active'), 10);
+  await loadUsers();
+}
+
+function closeAdminModal() {
+  const modal = document.getElementById('adminModal');
+  if (!modal) return;
+
+  modal.classList.remove('active');
+  setTimeout(() => {
+    modal.style.display = 'none';
+  }, 300);
+}
+
+async function createUser() {
+  const username = prompt('Nom d\'utilisateur:');
+  if (!username || username.trim().length < 3) {
+    alert('Le nom d\'utilisateur doit contenir au moins 3 caractères');
+    return;
+  }
+
+  const password = prompt('Mot de passe:');
+  if (!password || password.length < 4) {
+    alert('Le mot de passe doit contenir au moins 4 caractères');
+    return;
+  }
+
+  const isAdmin = confirm('Créer cet utilisateur en tant qu\'administrateur?');
+
+  try {
+    await api.post('/api/users', {
+      username: username.trim(),
+      password,
+      is_admin: isAdmin
+    });
+    alert('Utilisateur créé avec succès');
+    await loadUsers();
+  } catch (error) {
+    console.error('Erreur création utilisateur:', error);
+    alert('Erreur lors de la création de l\'utilisateur. Il existe peut-être déjà.');
+  }
+}
+
+// Fonction globale pour la suppression d'utilisateur (appelée depuis onclick)
+window.deleteUser = async function(id, username) {
+  if (!confirm(`Êtes-vous sûr de vouloir supprimer l'utilisateur "${username}"?\n\nToutes ses notes et todos seront également supprimés.`)) {
+    return;
+  }
+
+  try {
+    await api.delete(`/api/users/${id}`);
+    alert('Utilisateur supprimé avec succès');
+    await loadUsers();
+  } catch (error) {
+    console.error('Erreur suppression utilisateur:', error);
+    alert('Erreur lors de la suppression de l\'utilisateur');
+  }
+}
+
 // ==================== INIT ====================
 async function init() {
   // Vérifier l'authentification
@@ -598,6 +694,29 @@ async function init() {
   const newNoteBtn = document.getElementById('newNoteBtn');
   if (newNoteBtn) {
     newNoteBtn.addEventListener('click', () => openNoteModal());
+  }
+
+  // Admin button
+  const adminBtn = document.getElementById('adminBtn');
+  if (adminBtn) {
+    adminBtn.addEventListener('click', openAdminModal);
+  }
+
+  const closeAdminModalBtn = document.getElementById('closeAdminModal');
+  if (closeAdminModalBtn) {
+    closeAdminModalBtn.addEventListener('click', closeAdminModal);
+  }
+
+  const createUserBtn = document.getElementById('createUserBtn');
+  if (createUserBtn) {
+    createUserBtn.addEventListener('click', createUser);
+  }
+
+  const adminModalBackdrop = document.getElementById('adminModal');
+  if (adminModalBackdrop) {
+    adminModalBackdrop.addEventListener('click', (e) => {
+      if (e.target === adminModalBackdrop) closeAdminModal();
+    });
   }
 
   const closeModal = document.getElementById('closeModal');

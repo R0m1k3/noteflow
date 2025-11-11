@@ -508,3 +508,19 @@
 .users-table tbody tr:hover {
   background: var(--color-background);
 }
+
+.btn-delete-user {
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-danger);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: all var(--transition-speed);
+}
+
+.btn-delete-user:hover {
+  background: #c0392b;
+  transform: translateY(-1px);
+}
