@@ -1,16 +1,28 @@
 {
-  "name": "notes-todo-app",
+  "name": "noteflow",
   "version": "1.0.0",
-  "description": "Notes and Todo List Application",
+  "description": "Application web de notes et todo list moderne avec Docker",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "build:css": "mkdir -p public/css/dist && npx tailwindcss build -i ./src/globals.css -o ./public/css/dist/styles.css --minify"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "docker:build": "docker-compose build",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "docker:restart": "docker-compose restart"
   },
+  "keywords": [
+    "notes",
+    "todo",
+    "docker",
+    "express",
+    "sqlite"
+  ],
+  "author": "",
+  "license": "MIT",
   "dependencies": {
-    "@tanstack/react-query": "^5.90.7",
-    "autoprefixer": "^10.4.16",
     "bcrypt": "^5.1.1",
     "cors": "^2.8.5",
     "express": "^4.18.2",
@@ -19,15 +31,13 @@
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1",
-    "postcss": "^8.4.31",
-    "postcss-cli": "^10.1.0",
     "sqlite3": "^5.1.7",
-    "tailwindcss": "^3.3.5",
-    "tailwindcss-animate": "^1.0.7",
-    "uuid": "^9.0.1",
     "winston": "^3.11.0"
   },
   "devDependencies": {
-    "nodemon": "^3.0.3"
+    "nodemon": "^3.0.2"
+  },
+  "engines": {
+    "node": ">=20.0.0"
   }
 }

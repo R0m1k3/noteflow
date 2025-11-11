@@ -1,0 +1,129 @@
+/* Layout principal de l'application */
+
+body {
+  font-family: var(--font-family);
+  background: var(--color-background);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-base);
+}
+
+/* Header */
+.header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--header-height);
+  background: var(--color-card);
+  border-bottom: 1px solid var(--color-border);
+  z-index: 100;
+  box-shadow: var(--shadow-sm);
+}
+
+.header-content {
+  height: 100%;
+  max-width: 100%;
+  padding: 0 var(--spacing-lg);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-lg);
+}
+
+.header-logo h1 {
+  font-size: var(--font-size-xl);
+  font-weight: bold;
+  color: var(--color-accent);
+}
+
+.header-search {
+  flex: 1;
+  max-width: 600px;
+  position: relative;
+}
+
+.header-user {
+  position: relative;
+}
+
+/* Main container */
+.main-container {
+  display: flex;
+  margin-top: var(--header-height);
+  min-height: calc(100vh - var(--header-height));
+}
+
+/* Notes area */
+.notes-area {
+  flex: 1;
+  padding: var(--spacing-xl);
+  overflow-y: auto;
+  position: relative;
+}
+
+.notes-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--note-card-width), 1fr));
+  gap: var(--spacing-lg);
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* Todo sidebar */
+.todo-sidebar {
+  position: sticky;
+  top: var(--header-height);
+  right: 0;
+  width: var(--sidebar-width);
+  height: calc(100vh - var(--header-height));
+  background: var(--color-sidebar);
+  border-left: 1px solid var(--color-border);
+  padding: var(--spacing-lg);
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .notes-grid {
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  }
+
+  .todo-sidebar {
+    width: 320px;
+  }
+}
+
+@media (max-width: 768px) {
+  .main-container {
+    flex-direction: column;
+  }
+
+  .header-content {
+    padding: 0 var(--spacing-md);
+    gap: var(--spacing-sm);
+  }
+
+  .header-logo h1 {
+    font-size: var(--font-size-lg);
+  }
+
+  .header-search {
+    max-width: 400px;
+  }
+
+  .notes-area {
+    padding: var(--spacing-md);
+  }
+
+  .notes-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .todo-sidebar {
+    position: static;
+    width: 100%;
+    height: auto;
+    max-height: 400px;
+  }
+}
