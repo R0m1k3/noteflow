@@ -7,8 +7,8 @@ services:
     ports:
       - "2222:2222"
     volumes:
-      - ./data:/app/data
-      - ./public/uploads:/app/public/uploads
+      - notes_data:/app/data
+      - notes_uploads:/app/public/uploads
     environment:
       - NODE_ENV=production
       - JWT_SECRET=${JWT_SECRET:-change_me_in_production_please_use_strong_secret}
@@ -24,6 +24,10 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+
+volumes:
+  notes_data:
+  notes_uploads:
 
 networks:
   nginx_default:

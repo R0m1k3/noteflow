@@ -104,12 +104,21 @@ docker-compose build
 # Logs
 docker-compose logs -f
 
-# Backup base de données
+# Backup base de données (depuis le volume Docker)
 docker cp notes-todo-app:/app/data/notes.db ./backup_$(date +%Y%m%d).db
 
-# Restore
-docker cp ./backup.db notes-todo-app:/app/data/notes.db
+# Restore base de données
+docker cp ./backup_YYYYMMDD.db notes-todo-app:/app/data/notes.db
 docker-compose restart
+
+# Lister les volumes Docker
+docker volume ls | grep notes
+
+# Inspecter un volume
+docker volume inspect noteflow_notes_data
+
+# Supprimer les volumes (⚠️ supprime toutes les données)
+docker-compose down -v
 ```
 
 ## ⚙️ Configuration Nginx
