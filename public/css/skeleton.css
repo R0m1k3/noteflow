@@ -198,15 +198,18 @@
   align-items: center;
   gap: 12px;
   opacity: 0;
-  transform: translateX(400px);
+  transform: translate3d(400px, 0, 0);
   animation: slideInRight 0.3s ease-out forwards;
   pointer-events: auto;
   min-width: 300px;
   position: relative;
+  will-change: transform, opacity;
+  backface-visibility: hidden;
 }
 
 .notification.closing {
   animation: slideOutRight 0.3s ease-in forwards;
+  will-change: transform, opacity;
 }
 
 .notification-icon {
@@ -275,44 +278,47 @@
 @keyframes slideInRight {
   from {
     opacity: 0;
-    transform: translateX(400px);
+    transform: translate3d(400px, 0, 0);
   }
   to {
     opacity: 1;
-    transform: translateX(0);
+    transform: translate3d(0, 0, 0);
   }
 }
 
 @keyframes slideOutRight {
   from {
     opacity: 1;
-    transform: translateX(0);
+    transform: translate3d(0, 0, 0);
   }
   to {
     opacity: 0;
-    transform: translateX(400px);
+    transform: translate3d(400px, 0, 0);
   }
 }
 
-/* Modal pour agrandir les images */
+/* Modal pour agrandir les images - GPU accelerated */
 .image-modal {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.9);
+  background: rgba(0, 0, 0, 0);
   z-index: 400;
   display: none;
   align-items: center;
   justify-content: center;
   padding: 40px;
   cursor: pointer;
-  animation: fadeIn 0.2s ease-in;
+  transition: background 0.25s ease-out;
+  will-change: background;
 }
 
 .image-modal.active {
   display: flex;
+  background: rgba(0, 0, 0, 0.9);
+  animation: fadeIn 0.25s ease-out;
 }
 
 .image-modal-content {
@@ -320,6 +326,16 @@
   max-width: 90vw;
   max-height: 90vh;
   cursor: default;
+  transform: scale3d(0.95, 0.95, 1);
+  opacity: 0;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease-out;
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+}
+
+.image-modal.active .image-modal-content {
+  transform: scale3d(1, 1, 1);
+  opacity: 1;
 }
 
 .image-modal-img {
@@ -328,6 +344,8 @@
   object-fit: contain;
   border-radius: var(--radius-md);
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 
 .image-modal-close {
@@ -347,11 +365,14 @@
   justify-content: center;
   transition: all var(--transition-fast);
   backdrop-filter: blur(10px);
+  will-change: transform, background;
+  backface-visibility: hidden;
+  transform: translateZ(0);
 }
 
 .image-modal-close:hover {
   background: rgba(255, 255, 255, 0.2);
-  transform: scale(1.1);
+  transform: scale3d(1.1, 1.1, 1) translateZ(0);
 }
 
 .image-modal-close svg {
