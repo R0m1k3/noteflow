@@ -13,6 +13,46 @@ const parser = new Parser({
 let isRunning = false;
 
 /**
+ * Initialiser des flux RSS par défaut
+ */
+async function initializeDefaultFeeds() {
+  try {
+    const existingFeeds = await getAll('SELECT COUNT(*) as count FROM rss_feeds');
+
+    if (existingFeeds[0].count === 0) {
+      logger.info('🔧 Aucun flux RSS trouvé, ajout de flux par défaut...');
+
+      const defaultFeeds = [
+        'https://www.lemonde.fr/rss/une.xml',
+        'https://feeds.bbci.co.uk/news/world/rss.xml',
+        'https://www.lefigaro.fr/rss/figaro_actualites.xml'
+      ];
+
+      for (const url of defaultFeeds) {
+        try {
+          const feed = await parser.parseURL(url);
+          await runQuery(
+            'INSERT INTO rss_feeds (url, title, description, enabled) VALUES (?, ?, ?, 1)',
+            [url, feed.title || url, feed.description || '']
+          );
+          logger.info(`✓ Flux ajouté: ${feed.title || url}`);
+        } catch (error) {
+          logger.warn(`⚠️  Impossible d'ajouter ${url}: ${error.message}`);
+        }
+      }
+
+      logger.info('✓ Flux RSS par défaut initialisés');
+      return true;
+    }
+
+    return false;
+  } catch (error) {
+    logger.error('Erreur lors de l\'initialisation des flux par défaut:', error);
+    return false;
+  }
+}
+
+/**
  * Récupérer et mettre à jour tous les flux RSS activés
  */
 async function fetchAllFeeds() {
@@ -31,12 +71,18 @@ async function fetchAllFeeds() {
     const feeds = await getAll('SELECT * FROM rss_feeds WHERE enabled = 1');
 
     if (!feeds || feeds.length === 0) {
-      logger.info('Aucun flux RSS activé');
+      logger.info('⚠️  Aucun flux RSS activé, initialisation...');
+      const initialized = await initializeDefaultFeeds();
+      if (initialized) {
+        // Réessayer avec les nouveaux flux
+        isRunning = false;
+        return await fetchAllFeeds();
+      }
       isRunning = false;
       return;
     }
 
-    logger.info(`Mise à jour de ${feeds.length} flux RSS...`);
+    logger.info(`📰 Mise à jour de ${feeds.length} flux RSS...`);
 
     let totalArticles = 0;
     let totalErrors = 0;
@@ -44,12 +90,17 @@ async function fetchAllFeeds() {
     // Traiter chaque flux
     for (const feed of feeds) {
       try {
-        logger.info(`Fetch: ${feed.url}`);
+        logger.info(`⏳ Fetch: ${feed.url}`);
 
-        // Parser le flux
-        const parsedFeed = await parser.parseURL(feed.url);
+        // Parser le flux avec timeout
+        const parsedFeed = await Promise.race([
+          parser.parseURL(feed.url),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Timeout')), 15000)
+          )
+        ]);
 
-        // Mettre à jour le titre et description du flux si nécessaire
+        // Mettre à jour le titre et description du flux
         await runQuery(
           'UPDATE rss_feeds SET title = ?, description = ?, last_fetched_at = CURRENT_TIMESTAMP WHERE id = ?',
           [parsedFeed.title || feed.url, parsedFeed.description || '', feed.id]
@@ -57,9 +108,12 @@ async function fetchAllFeeds() {
 
         // Ajouter les articles (limiter à 20 par flux pour ne pas surcharger)
         const items = parsedFeed.items.slice(0, 20);
+        let feedArticles = 0;
 
         for (const item of items) {
           try {
+            if (!item.link) continue; // Skip articles sans lien
+
             // Vérifier si l'article existe déjà
             const existing = await getOne('SELECT id FROM rss_articles WHERE link = ?', [item.link]);
 
@@ -69,25 +123,28 @@ async function fetchAllFeeds() {
                 [
                   feed.id,
                   item.title || 'Sans titre',
-                  item.link || '',
+                  item.link,
                   item.contentSnippet || item.description || '',
                   item.pubDate || item.isoDate || new Date().toISOString(),
                   item.content || item['content:encoded'] || ''
                 ]
               );
+              feedArticles++;
               totalArticles++;
             }
           } catch (articleError) {
-            // Ignorer les articles en double ou invalides
-            logger.debug(`Article ignoré: ${articleError.message}`);
+            // Ignorer les articles en double
+            if (!articleError.message.includes('UNIQUE')) {
+              logger.debug(`Article ignoré: ${articleError.message}`);
+            }
           }
         }
 
-        logger.info(`✓ ${feed.title || feed.url}: ${items.length} articles traités`);
+        logger.info(`✓ ${feed.title || feed.url}: ${feedArticles} nouveaux articles`);
 
       } catch (feedError) {
         totalErrors++;
-        logger.error(`✗ Erreur fetch ${feed.url}:`, feedError.message);
+        logger.error(`✗ Erreur fetch ${feed.url}: ${feedError.message}`);
       }
     }
 
@@ -107,8 +164,9 @@ async function fetchAllFeeds() {
 function startScheduler() {
   logger.info('📰 Scheduler RSS démarré (mise à jour toutes les 5 minutes)');
 
-  // Première exécution immédiate
-  setTimeout(() => {
+  // Initialiser les flux par défaut si nécessaire, puis première exécution
+  setTimeout(async () => {
+    await initializeDefaultFeeds();
     fetchAllFeeds().catch(err => {
       logger.error('Erreur lors de la première mise à jour RSS:', err);
     });
@@ -132,5 +190,6 @@ async function manualFetch() {
 module.exports = {
   startScheduler,
   manualFetch,
-  fetchAllFeeds
+  fetchAllFeeds,
+  initializeDefaultFeeds
 };
