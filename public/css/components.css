@@ -1,0 +1,510 @@
+/* Composants UI */
+
+/* Search input */
+.search-input {
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-md);
+  padding-right: 40px;
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-base);
+  transition: border-color var(--transition-base);
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+.search-clear {
+  position: absolute;
+  right: var(--spacing-sm);
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--color-border);
+  color: var(--color-text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background var(--transition-base);
+}
+
+.search-clear:hover {
+  background: var(--color-text-secondary);
+  color: white;
+}
+
+/* User dropdown */
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background var(--transition-base);
+}
+
+.user-info:hover {
+  background: var(--color-background);
+}
+
+.user-avatar {
+  font-size: var(--font-size-xl);
+}
+
+.user-name {
+  font-weight: 500;
+}
+
+.user-dropdown {
+  position: absolute;
+  top: calc(100% + var(--spacing-sm));
+  right: 0;
+  background: white;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  min-width: 200px;
+  display: none;
+  animation: fadeIn var(--transition-base);
+}
+
+.user-dropdown.show {
+  display: block;
+}
+
+.dropdown-item {
+  width: 100%;
+  padding: var(--spacing-md);
+  text-align: left;
+  transition: background var(--transition-base);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.dropdown-item:hover {
+  background: var(--color-background);
+}
+
+/* Note cards */
+.note-card {
+  background: var(--color-card);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: transform var(--transition-base), box-shadow var(--transition-base);
+  position: relative;
+  min-height: 150px;
+  max-height: 400px;
+  overflow: hidden;
+}
+
+.note-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+}
+
+.note-card-title {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  margin-bottom: var(--spacing-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.note-card-content {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: 1.6;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-bottom: var(--spacing-md);
+}
+
+.note-card-image {
+  width: 50px;
+  height: 50px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  position: absolute;
+  top: var(--spacing-md);
+  right: var(--spacing-md);
+}
+
+.note-card-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  margin-top: auto;
+}
+
+.note-card-badge {
+  background: var(--color-accent);
+  color: white;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+}
+
+/* FAB Button */
+.fab {
+  position: fixed;
+  bottom: var(--spacing-xl);
+  right: calc(var(--sidebar-width) + var(--spacing-xl));
+  width: 60px;
+  height: 60px;
+  background: var(--color-accent);
+  color: white;
+  border-radius: 50%;
+  font-size: 32px;
+  box-shadow: var(--shadow-lg);
+  transition: transform var(--transition-base), box-shadow var(--transition-base);
+  z-index: 50;
+}
+
+.fab:hover {
+  transform: scale(1.1);
+  box-shadow: var(--shadow-xl);
+  background: var(--color-accent-hover);
+}
+
+/* Todo sidebar components */
+.sidebar-title {
+  font-size: var(--font-size-xl);
+  font-weight: bold;
+  margin-bottom: var(--spacing-lg);
+}
+
+.todo-input-container {
+  display: flex;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
+}
+
+.todo-input {
+  flex: 1;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-base);
+}
+
+.todo-input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+.todo-add-btn {
+  width: 40px;
+  height: 40px;
+  background: var(--color-accent);
+  color: white;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-xl);
+  transition: background var(--transition-base);
+}
+
+.todo-add-btn:hover {
+  background: var(--color-accent-hover);
+}
+
+.todo-filters {
+  display: flex;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
+}
+
+.filter-btn {
+  flex: 1;
+  padding: var(--spacing-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  transition: background var(--transition-base), color var(--transition-base);
+}
+
+.filter-btn.active {
+  background: var(--color-accent);
+  color: white;
+  border-color: var(--color-accent);
+}
+
+.todo-counter {
+  text-align: center;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  margin-bottom: var(--spacing-md);
+}
+
+.todo-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.todo-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  background: white;
+  border-radius: var(--radius-md);
+  transition: background var(--transition-base);
+}
+
+.todo-item:hover {
+  background: var(--color-background);
+}
+
+.todo-item.hidden {
+  display: none;
+}
+
+.todo-checkbox {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+}
+
+.todo-text {
+  flex: 1;
+  font-size: var(--font-size-base);
+}
+
+.todo-item.completed .todo-text {
+  text-decoration: line-through;
+  color: var(--color-text-secondary);
+}
+
+.todo-delete {
+  opacity: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--color-danger);
+  color: white;
+  font-size: var(--font-size-sm);
+  transition: opacity var(--transition-base);
+}
+
+.todo-item:hover .todo-delete {
+  opacity: 1;
+}
+
+/* Modal */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: var(--spacing-lg);
+}
+
+.modal-content {
+  background: white;
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xl);
+  max-width: 700px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: var(--spacing-xl);
+}
+
+.admin-modal {
+  max-width: 900px;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-lg);
+}
+
+.modal-close {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--color-border);
+  font-size: var(--font-size-lg);
+  transition: background var(--transition-base);
+}
+
+.modal-close:hover {
+  background: var(--color-text-secondary);
+  color: white;
+}
+
+.modal-delete {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--color-danger);
+  color: white;
+  font-size: var(--font-size-lg);
+  transition: background var(--transition-base);
+}
+
+.modal-delete:hover {
+  background: #DC2626;
+}
+
+.note-title-input {
+  width: 100%;
+  font-size: var(--font-size-xl);
+  font-weight: bold;
+  border: none;
+  padding: var(--spacing-sm) 0;
+  margin-bottom: var(--spacing-md);
+}
+
+.note-title-input:focus {
+  outline: none;
+}
+
+.note-divider {
+  height: 1px;
+  background: var(--color-border);
+  margin: var(--spacing-lg) 0;
+}
+
+.note-content-textarea {
+  width: 100%;
+  min-height: 200px;
+  border: none;
+  resize: vertical;
+  font-size: var(--font-size-base);
+  line-height: 1.6;
+}
+
+.note-content-textarea:focus {
+  outline: none;
+}
+
+.note-image-container {
+  position: relative;
+  margin: var(--spacing-lg) 0;
+}
+
+.note-image {
+  width: 100%;
+  border-radius: var(--radius-md);
+}
+
+.note-image-remove {
+  position: absolute;
+  top: var(--spacing-sm);
+  right: var(--spacing-sm);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--color-danger);
+  color: white;
+  font-size: var(--font-size-base);
+}
+
+.note-section-title {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  margin-bottom: var(--spacing-md);
+}
+
+.note-todos-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
+}
+
+.note-add-todo-btn {
+  width: 100%;
+  padding: var(--spacing-md);
+  border: 2px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  transition: border-color var(--transition-base), color var(--transition-base);
+}
+
+.note-add-todo-btn:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.modal-actions {
+  display: flex;
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-lg);
+}
+
+.action-btn {
+  padding: var(--spacing-md) var(--spacing-lg);
+  background: var(--color-accent);
+  color: white;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-base);
+  transition: background var(--transition-base);
+}
+
+.action-btn:hover {
+  background: var(--color-accent-hover);
+}
+
+.modal-footer {
+  margin-top: var(--spacing-lg);
+  padding-top: var(--spacing-lg);
+  border-top: 1px solid var(--color-border);
+}
+
+.note-metadata {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+/* Admin table */
+.admin-actions {
+  margin-bottom: var(--spacing-lg);
+}
+
+.users-table-container {
+  overflow-x: auto;
+}
+
+.users-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.users-table th,
+.users-table td {
+  padding: var(--spacing-md);
+  text-align: left;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.users-table th {
+  font-weight: 600;
+  background: var(--color-background);
+}
+
+.users-table tbody tr:hover {
+  background: var(--color-background);
+}

@@ -1,204 +1,442 @@
+// Routes de gestion des notes
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
-const { v4: uuidv4 } = require('uuid');
+const fs = require('fs');
 const { body, validationResult } = require('express-validator');
-const { db, logger } = require('../config/database');
-const { authMiddleware } = require('../middleware/auth');
 
-// Configure multer for image uploads
+const { getAll, getOne, runQuery } = require('../config/database');
+const { authenticateToken } = require('../middleware/auth');
+const logger = require('../config/logger');
+
+// Configuration de multer pour l'upload d'images
 const storage = multer.diskStorage({
-  destination: 'public/uploads/',
+  destination: (req, file, cb) => {
+    const uploadsDir = path.join(__dirname, '../public/uploads');
+    cb(null, uploadsDir);
+  },
   filename: (req, file, cb) => {
-    const uniqueName = `${uuidv4()}${path.extname(file.originalname)}`;
+    const uniqueName = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}${path.extname(file.originalname)}`;
     cb(null, uniqueName);
   }
 });
 
 const upload = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  limits: { fileSize: parseInt(process.env.MAX_FILE_SIZE) || 5 * 1024 * 1024 }, // 5MB
   fileFilter: (req, file, cb) => {
-    const allowedTypes = /jpeg|jpg|png|gif/;
-    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-    const mimetype = allowedTypes.test(file.mimetype);
-    if (extname && mimetype) {
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Only image files are allowed'));
+      cb(new Error('Type de fichier non autorisé. Utilisez JPEG, PNG, WebP ou GIF.'));
     }
   }
 });
 
-// Note validation
-const noteValidation = [
-  body('title').trim().notEmpty().escape(),
-  body('content').trim().optional().escape(),
-  body('archived').isBoolean().optional()
-];
+// Toutes les routes nécessitent authentification
+router.use(authenticateToken);
 
-// Get all notes for user
-router.get('/', authMiddleware, (req, res) => {
-  const query = `
-    SELECT n.*, 
-           GROUP_CONCAT(t.id || ':' || t.text || ':' || t.completed) as todos,
-           GROUP_CONCAT(i.id || ':' || i.filename) as images
-    FROM notes n
-    LEFT JOIN todos t ON n.id = t.note_id
-    LEFT JOIN images i ON n.id = i.note_id
-    WHERE n.user_id = ?
-    GROUP BY n.id
-    ORDER BY n.created_at DESC
-  `;
+/**
+ * GET /api/notes
+ * Liste toutes les notes de l'utilisateur
+ */
+router.get('/', async (req, res) => {
+  try {
+    const notes = await getAll(`
+      SELECT
+        n.id, n.title, n.content, n.image_filename,
+        n.created_at, n.updated_at,
+        COUNT(DISTINCT nt.id) as todos_count
+      FROM notes n
+      LEFT JOIN note_todos nt ON n.id = nt.note_id
+      WHERE n.user_id = ?
+      GROUP BY n.id
+      ORDER BY n.updated_at DESC
+    `, [req.user.id]);
 
-  db.all(query, [req.user.id], (err, notes) => {
-    if (err) {
-      logger.error('Error fetching notes:', err);
-      return res.status(500).json({ message: 'Server error' });
-    }
-
-    // Process the results to format todos and images
-    const processedNotes = notes.map(note => ({
-      ...note,
-      todos: note.todos ? note.todos.split(',').map(todo => {
-        const [id, text, completed] = todo.split(':');
-        return { id, text, completed: completed === '1' };
-      }) : [],
-      images: note.images ? note.images.split(',').map(image => {
-        const [id, filename] = image.split(':');
-        return { id, filename };
-      }) : []
-    }));
-
-    res.json(processedNotes);
-  });
-});
-
-// Create note
-router.post('/', authMiddleware, noteValidation, (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
+    res.json(notes);
+  } catch (error) {
+    logger.error('Erreur lors de la récupération des notes:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
   }
-
-  const { title, content, todos = [] } = req.body;
-
-  db.run(
-    'INSERT INTO notes (user_id, title, content) VALUES (?, ?, ?)',
-    [req.user.id, title, content],
-    function(err) {
-      if (err) {
-        logger.error('Error creating note:', err);
-        return res.status(500).json({ message: 'Server error' });
-      }
-
-      const noteId = this.lastID;
-
-      // Insert todos if any
-      if (todos.length > 0) {
-        const todoValues = todos.map((todo, index) => 
-          `(${noteId}, '${todo.text}', ${todo.completed ? 1 : 0}, ${index})`
-        ).join(',');
-
-        db.run(`INSERT INTO todos (note_id, text, completed, position) VALUES ${todoValues}`);
-      }
-
-      res.status(201).json({ id: noteId, title, content, todos: [] });
-    }
-  );
 });
 
-// Update note
-router.put('/:id', authMiddleware, noteValidation, (req, res) => {
-  const noteId = req.params.id;
-  const { title, content, archived, todos = [] } = req.body;
+/**
+ * GET /api/notes/:id
+ * Récupérer une note avec ses todos
+ */
+router.get('/:id', async (req, res) => {
+  try {
+    const note = await getOne(`
+      SELECT id, title, content, image_filename, created_at, updated_at
+      FROM notes
+      WHERE id = ? AND user_id = ?
+    `, [req.params.id, req.user.id]);
 
-  db.run(
-    'UPDATE notes SET title = ?, content = ?, archived = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?',
-    [title, content, archived ? 1 : 0, noteId, req.user.id],
-    function(err) {
-      if (err) {
-        logger.error('Error updating note:', err);
-        return res.status(500).json({ message: 'Server error' });
+    if (!note) {
+      return res.status(404).json({ error: 'Note non trouvée' });
+    }
+
+    // Récupérer les todos de la note
+    const todos = await getAll(`
+      SELECT id, text, completed, position
+      FROM note_todos
+      WHERE note_id = ?
+      ORDER BY position, id
+    `, [req.params.id]);
+
+    note.todos = todos;
+
+    res.json(note);
+  } catch (error) {
+    logger.error('Erreur lors de la récupération de la note:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+/**
+ * POST /api/notes
+ * Créer une nouvelle note
+ */
+router.post('/',
+  [
+    body('title').trim().notEmpty().withMessage('Le titre est requis'),
+    body('content').optional()
+  ],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ error: 'Données invalides', details: errors.array() });
       }
 
-      // Update todos
-      db.run('DELETE FROM todos WHERE note_id = ?', [noteId], (err) => {
-        if (err) {
-          logger.error('Error deleting todos:', err);
-          return;
-        }
+      const { title, content } = req.body;
 
-        if (todos.length > 0) {
-          const todoValues = todos.map((todo, index) => 
-            `(${noteId}, '${todo.text}', ${todo.completed ? 1 : 0}, ${index})`
-          ).join(',');
+      const result = await runQuery(`
+        INSERT INTO notes (user_id, title, content)
+        VALUES (?, ?, ?)
+      `, [req.user.id, title, content || '']);
 
-          db.run(`INSERT INTO todos (note_id, text, completed, position) VALUES ${todoValues}`);
-        }
+      logger.info(`Note créée: ${title} (ID: ${result.id}) par ${req.user.username}`);
+
+      res.status(201).json({
+        id: result.id,
+        title,
+        content: content || '',
+        image_filename: null,
+        todos: []
       });
-
-      res.json({ message: 'Note updated successfully' });
+    } catch (error) {
+      logger.error('Erreur lors de la création de la note:', error);
+      res.status(500).json({ error: 'Erreur serveur' });
     }
-  );
-});
-
-// Delete note
-router.delete('/:id', authMiddleware, (req, res) => {
-  const noteId = req.params.id;
-
-  db.run('DELETE FROM notes WHERE id = ? AND user_id = ?', [noteId, req.user.id], (err) => {
-    if (err) {
-      logger.error('Error deleting note:', err);
-      return res.status(500).json({ message: 'Server error' });
-    }
-
-    // Cleanup related records
-    db.run('DELETE FROM todos WHERE note_id = ?', [noteId]);
-    db.run('DELETE FROM images WHERE note_id = ?', [noteId]);
-
-    res.json({ message: 'Note deleted successfully' });
-  });
-});
-
-// Upload image
-router.post('/:id/images', authMiddleware, upload.single('image'), (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ message: 'No image file provided' });
   }
+);
 
-  const noteId = req.params.id;
-  const filename = req.file.filename;
+/**
+ * PUT /api/notes/:id
+ * Modifier une note
+ */
+router.put('/:id',
+  [
+    body('title').optional().trim().notEmpty(),
+    body('content').optional()
+  ],
+  async (req, res) => {
+    try {
+      const { title, content } = req.body;
 
-  db.run(
-    'INSERT INTO images (note_id, filename) VALUES (?, ?)',
-    [noteId, filename],
-    function(err) {
-      if (err) {
-        logger.error('Error saving image record:', err);
-        return res.status(500).json({ message: 'Server error' });
+      // Vérifier que la note appartient à l'utilisateur
+      const note = await getOne('SELECT id FROM notes WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+      if (!note) {
+        return res.status(404).json({ error: 'Note non trouvée' });
       }
-      res.status(201).json({ id: this.lastID, filename });
+
+      const updates = [];
+      const params = [];
+
+      if (title !== undefined) {
+        updates.push('title = ?');
+        params.push(title);
+      }
+      if (content !== undefined) {
+        updates.push('content = ?');
+        params.push(content);
+      }
+
+      if (updates.length > 0) {
+        updates.push('updated_at = CURRENT_TIMESTAMP');
+        params.push(req.params.id);
+
+        await runQuery(`UPDATE notes SET ${updates.join(', ')} WHERE id = ?`, params);
+      }
+
+      res.json({ message: 'Note modifiée avec succès' });
+    } catch (error) {
+      logger.error('Erreur lors de la modification de la note:', error);
+      res.status(500).json({ error: 'Erreur serveur' });
     }
-  );
+  }
+);
+
+/**
+ * DELETE /api/notes/:id
+ * Supprimer une note
+ */
+router.delete('/:id', async (req, res) => {
+  try {
+    // Vérifier que la note appartient à l'utilisateur
+    const note = await getOne('SELECT id, image_filename FROM notes WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+    if (!note) {
+      return res.status(404).json({ error: 'Note non trouvée' });
+    }
+
+    // Supprimer l'image si elle existe
+    if (note.image_filename) {
+      const imagePath = path.join(__dirname, '../public/uploads', note.image_filename);
+      if (fs.existsSync(imagePath)) {
+        fs.unlinkSync(imagePath);
+      }
+    }
+
+    await runQuery('DELETE FROM notes WHERE id = ?', [req.params.id]);
+
+    logger.info(`Note supprimée (ID: ${req.params.id}) par ${req.user.username}`);
+
+    res.json({ message: 'Note supprimée avec succès' });
+  } catch (error) {
+    logger.error('Erreur lors de la suppression de la note:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
 });
 
-// Delete image
-router.delete('/:noteId/images/:imageId', authMiddleware, (req, res) => {
-  const { noteId, imageId } = req.params;
-
-  db.run(
-    'DELETE FROM images WHERE id = ? AND note_id = ?',
-    [imageId, noteId],
-    (err) => {
-      if (err) {
-        logger.error('Error deleting image:', err);
-        return res.status(500).json({ message: 'Server error' });
-      }
-      res.json({ message: 'Image deleted successfully' });
+/**
+ * POST /api/notes/:id/image
+ * Ajouter une image à une note
+ */
+router.post('/:id/image', upload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'Aucune image fournie' });
     }
-  );
+
+    // Vérifier que la note appartient à l'utilisateur
+    const note = await getOne('SELECT id, image_filename FROM notes WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+    if (!note) {
+      // Supprimer le fichier uploadé
+      fs.unlinkSync(req.file.path);
+      return res.status(404).json({ error: 'Note non trouvée' });
+    }
+
+    // Supprimer l'ancienne image si elle existe
+    if (note.image_filename) {
+      const oldImagePath = path.join(__dirname, '../public/uploads', note.image_filename);
+      if (fs.existsSync(oldImagePath)) {
+        fs.unlinkSync(oldImagePath);
+      }
+    }
+
+    // Mettre à jour la note avec le nouveau fichier
+    await runQuery('UPDATE notes SET image_filename = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [req.file.filename, req.params.id]);
+
+    res.json({
+      message: 'Image ajoutée avec succès',
+      filename: req.file.filename,
+      url: `/uploads/${req.file.filename}`
+    });
+  } catch (error) {
+    logger.error('Erreur lors de l\'ajout de l\'image:', error);
+    if (req.file) {
+      fs.unlinkSync(req.file.path);
+    }
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
 });
+
+/**
+ * DELETE /api/notes/:id/image
+ * Supprimer l'image d'une note
+ */
+router.delete('/:id/image', async (req, res) => {
+  try {
+    const note = await getOne('SELECT id, image_filename FROM notes WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+    if (!note) {
+      return res.status(404).json({ error: 'Note non trouvée' });
+    }
+
+    if (!note.image_filename) {
+      return res.status(400).json({ error: 'Aucune image à supprimer' });
+    }
+
+    // Supprimer le fichier
+    const imagePath = path.join(__dirname, '../public/uploads', note.image_filename);
+    if (fs.existsSync(imagePath)) {
+      fs.unlinkSync(imagePath);
+    }
+
+    await runQuery('UPDATE notes SET image_filename = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [req.params.id]);
+
+    res.json({ message: 'Image supprimée avec succès' });
+  } catch (error) {
+    logger.error('Erreur lors de la suppression de l\'image:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+/**
+ * POST /api/notes/:id/todos
+ * Ajouter un todo à une note
+ */
+router.post('/:id/todos',
+  [body('text').trim().notEmpty().withMessage('Le texte est requis')],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ error: 'Données invalides', details: errors.array() });
+      }
+
+      // Vérifier que la note appartient à l'utilisateur
+      const note = await getOne('SELECT id FROM notes WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+      if (!note) {
+        return res.status(404).json({ error: 'Note non trouvée' });
+      }
+
+      const { text } = req.body;
+
+      const result = await runQuery(`
+        INSERT INTO note_todos (note_id, text, position)
+        VALUES (?, ?, (SELECT COALESCE(MAX(position), 0) + 1 FROM note_todos WHERE note_id = ?))
+      `, [req.params.id, text, req.params.id]);
+
+      await runQuery('UPDATE notes SET updated_at = CURRENT_TIMESTAMP WHERE id = ?', [req.params.id]);
+
+      res.status(201).json({
+        id: result.id,
+        text,
+        completed: false,
+        position: 0
+      });
+    } catch (error) {
+      logger.error('Erreur lors de l\'ajout du todo:', error);
+      res.status(500).json({ error: 'Erreur serveur' });
+    }
+  }
+);
+
+/**
+ * PUT /api/notes/todos/:todoId
+ * Modifier un todo dans une note
+ */
+router.put('/todos/:todoId',
+  [
+    body('text').optional().trim().notEmpty(),
+    body('completed').optional().isBoolean(),
+    body('position').optional().isInt()
+  ],
+  async (req, res) => {
+    try {
+      const { text, completed, position } = req.body;
+
+      // Vérifier que le todo appartient à une note de l'utilisateur
+      const todo = await getOne(`
+        SELECT nt.id, nt.note_id
+        FROM note_todos nt
+        JOIN notes n ON nt.note_id = n.id
+        WHERE nt.id = ? AND n.user_id = ?
+      `, [req.params.todoId, req.user.id]);
+
+      if (!todo) {
+        return res.status(404).json({ error: 'Todo non trouvé' });
+      }
+
+      const updates = [];
+      const params = [];
+
+      if (text !== undefined) {
+        updates.push('text = ?');
+        params.push(text);
+      }
+      if (completed !== undefined) {
+        updates.push('completed = ?');
+        params.push(completed ? 1 : 0);
+      }
+      if (position !== undefined) {
+        updates.push('position = ?');
+        params.push(position);
+      }
+
+      if (updates.length > 0) {
+        params.push(req.params.todoId);
+        await runQuery(`UPDATE note_todos SET ${updates.join(', ')} WHERE id = ?`, params);
+        await runQuery('UPDATE notes SET updated_at = CURRENT_TIMESTAMP WHERE id = ?', [todo.note_id]);
+      }
+
+      res.json({ message: 'Todo modifié avec succès' });
+    } catch (error) {
+      logger.error('Erreur lors de la modification du todo:', error);
+      res.status(500).json({ error: 'Erreur serveur' });
+    }
+  }
+);
+
+/**
+ * DELETE /api/notes/todos/:todoId
+ * Supprimer un todo d'une note
+ */
+router.delete('/todos/:todoId', async (req, res) => {
+  try {
+    // Vérifier que le todo appartient à une note de l'utilisateur
+    const todo = await getOne(`
+      SELECT nt.id, nt.note_id
+      FROM note_todos nt
+      JOIN notes n ON nt.note_id = n.id
+      WHERE nt.id = ? AND n.user_id = ?
+    `, [req.params.todoId, req.user.id]);
+
+    if (!todo) {
+      return res.status(404).json({ error: 'Todo non trouvé' });
+    }
+
+    await runQuery('DELETE FROM note_todos WHERE id = ?', [req.params.todoId]);
+    await runQuery('UPDATE notes SET updated_at = CURRENT_TIMESTAMP WHERE id = ?', [todo.note_id]);
+
+    res.json({ message: 'Todo supprimé avec succès' });
+  } catch (error) {
+    logger.error('Erreur lors de la suppression du todo:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+/**
+ * GET /api/search
+ * Rechercher des notes
+ */
+const searchNotes = async (req, res) => {
+  try {
+    const query = req.query.q;
+    if (!query || query.trim().length === 0) {
+      return res.json([]);
+    }
+
+    const searchTerm = `%${query}%`;
+
+    const notes = await getAll(`
+      SELECT id, title, content, image_filename, created_at, updated_at
+      FROM notes
+      WHERE user_id = ? AND (title LIKE ? OR content LIKE ?)
+      ORDER BY updated_at DESC
+      LIMIT 50
+    `, [req.user.id, searchTerm, searchTerm]);
+
+    res.json(notes);
+  } catch (error) {
+    logger.error('Erreur lors de la recherche:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+};
 
 module.exports = router;
+module.exports.searchNotes = searchNotes;

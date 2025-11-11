@@ -1,42 +1,34 @@
+# Image de base Node.js 20 Alpine pour optimiser la taille
 FROM node:20-alpine
 
-WORKDIR /home/node/app
+# Définir le répertoire de travail
+WORKDIR /app
 
-# Install build dependencies
-RUN apk add --no-cache python3 make g++
+# Installer SQLite
+RUN apk add --no-cache sqlite
 
-# Create necessary directories
-RUN mkdir -p public/css/dist data public/uploads
-
-# Install dependencies first (better layer caching)
+# Copier les fichiers de dépendances
 COPY package*.json ./
-RUN npm install
 
-# Copy configuration files
-COPY postcss.config.js tailwind.config.js ./
+# Installer les dépendances de production uniquement
+RUN npm ci --only=production
 
-# Copy source files
-COPY src ./src
-COPY public ./public
-
-# Build CSS with verbose output
-RUN NODE_ENV=production npx tailwindcss -i ./src/globals.css -o ./public/css/dist/styles.css --minify -v
-
-# Copy remaining files
+# Copier le code source
 COPY . .
 
-# Set correct permissions
-RUN chown -R node:node .
+# Créer les dossiers nécessaires et définir les permissions
+RUN mkdir -p /app/data /app/public/uploads && \
+    chown -R node:node /app
 
-# Switch to non-root user
+# Utiliser l'utilisateur node pour la sécurité
 USER node
 
-# Set environment variables
-ENV NODE_ENV=production \
-    PORT=2222
+# Exposer le port 3000
+EXPOSE 3000
 
-# Expose port
-EXPOSE 2222
+# Healthcheck pour vérifier que l'application fonctionne
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:3000/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"
 
-# Start the application
-CMD ["npm", "start"]
+# Démarrer l'application
+CMD ["node", "server.js"]
