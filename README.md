@@ -191,6 +191,41 @@ DELETE /api/todos/:id
 - File type whitelist
 - SQL prepared statements
 
+## 🔧 Dépannage
+
+### Erreur "no such column: n.image_filename"
+
+Cette erreur survient lorsque la base de données a été créée avec une ancienne version du schéma.
+
+**Solution automatique (recommandée)** :
+L'application détecte et ajoute automatiquement la colonne manquante au démarrage. Redéployez simplement :
+```bash
+docker-compose down
+docker-compose up -d --build
+```
+
+**Solution manuelle** :
+Si nécessaire, vous pouvez appliquer la migration manuellement :
+```bash
+docker exec notes-todo-app sh /app/migrations/run-migrations.sh
+```
+
+### Erreur de permissions sur les volumes Docker
+
+Si vous rencontrez des erreurs SQLITE_CANTOPEN ou EACCES, recréez les volumes :
+```bash
+docker-compose down -v
+docker-compose up -d --build
+```
+⚠️ Attention : Cela supprimera toutes les données existantes.
+
+### L'application ne démarre pas
+
+Vérifiez les logs :
+```bash
+docker-compose logs -f notes-todo-app
+```
+
 ## 📝 Licence
 
 MIT
