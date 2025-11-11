@@ -11,22 +11,39 @@ export default function Dashboard() {
   const [rssContent, setRssContent] = useState<RssArticle[] | RssSummary[]>([]);
   const [showSummaries, setShowSummaries] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
 
   useEffect(() => {
     loadData();
+
+    // Auto-refresh toutes les 30 secondes pour afficher les nouveaux articles RSS
+    const interval = setInterval(() => {
+      loadRssData();
+    }, 30000); // 30 secondes
+
+    return () => clearInterval(interval);
   }, []);
 
   const loadData = async () => {
     try {
-      const [notesData, todosData, settings] = await Promise.all([
+      const [notesData, todosData] = await Promise.all([
         notesApi.getAll(false),
         todosApi.getAll(),
-        settingsApi.getAll(),
       ]);
 
       setNotes(notesData);
       setTodos(todosData);
+      await loadRssData();
+    } catch (error) {
+      console.error('Erreur chargement données:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  const loadRssData = async () => {
+    try {
+      const settings = await settingsApi.getAll();
       const summaryEnabled = settings.rss_summary_enabled === '1';
       setShowSummaries(summaryEnabled);
 
@@ -37,10 +54,9 @@ export default function Dashboard() {
         const articles = await rssApi.getArticles();
         setRssContent(articles);
       }
+      setLastUpdate(new Date());
     } catch (error) {
-      console.error('Erreur chargement données:', error);
-    } finally {
-      setLoading(false);
+      console.error('Erreur chargement RSS:', error);
     }
   };
 
