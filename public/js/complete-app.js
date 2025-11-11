@@ -184,16 +184,25 @@ async function initAuth() {
 // ==================== NOTES ====================
 async function loadNotes() {
   try {
-    state.notes = await api.get('/api/notes');
+    const response = await api.get('/api/notes');
+    // S'assurer que response est un tableau
+    state.notes = Array.isArray(response) ? response : [];
     renderNotes();
   } catch (error) {
     console.error('Erreur chargement notes:', error);
+    state.notes = [];
+    renderNotes();
   }
 }
 
 function renderNotes() {
   const notesGrid = document.getElementById('notesGrid');
   if (!notesGrid) return;
+
+  // S'assurer que state.notes est toujours un tableau
+  if (!Array.isArray(state.notes)) {
+    state.notes = [];
+  }
 
   let filtered = state.notes;
 
