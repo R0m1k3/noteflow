@@ -327,19 +327,35 @@ function createNoteCard(note) {
           <button class="btn-remove-image-inline" data-note-id="${note.id}">✕</button>
         </div>
       ` : ''}
+      ${note.files && note.files.length > 0 ? `
+        <div class="note-files-container-inline">
+          <div class="note-files-list" id="files-${note.id}">
+            ${renderInlineFiles(note.files || [])}
+          </div>
+        </div>
+      ` : ''}
       <div class="note-todos-inline">
         <h4>Todos</h4>
         <div class="todos-list-inline" id="todos-${note.id}">
           ${renderInlineTodos(note.todos || [])}
         </div>
-        <button class="btn-add-todo-inline" data-note-id="${note.id}">+ Ajouter une tâche</button>
+        <div class="add-todo-inline-container">
+          <input type="text" class="add-todo-inline-input" placeholder="Ajouter une tâche..." data-note-id="${note.id}">
+          <button class="btn-add-todo-inline" data-note-id="${note.id}">Ajouter</button>
+        </div>
       </div>
       <div class="note-footer-inline">
-        <button class="btn-add-image-inline" data-note-id="${note.id}">
+        <button class="btn-add-image-inline" data-note-id="${note.id}" title="Ajouter une image">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
             <circle cx="8.5" cy="8.5" r="1.5"></circle>
             <polyline points="21 15 16 10 5 21"></polyline>
+          </svg>
+        </button>
+        <button class="btn-add-file-inline" data-note-id="${note.id}" title="Ajouter un fichier">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+            <polyline points="13 2 13 9 20 9"></polyline>
           </svg>
         </button>
         <span class="note-meta-inline">${utils.formatDate(note.updated_at)}</span>
@@ -407,6 +423,49 @@ function renderInlineTodos(todos) {
       <button class="todo-delete-inline" data-todo-inline-id="${todo.id}">✕</button>
     </div>
   `).join('');
+}
+
+function renderInlineFiles(files) {
+  if (!files || files.length === 0) return '';
+
+  return files.map(file => {
+    const sizeStr = formatFileSize(file.file_size);
+    return `
+      <div class="note-file-item" data-file-id="${file.id}">
+        <svg class="note-file-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+          <polyline points="13 2 13 9 20 9"></polyline>
+        </svg>
+        <div class="note-file-info">
+          <div class="note-file-name">${escapeHtml(file.original_name)}</div>
+          <div class="note-file-size">${sizeStr}</div>
+        </div>
+        <div class="note-file-actions">
+          <button class="btn-download-file" data-file-id="${file.id}" title="Télécharger">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+          </button>
+          <button class="btn-delete-file" data-file-id="${file.id}" title="Supprimer">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function formatFileSize(bytes) {
+  if (!bytes) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
 function escapeHtml(text) {
@@ -484,12 +543,12 @@ async function deleteNoteInline(noteId) {
   }
 }
 
-async function addNoteTodoInline(noteId) {
-  const text = prompt('Texte du todo:');
-  if (!text || !text.trim()) return;
+async function addNoteTodoInline(noteId, inputElement) {
+  const text = inputElement.value.trim();
+  if (!text) return;
 
   try {
-    await api.post(`/api/notes/${noteId}/todos`, { text: text.trim() });
+    await api.post(`/api/notes/${noteId}/todos`, { text });
 
     // Recharger seulement cette note
     const note = await api.get(`/api/notes/${noteId}`);
@@ -503,6 +562,10 @@ async function addNoteTodoInline(noteId) {
     if (todosList) {
       todosList.innerHTML = renderInlineTodos(note.todos || []);
     }
+
+    // Clear input
+    inputElement.value = '';
+    inputElement.focus();
   } catch (error) {
     console.error('Erreur ajout todo:', error);
     alert('Erreur lors de l\'ajout du todo');
@@ -556,6 +619,14 @@ function triggerImageUpload(noteId) {
   if (imageInput) {
     imageInput.dataset.noteId = noteId;
     imageInput.click();
+  }
+}
+
+function triggerFileUpload(noteId) {
+  const fileInput = document.getElementById('fileInput');
+  if (fileInput) {
+    fileInput.dataset.noteId = noteId;
+    fileInput.click();
   }
 }
 
@@ -614,6 +685,70 @@ async function handleImageUploadInline(event) {
   // Reset input
   event.target.value = '';
   event.target.dataset.noteId = '';
+}
+
+async function handleFileUploadInline(event) {
+  const file = event.target.files[0];
+  const noteId = event.target.dataset.noteId;
+
+  if (!file || !noteId) return;
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const result = await api.uploadFile(`/api/notes/${noteId}/files`, formData);
+
+    // Reload notes to get updated files list
+    await loadNotes();
+
+    // Keep the note expanded
+    state.expandedNoteId = parseInt(noteId);
+    renderNotes();
+  } catch (error) {
+    console.error('Erreur upload fichier:', error);
+    alert('Erreur lors de l\'upload du fichier: ' + (error.message || 'Erreur inconnue'));
+  }
+
+  // Reset input
+  event.target.value = '';
+  event.target.dataset.noteId = '';
+}
+
+async function downloadFile(fileId) {
+  try {
+    // Ouvrir le lien de téléchargement dans un nouvel onglet
+    window.open(`/api/notes/files/${fileId}/download`, '_blank');
+  } catch (error) {
+    console.error('Erreur téléchargement fichier:', error);
+    alert('Erreur lors du téléchargement du fichier');
+  }
+}
+
+async function deleteFile(fileId) {
+  const confirmed = await confirmDialog.show({
+    icon: '📎',
+    title: 'Supprimer ce fichier',
+    message: 'Êtes-vous sûr de vouloir supprimer ce fichier ?',
+    okText: 'Supprimer'
+  });
+
+  if (!confirmed) return;
+
+  try {
+    await api.delete(`/api/notes/files/${fileId}`);
+
+    // Reload notes to get updated files list
+    await loadNotes();
+
+    // Keep the note expanded
+    if (state.expandedNoteId) {
+      renderNotes();
+    }
+  } catch (error) {
+    console.error('Erreur suppression fichier:', error);
+    alert('Erreur lors de la suppression du fichier');
+  }
 }
 
 async function createNewNote() {
@@ -1234,6 +1369,11 @@ async function init() {
     imageInput.addEventListener('change', handleImageUploadInline);
   }
 
+  const fileInput = document.getElementById('fileInput');
+  if (fileInput) {
+    fileInput.addEventListener('change', handleFileUploadInline);
+  }
+
   const removeImage = document.getElementById('removeImage');
   if (removeImage) {
     removeImage.addEventListener('click', removeNoteImage);
@@ -1381,7 +1521,18 @@ async function init() {
       const addTodoBtn = e.target.closest('.btn-add-todo-inline');
       if (addTodoBtn) {
         const noteId = parseInt(addTodoBtn.dataset.noteId);
-        addNoteTodoInline(noteId);
+        const inputElement = document.querySelector(`.add-todo-inline-input[data-note-id="${noteId}"]`);
+        if (inputElement) {
+          addNoteTodoInline(noteId, inputElement);
+        }
+        return;
+      }
+
+      // Add file button
+      const addFileBtn = e.target.closest('.btn-add-file-inline');
+      if (addFileBtn) {
+        const noteId = parseInt(addFileBtn.dataset.noteId);
+        triggerFileUpload(noteId);
         return;
       }
 
@@ -1391,6 +1542,22 @@ async function init() {
         deleteNoteTodoInline(todoId);
         return;
       }
+
+      // Download file button
+      const downloadBtn = e.target.closest('.btn-download-file');
+      if (downloadBtn) {
+        const fileId = parseInt(downloadBtn.dataset.fileId);
+        downloadFile(fileId);
+        return;
+      }
+
+      // Delete file button
+      const deleteFileBtn = e.target.closest('.btn-delete-file');
+      if (deleteFileBtn) {
+        const fileId = parseInt(deleteFileBtn.dataset.fileId);
+        deleteFile(fileId);
+        return;
+      }
     });
 
     // Checkbox change for inline todos
@@ -1398,6 +1565,14 @@ async function init() {
       if (e.target.classList.contains('todo-checkbox-inline')) {
         const todoId = parseInt(e.target.dataset.todoInlineId);
         toggleNoteTodoInline(todoId, e.target.checked);
+      }
+    });
+
+    // Enter key on add todo input
+    notesGrid.addEventListener('keypress', (e) => {
+      if (e.target.classList.contains('add-todo-inline-input') && e.key === 'Enter') {
+        const noteId = parseInt(e.target.dataset.noteId);
+        addNoteTodoInline(noteId, e.target);
       }
     });
   }

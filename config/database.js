@@ -74,10 +74,25 @@ function initDatabase() {
           )
         `);
 
+        // Table note_files (fichiers attachés aux notes)
+        db.run(`
+          CREATE TABLE IF NOT EXISTS note_files (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            note_id INTEGER NOT NULL,
+            filename TEXT NOT NULL,
+            original_name TEXT NOT NULL,
+            file_size INTEGER,
+            mime_type TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE
+          )
+        `);
+
         // Créer les index pour la performance
         db.run('CREATE INDEX IF NOT EXISTS idx_notes_user ON notes(user_id)');
         db.run('CREATE INDEX IF NOT EXISTS idx_note_todos ON note_todos(note_id)');
         db.run('CREATE INDEX IF NOT EXISTS idx_global_todos_user ON global_todos(user_id)');
+        db.run('CREATE INDEX IF NOT EXISTS idx_note_files ON note_files(note_id)');
 
         logger.info('✓ Tables de base de données créées avec succès');
 
