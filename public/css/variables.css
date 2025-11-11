@@ -67,12 +67,12 @@
   --transition-base: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   --transition-slow: 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 
-  /* Dimensions */
+  /* Dimensions - Optimisé pour 1920x1080 */
   --header-height: 70px;
-  --max-width: 1400px;
+  --max-width: 1800px;
   --note-width: 320px;
   --note-expanded-width: 680px;
-  --todo-box-width: 340px;
+  --todo-box-width: 420px;
 
   /* Z-index */
   --z-header: 100;
