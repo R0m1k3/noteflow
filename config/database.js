@@ -88,11 +88,52 @@ function initDatabase() {
           )
         `);
 
+        // Table settings (paramètres globaux)
+        db.run(`
+          CREATE TABLE IF NOT EXISTS settings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            key TEXT UNIQUE NOT NULL,
+            value TEXT,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+          )
+        `);
+
+        // Table rss_feeds (flux RSS)
+        db.run(`
+          CREATE TABLE IF NOT EXISTS rss_feeds (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            url TEXT UNIQUE NOT NULL,
+            title TEXT,
+            description TEXT,
+            enabled BOOLEAN DEFAULT 1,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            last_fetched_at DATETIME
+          )
+        `);
+
+        // Table rss_articles (articles des flux RSS)
+        db.run(`
+          CREATE TABLE IF NOT EXISTS rss_articles (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            feed_id INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            link TEXT UNIQUE NOT NULL,
+            description TEXT,
+            pub_date DATETIME,
+            content TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (feed_id) REFERENCES rss_feeds(id) ON DELETE CASCADE
+          )
+        `);
+
         // Créer les index pour la performance
         db.run('CREATE INDEX IF NOT EXISTS idx_notes_user ON notes(user_id)');
         db.run('CREATE INDEX IF NOT EXISTS idx_note_todos ON note_todos(note_id)');
         db.run('CREATE INDEX IF NOT EXISTS idx_global_todos_user ON global_todos(user_id)');
         db.run('CREATE INDEX IF NOT EXISTS idx_note_files ON note_files(note_id)');
+        db.run('CREATE INDEX IF NOT EXISTS idx_settings_key ON settings(key)');
+        db.run('CREATE INDEX IF NOT EXISTS idx_rss_articles_feed ON rss_articles(feed_id)');
+        db.run('CREATE INDEX IF NOT EXISTS idx_rss_articles_date ON rss_articles(pub_date)');
 
         logger.info('✓ Tables de base de données créées avec succès');
 
