@@ -1489,8 +1489,27 @@ let settingsCache = null;
 let settingsCacheTime = 0;
 const SETTINGS_CACHE_DURATION = 60000; // 1 minute
 
-async function loadRssArticles() {
+// Fonction pour afficher/cacher l'indicateur de refresh
+function showRefreshIndicator() {
+  const indicator = document.getElementById('refreshIndicator');
+  if (indicator) {
+    indicator.classList.add('active');
+  }
+}
+
+function hideRefreshIndicator() {
+  const indicator = document.getElementById('refreshIndicator');
+  if (indicator) {
+    indicator.classList.remove('active');
+  }
+}
+
+async function loadRssArticles(showIndicator = false) {
   try {
+    if (showIndicator) {
+      showRefreshIndicator();
+    }
+
     // Vérifier si les résumés sont activés (avec cache)
     const now = Date.now();
     if (!settingsCache || (now - settingsCacheTime) > SETTINGS_CACHE_DURATION) {
@@ -1509,8 +1528,14 @@ async function loadRssArticles() {
       const articles = await api.get('/api/rss/articles');
       renderRssArticles(articles);
     }
+
+    if (showIndicator) {
+      // Cacher l'indicateur après un court délai pour que l'utilisateur le voie
+      setTimeout(hideRefreshIndicator, 500);
+    }
   } catch (error) {
     console.error('Erreur chargement articles RSS:', error);
+    hideRefreshIndicator();
   }
 }
 

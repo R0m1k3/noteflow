@@ -14,6 +14,7 @@
     <link rel="stylesheet" href="/css/layout.css">
     <link rel="stylesheet" href="/css/components.css">
     <link rel="stylesheet" href="/css/animations.css">
+    <link rel="stylesheet" href="/css/skeleton.css">
 </head>
 <body>
     <!-- Header -->
@@ -294,6 +295,12 @@
     <!-- Hidden file input -->
     <input type="file" id="imageInput" accept="image/*" style="display: none;">
     <input type="file" id="fileInput" style="display: none;">
+
+    <!-- Refresh indicator -->
+    <div class="refresh-indicator" id="refreshIndicator">
+        <div class="loading-spinner"></div>
+        <span>Mise à jour...</span>
+    </div>
 
     <!-- JavaScript -->
     <script src="/js/complete-app.js"></script>
