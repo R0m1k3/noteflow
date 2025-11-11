@@ -474,6 +474,87 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
+// Système de notifications internes
+function showNotification(message, type = 'info', duration = 4000) {
+  const container = document.getElementById('notificationsContainer');
+  if (!container) return;
+
+  // Créer la notification
+  const notification = document.createElement('div');
+  notification.className = `notification notification-${type}`;
+
+  // Icône selon le type
+  let iconSvg = '';
+  switch (type) {
+    case 'success':
+      iconSvg = '<svg class="notification-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+      break;
+    case 'error':
+      iconSvg = '<svg class="notification-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>';
+      break;
+    case 'warning':
+      iconSvg = '<svg class="notification-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>';
+      break;
+    default: // info
+      iconSvg = '<svg class="notification-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>';
+  }
+
+  notification.innerHTML = `
+    ${iconSvg}
+    <div class="notification-content">${escapeHtml(message)}</div>
+    <button class="notification-close">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="18" y1="6" x2="6" y2="18"></line>
+        <line x1="6" y1="6" x2="18" y2="18"></line>
+      </svg>
+    </button>
+  `;
+
+  // Bouton de fermeture
+  const closeBtn = notification.querySelector('.notification-close');
+  closeBtn.addEventListener('click', () => {
+    closeNotification(notification);
+  });
+
+  // Ajouter au container
+  container.appendChild(notification);
+
+  // Auto-fermeture
+  if (duration > 0) {
+    setTimeout(() => {
+      closeNotification(notification);
+    }, duration);
+  }
+}
+
+function closeNotification(notification) {
+  notification.classList.add('closing');
+  setTimeout(() => {
+    notification.remove();
+  }, 300);
+}
+
+// ==================== MODAL IMAGE ====================
+function openImageModal(imageSrc) {
+  const modal = document.getElementById('imageModal');
+  const img = document.getElementById('imageModalImg');
+
+  if (modal && img) {
+    img.src = imageSrc;
+    modal.classList.add('active');
+    document.body.style.overflow = 'hidden'; // Désactiver le scroll
+  }
+}
+
+function closeImageModal() {
+  const modal = document.getElementById('imageModal');
+
+  if (modal) {
+    modal.classList.remove('active');
+    document.body.style.overflow = ''; // Réactiver le scroll
+  }
+}
+
 // ==================== INLINE NOTE EXPANSION ====================
 function expandNote(noteId) {
   state.expandedNoteId = noteId;
@@ -519,7 +600,7 @@ async function archiveNote(noteId, archived) {
     await loadNotes();
   } catch (error) {
     console.error('Erreur archivage note:', error);
-    alert('Erreur lors de l\'archivage de la note');
+    showNotification('Erreur lors de l\'archivage de la note');
   }
 }
 
@@ -539,7 +620,7 @@ async function deleteNoteInline(noteId) {
     await loadNotes();
   } catch (error) {
     console.error('Erreur suppression note:', error);
-    alert('Erreur lors de la suppression de la note');
+    showNotification('Erreur lors de la suppression de la note', 'error');
   }
 }
 
@@ -568,7 +649,7 @@ async function addNoteTodoInline(noteId, inputElement) {
     inputElement.focus();
   } catch (error) {
     console.error('Erreur ajout todo:', error);
-    alert('Erreur lors de l\'ajout du todo');
+    showNotification('Erreur lors de l\'ajout du todo');
   }
 }
 
@@ -653,7 +734,7 @@ async function removeImageInline(noteId) {
     renderNotes();
   } catch (error) {
     console.error('Erreur suppression image:', error);
-    alert('Erreur lors de la suppression de l\'image');
+    showNotification('Erreur lors de la suppression de l\'image');
   }
 }
 
@@ -679,7 +760,7 @@ async function handleImageUploadInline(event) {
     renderNotes();
   } catch (error) {
     console.error('Erreur upload image:', error);
-    alert('Erreur lors de l\'upload de l\'image');
+    showNotification('Erreur lors de l\'upload de l\'image');
   }
 
   // Reset input
@@ -707,7 +788,7 @@ async function handleFileUploadInline(event) {
     renderNotes();
   } catch (error) {
     console.error('Erreur upload fichier:', error);
-    alert('Erreur lors de l\'upload du fichier: ' + (error.message || 'Erreur inconnue'));
+    showNotification('Erreur lors de l\'upload du fichier: ' + (error.message || 'Erreur inconnue'));
   }
 
   // Reset input
@@ -721,7 +802,7 @@ async function downloadFile(fileId) {
     window.open(`/api/notes/files/${fileId}/download`, '_blank');
   } catch (error) {
     console.error('Erreur téléchargement fichier:', error);
-    alert('Erreur lors du téléchargement du fichier');
+    showNotification('Erreur lors du téléchargement du fichier', 'error');
   }
 }
 
@@ -747,7 +828,7 @@ async function deleteFile(fileId) {
     }
   } catch (error) {
     console.error('Erreur suppression fichier:', error);
-    alert('Erreur lors de la suppression du fichier');
+    showNotification('Erreur lors de la suppression du fichier', 'error');
   }
 }
 
@@ -775,7 +856,7 @@ async function createNewNote() {
     }, 100);
   } catch (error) {
     console.error('Erreur création note:', error);
-    alert('Erreur lors de la création de la note');
+    showNotification('Erreur lors de la création de la note', 'error');
   }
 }
 
@@ -1010,7 +1091,7 @@ async function handleImageUpload(event) {
     await loadNotes();
   } catch (error) {
     console.error('Erreur upload image:', error);
-    alert('Erreur lors de l\'upload de l\'image');
+    showNotification('Erreur lors de l\'upload de l\'image');
   }
 }
 
@@ -1055,6 +1136,16 @@ function renderTodos() {
     if (state.filter === 'active') return !todo.completed;
     if (state.filter === 'completed') return todo.completed;
     return true;
+  });
+
+  // Tri : actives en premier, puis complétées
+  filtered.sort((a, b) => {
+    // Les actives (completed = false) avant les complétées (completed = true)
+    if (a.completed !== b.completed) {
+      return a.completed ? 1 : -1;
+    }
+    // Si même statut, tri par ID décroissant (plus récentes en premier)
+    return b.id - a.id;
   });
 
   filtered.forEach(todo => {
@@ -1194,7 +1285,7 @@ async function loadUsers() {
     renderUsersTable(users);
   } catch (error) {
     console.error('Erreur chargement utilisateurs:', error);
-    alert('Erreur lors du chargement des utilisateurs');
+    showNotification('Erreur lors du chargement des utilisateurs', 'error');
   }
 }
 
@@ -1246,13 +1337,13 @@ function closeAdminModal() {
 async function createUser() {
   const username = prompt('Nom d\'utilisateur:');
   if (!username || username.trim().length < 3) {
-    alert('Le nom d\'utilisateur doit contenir au moins 3 caractères');
+    showNotification('Le nom d\'utilisateur doit contenir au moins 3 caractères');
     return;
   }
 
   const password = prompt('Mot de passe:');
   if (!password || password.length < 4) {
-    alert('Le mot de passe doit contenir au moins 4 caractères');
+    showNotification('Le mot de passe doit contenir au moins 4 caractères', 'warning');
     return;
   }
 
@@ -1270,11 +1361,11 @@ async function createUser() {
       password,
       is_admin: isAdmin
     });
-    alert('Utilisateur créé avec succès');
+    showNotification('Utilisateur créé avec succès', 'success');
     await loadUsers();
   } catch (error) {
     console.error('Erreur création utilisateur:', error);
-    alert('Erreur lors de la création de l\'utilisateur. Il existe peut-être déjà.');
+    showNotification('Erreur lors de la création de l\'utilisateur. Il existe peut-être déjà.');
   }
 }
 
@@ -1323,22 +1414,22 @@ async function confirmPasswordChange() {
   const confirmPassword = confirmPasswordInput.value;
 
   if (!newPassword || newPassword.length < 6) {
-    alert('Le mot de passe doit contenir au moins 6 caractères');
+    showNotification('Le mot de passe doit contenir au moins 6 caractères', 'warning');
     return;
   }
 
   if (newPassword !== confirmPassword) {
-    alert('Les mots de passe ne correspondent pas');
+    showNotification('Les mots de passe ne correspondent pas', 'warning');
     return;
   }
 
   try {
     await api.put(`/api/users/${currentPasswordChangeUserId}`, { password: newPassword });
-    alert('Mot de passe modifié avec succès');
+    showNotification('Mot de passe modifié avec succès', 'success');
     closePasswordChangeModal();
   } catch (error) {
     console.error('Erreur modification mot de passe:', error);
-    alert('Erreur lors de la modification du mot de passe');
+    showNotification('Erreur lors de la modification du mot de passe', 'error');
   }
 }
 
@@ -1358,11 +1449,11 @@ async function deleteUser(id, username) {
 
   try {
     await api.delete(`/api/users/${id}`);
-    alert('Utilisateur supprimé avec succès');
+    showNotification('Utilisateur supprimé avec succès', 'success');
     await loadUsers();
   } catch (error) {
     console.error('Erreur suppression utilisateur:', error);
-    alert('Erreur lors de la suppression de l\'utilisateur');
+    showNotification('Erreur lors de la suppression de l\'utilisateur');
   }
 }
 
@@ -1373,7 +1464,7 @@ async function loadRssFeeds() {
     renderRssFeeds(feeds);
   } catch (error) {
     console.error('Erreur chargement flux RSS:', error);
-    alert('Erreur lors du chargement des flux RSS');
+    showNotification('Erreur lors du chargement des flux RSS', 'error');
   }
 }
 
@@ -1414,23 +1505,23 @@ async function addRssFeed() {
   const url = input.value.trim();
 
   if (!url) {
-    alert('Veuillez entrer une URL de flux RSS');
+    showNotification('Veuillez entrer une URL de flux RSS', 'warning');
     return;
   }
 
   if (!url.startsWith('http://') && !url.startsWith('https://')) {
-    alert('L\'URL doit commencer par http:// ou https://');
+    showNotification('L\'URL doit commencer par http:// ou https://', 'warning');
     return;
   }
 
   try {
     await api.post('/api/rss/feeds', { url });
     input.value = '';
-    alert('Flux RSS ajouté avec succès');
+    showNotification('Flux RSS ajouté avec succès', 'success');
     await loadRssFeeds();
   } catch (error) {
     console.error('Erreur ajout flux RSS:', error);
-    alert('Erreur lors de l\'ajout du flux RSS. Vérifiez l\'URL.');
+    showNotification('Erreur lors de l\'ajout du flux RSS. Vérifiez l\'URL.');
   }
 }
 
@@ -1439,7 +1530,7 @@ async function toggleRssFeed(feedId, enabled) {
     await api.put(`/api/rss/feeds/${feedId}`, { enabled });
   } catch (error) {
     console.error('Erreur toggle flux RSS:', error);
-    alert('Erreur lors de la modification du flux RSS');
+    showNotification('Erreur lors de la modification du flux RSS', 'error');
   }
 }
 
@@ -1455,11 +1546,11 @@ async function deleteRssFeed(feedId) {
 
   try {
     await api.delete(`/api/rss/feeds/${feedId}`);
-    alert('Flux RSS supprimé avec succès');
+    showNotification('Flux RSS supprimé avec succès', 'success');
     await loadRssFeeds();
   } catch (error) {
     console.error('Erreur suppression flux RSS:', error);
-    alert('Erreur lors de la suppression du flux RSS');
+    showNotification('Erreur lors de la suppression du flux RSS', 'error');
   }
 }
 
@@ -1473,11 +1564,11 @@ async function fetchRssArticles() {
 
   try {
     const result = await api.post('/api/rss/fetch', {});
-    alert(result.message || 'Articles récupérés avec succès');
+    showNotification(result.message || 'Articles récupérés avec succès', 'success');
     await loadRssArticles();
   } catch (error) {
     console.error('Erreur fetch articles RSS:', error);
-    alert('Erreur lors de la récupération des articles RSS');
+    showNotification('Erreur lors de la récupération des articles RSS', 'error');
   } finally {
     btn.disabled = false;
     btn.textContent = originalText;
@@ -1574,13 +1665,13 @@ function renderRssSummaries(summaries) {
     // Le résumé peut être soit l'ancien format (global) soit le nouveau (par article depuis DB)
     // Si c'est un résumé DB, il contient déjà le titre et le lien formatés
     if (summary.summary && summary.summary.includes('🔗')) {
-      // Ancien format sauvegardé en DB avec titre et lien
+      // Nouveau format : résumé par article avec titre et lien
       return `
         <div class="rss-summary rss-summary-article">
           <div class="rss-summary-content">${formatSummary(summary.summary)}</div>
           <div class="rss-summary-meta">
-            ${summary.created_at ? `<span>${new Date(summary.created_at).toLocaleDateString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>` : ''}
-            ${summary.model ? `<span>${escapeHtml(summary.model.split('/')[1] || summary.model)}</span>` : ''}
+            ${summary.feed_title ? `<span>📰 ${escapeHtml(summary.feed_title)}</span>` : ''}
+            ${summary.created_at ? `<span>📅 ${new Date(summary.created_at).toLocaleDateString('fr-FR', { hour: '2-digit', minute: '2-digit' })}</span>` : ''}
           </div>
         </div>
       `;
@@ -1653,7 +1744,7 @@ async function summarizeRss() {
 
     if (summaryEnabled) {
       // Si les résumés sont activés, juste recharger le bloc RSS
-      alert(`${result.articles_count} résumés générés avec succès !`);
+      showNotification(`${result.articles_count} résumés générés avec succès !`, 'success');
       await loadRssArticles();
     } else {
       // Sinon créer une note avec TOUS les résumés par article
@@ -1667,22 +1758,22 @@ async function summarizeRss() {
           content: allSummaries
         });
 
-        alert(`${result.articles_count} résumés générés et sauvegardés dans une nouvelle note !`);
+        showNotification(`${result.articles_count} résumés générés et sauvegardés dans une nouvelle note !`, 'success');
         await loadNotes();
 
         // Expand the new note
         state.expandedNoteId = newNote.id;
         renderNotes();
       } else {
-        alert('Aucun résumé généré');
+        showNotification('Aucun résumé généré', 'warning');
       }
     }
   } catch (error) {
     console.error('Erreur génération résumé RSS:', error);
     if (error.message && error.message.includes('400')) {
-      alert('Veuillez configurer votre clé API OpenRouter dans l\'administration');
+      showNotification('Veuillez configurer votre clé API OpenRouter dans l\'administration');
     } else {
-      alert('Erreur lors de la génération du résumé RSS');
+      showNotification('Erreur lors de la génération du résumé RSS', 'error');
     }
   } finally {
     btn.disabled = false;
@@ -1785,10 +1876,10 @@ async function saveOpenRouterSettings() {
     await api.put('/api/settings/rss_summary_enabled', { value: summaryEnabled.checked ? '1' : '0' });
     await api.put('/api/settings/rss_summary_prompt', { value: summaryPrompt.value });
 
-    alert('Paramètres OpenRouter sauvegardés avec succès');
+    showNotification('Paramètres OpenRouter sauvegardés avec succès', 'success');
   } catch (error) {
     console.error('Erreur sauvegarde paramètres OpenRouter:', error);
-    alert('Erreur lors de la sauvegarde des paramètres');
+    showNotification('Erreur lors de la sauvegarde des paramètres', 'error');
   }
 }
 
@@ -1854,7 +1945,7 @@ async function init() {
     saveNoteBtn.addEventListener('click', async () => {
       if (currentNoteId) {
         await saveCurrentNote();
-        alert('Note enregistrée !');
+        showNotification('Note enregistrée !', 'success');
       }
     });
   }
@@ -2193,6 +2284,43 @@ async function init() {
   if (saveOpenRouterBtn) {
     saveOpenRouterBtn.addEventListener('click', saveOpenRouterSettings);
   }
+
+  // ==================== MODAL IMAGE ====================
+  // Fermer le modal avec le bouton X
+  const imageModalClose = document.getElementById('imageModalClose');
+  if (imageModalClose) {
+    imageModalClose.addEventListener('click', closeImageModal);
+  }
+
+  // Fermer le modal en cliquant sur le fond
+  const imageModal = document.getElementById('imageModal');
+  if (imageModal) {
+    imageModal.addEventListener('click', (e) => {
+      if (e.target === imageModal) {
+        closeImageModal();
+      }
+    });
+  }
+
+  // Fermer le modal avec la touche Escape
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closeImageModal();
+    }
+  });
+
+  // Délégation d'événements pour les clics sur les images
+  // Cela permettra de gérer les images même après un re-render
+  document.addEventListener('click', (e) => {
+    const target = e.target;
+
+    // Si on clique sur une image de note (miniature)
+    if (target.classList.contains('note-card-image') || target.classList.contains('note-image')) {
+      e.preventDefault();
+      e.stopPropagation();
+      openImageModal(target.src);
+    }
+  });
 }
 
 // Démarrer l'application

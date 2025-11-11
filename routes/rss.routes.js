@@ -241,10 +241,10 @@ Résumé (100 mots max):`;
 
         const summary = response.data.choices[0].message.content;
 
-        // Sauvegarder le résumé individuel
+        // Sauvegarder le résumé individuel avec feed_title
         await runQuery(
-          'INSERT INTO rss_summaries (summary, model, articles_count, created_at) VALUES (?, ?, ?, datetime("now"))',
-          [`**${article.title}**\n\n${summary}\n\n🔗 [Lire l'article](${article.link})`, selectedModel, 1]
+          'INSERT INTO rss_summaries (summary, model, articles_count, feed_title, created_at) VALUES (?, ?, ?, ?, datetime("now"))',
+          [`**${article.title}**\n\n${summary}\n\n🔗 [Lire l'article](${article.link})`, selectedModel, 1, article.feed_title]
         );
 
         return {
@@ -300,7 +300,7 @@ Résumé (100 mots max):`;
 router.get('/summaries', async (req, res) => {
   try {
     const summaries = await getAll(`
-      SELECT id, summary, model, articles_count, created_at
+      SELECT id, summary, model, articles_count, feed_title, created_at
       FROM rss_summaries
       ORDER BY created_at DESC
       LIMIT 5
