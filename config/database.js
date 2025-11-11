@@ -149,6 +149,27 @@ function initDatabase() {
         logger.info('✓ Tables de base de données créées avec succès');
 
         // Migrations automatiques
+        // Migration pour rss_summaries - ajouter feed_title
+        db.all("PRAGMA table_info(rss_summaries)", (err, columns) => {
+          if (err) {
+            logger.error('Erreur lors de la vérification de la structure de la table rss_summaries:', err);
+            return;
+          }
+
+          const hasFeedTitle = columns.some(col => col.name === 'feed_title');
+
+          if (!hasFeedTitle) {
+            logger.info('Migration: Ajout de la colonne feed_title à rss_summaries...');
+            db.run('ALTER TABLE rss_summaries ADD COLUMN feed_title TEXT', (err) => {
+              if (err) {
+                logger.error('Erreur lors de l\'ajout de la colonne feed_title:', err);
+              } else {
+                logger.info('✓ Colonne feed_title ajoutée avec succès');
+              }
+            });
+          }
+        });
+
         db.all("PRAGMA table_info(notes)", (err, columns) => {
           if (err) {
             logger.error('Erreur lors de la vérification de la structure de la table notes:', err);
