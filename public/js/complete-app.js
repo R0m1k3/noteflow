@@ -38,6 +38,63 @@ const utils = {
   }
 };
 
+// ==================== MODAL DE CONFIRMATION ====================
+const confirmDialog = {
+  show(options = {}) {
+    return new Promise((resolve) => {
+      const modal = document.getElementById('confirmModal');
+      const icon = document.getElementById('confirmIcon');
+      const title = document.getElementById('confirmTitle');
+      const message = document.getElementById('confirmMessage');
+      const cancelBtn = document.getElementById('confirmCancel');
+      const okBtn = document.getElementById('confirmOk');
+
+      // Configurer le contenu
+      icon.textContent = options.icon || '⚠️';
+      title.textContent = options.title || 'Confirmer l\'action';
+      message.textContent = options.message || 'Êtes-vous sûr de vouloir continuer ?';
+      cancelBtn.textContent = options.cancelText || 'Annuler';
+      okBtn.textContent = options.okText || 'Confirmer';
+
+      // Gérer les clics
+      const handleCancel = () => {
+        cleanup();
+        resolve(false);
+      };
+
+      const handleConfirm = () => {
+        cleanup();
+        resolve(true);
+      };
+
+      const handleEscape = (e) => {
+        if (e.key === 'Escape') {
+          handleCancel();
+        }
+      };
+
+      const cleanup = () => {
+        modal.classList.remove('active');
+        setTimeout(() => {
+          modal.style.display = 'none';
+        }, 300);
+        cancelBtn.removeEventListener('click', handleCancel);
+        okBtn.removeEventListener('click', handleConfirm);
+        document.removeEventListener('keydown', handleEscape);
+      };
+
+      // Ajouter les écouteurs
+      cancelBtn.addEventListener('click', handleCancel);
+      okBtn.addEventListener('click', handleConfirm);
+      document.addEventListener('keydown', handleEscape);
+
+      // Afficher le modal
+      modal.style.display = 'flex';
+      setTimeout(() => modal.classList.add('active'), 10);
+    });
+  }
+};
+
 // ==================== API ====================
 const api = {
   async request(url, options = {}) {
@@ -401,7 +458,14 @@ async function toggleNoteTodo(todoId, completed) {
 }
 
 async function deleteNoteTodo(todoId) {
-  if (!confirm('Supprimer ce todo ?')) return;
+  const confirmed = await confirmDialog.show({
+    icon: '🗑️',
+    title: 'Supprimer ce todo',
+    message: 'Êtes-vous sûr de vouloir supprimer ce todo ?',
+    okText: 'Supprimer'
+  });
+
+  if (!confirmed) return;
 
   try {
     await api.delete(`/api/notes/todos/${todoId}`);
@@ -421,7 +485,15 @@ function closeNoteModal() {
 
 async function deleteCurrentNote() {
   if (!currentNoteId) return;
-  if (!confirm('Supprimer cette note ?')) return;
+
+  const confirmed = await confirmDialog.show({
+    icon: '🗑️',
+    title: 'Supprimer cette note',
+    message: 'Êtes-vous sûr de vouloir supprimer cette note ?\n\nTous les todos associés seront également supprimés.',
+    okText: 'Supprimer'
+  });
+
+  if (!confirmed) return;
 
   try {
     await api.delete(`/api/notes/${currentNoteId}`);
@@ -456,7 +528,15 @@ async function handleImageUpload(event) {
 
 async function removeNoteImage() {
   if (!currentNoteId) return;
-  if (!confirm('Supprimer l\'image ?')) return;
+
+  const confirmed = await confirmDialog.show({
+    icon: '🖼️',
+    title: 'Supprimer l\'image',
+    message: 'Êtes-vous sûr de vouloir supprimer cette image ?',
+    okText: 'Supprimer'
+  });
+
+  if (!confirmed) return;
 
   try {
     await api.delete(`/api/notes/${currentNoteId}/image`);
@@ -519,23 +599,33 @@ async function addTodo() {
   }
 }
 
-async function toggleTodo(id, completed) {
+// Exposer globalement pour les event handlers inline
+window.toggleTodo = async function(id, completed) {
   try {
     await api.put(`/api/todos/${id}`, { completed });
     await loadTodos();
   } catch (error) {
     console.error('Erreur toggle todo:', error);
   }
-}
+};
 
-async function deleteTodo(id) {
+window.deleteTodo = async function(id) {
+  const confirmed = await confirmDialog.show({
+    icon: '🗑️',
+    title: 'Supprimer cette tâche',
+    message: 'Êtes-vous sûr de vouloir supprimer cette tâche ?',
+    okText: 'Supprimer'
+  });
+
+  if (!confirmed) return;
+
   try {
     await api.delete(`/api/todos/${id}`);
     await loadTodos();
   } catch (error) {
     console.error('Erreur suppression todo:', error);
   }
-}
+};
 
 function setTodoFilter(filter) {
   state.filter = filter;
@@ -647,7 +737,13 @@ async function createUser() {
     return;
   }
 
-  const isAdmin = confirm('Créer cet utilisateur en tant qu\'administrateur?');
+  const isAdmin = await confirmDialog.show({
+    icon: '👤',
+    title: 'Droits administrateur',
+    message: `Créer "${username}" en tant qu'administrateur ?`,
+    okText: 'Oui, admin',
+    cancelText: 'Non, utilisateur'
+  });
 
   try {
     await api.post('/api/users', {
@@ -665,9 +761,14 @@ async function createUser() {
 
 // Fonction globale pour la suppression d'utilisateur (appelée depuis onclick)
 window.deleteUser = async function(id, username) {
-  if (!confirm(`Êtes-vous sûr de vouloir supprimer l'utilisateur "${username}"?\n\nToutes ses notes et todos seront également supprimés.`)) {
-    return;
-  }
+  const confirmed = await confirmDialog.show({
+    icon: '⚠️',
+    title: 'Supprimer cet utilisateur',
+    message: `Êtes-vous sûr de vouloir supprimer l'utilisateur "${username}" ?\n\nToutes ses notes et todos seront également supprimés définitivement.`,
+    okText: 'Supprimer'
+  });
+
+  if (!confirmed) return;
 
   try {
     await api.delete(`/api/users/${id}`);
