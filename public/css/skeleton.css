@@ -293,3 +293,68 @@
     transform: translateX(400px);
   }
 }
+
+/* Modal pour agrandir les images */
+.image-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.9);
+  z-index: 400;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  cursor: pointer;
+  animation: fadeIn 0.2s ease-in;
+}
+
+.image-modal.active {
+  display: flex;
+}
+
+.image-modal-content {
+  position: relative;
+  max-width: 90vw;
+  max-height: 90vh;
+  cursor: default;
+}
+
+.image-modal-img {
+  max-width: 100%;
+  max-height: 90vh;
+  object-fit: contain;
+  border-radius: var(--radius-md);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+}
+
+.image-modal-close {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  width: 48px;
+  height: 48px;
+  border: none;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  font-size: 32px;
+  cursor: pointer;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
+  backdrop-filter: blur(10px);
+}
+
+.image-modal-close:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: scale(1.1);
+}
+
+.image-modal-close svg {
+  width: 24px;
+  height: 24px;
+}

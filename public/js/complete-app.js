@@ -534,6 +534,27 @@ function closeNotification(notification) {
   }, 300);
 }
 
+// ==================== MODAL IMAGE ====================
+function openImageModal(imageSrc) {
+  const modal = document.getElementById('imageModal');
+  const img = document.getElementById('imageModalImg');
+
+  if (modal && img) {
+    img.src = imageSrc;
+    modal.classList.add('active');
+    document.body.style.overflow = 'hidden'; // Désactiver le scroll
+  }
+}
+
+function closeImageModal() {
+  const modal = document.getElementById('imageModal');
+
+  if (modal) {
+    modal.classList.remove('active');
+    document.body.style.overflow = ''; // Réactiver le scroll
+  }
+}
+
 // ==================== INLINE NOTE EXPANSION ====================
 function expandNote(noteId) {
   state.expandedNoteId = noteId;
@@ -2263,6 +2284,43 @@ async function init() {
   if (saveOpenRouterBtn) {
     saveOpenRouterBtn.addEventListener('click', saveOpenRouterSettings);
   }
+
+  // ==================== MODAL IMAGE ====================
+  // Fermer le modal avec le bouton X
+  const imageModalClose = document.getElementById('imageModalClose');
+  if (imageModalClose) {
+    imageModalClose.addEventListener('click', closeImageModal);
+  }
+
+  // Fermer le modal en cliquant sur le fond
+  const imageModal = document.getElementById('imageModal');
+  if (imageModal) {
+    imageModal.addEventListener('click', (e) => {
+      if (e.target === imageModal) {
+        closeImageModal();
+      }
+    });
+  }
+
+  // Fermer le modal avec la touche Escape
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closeImageModal();
+    }
+  });
+
+  // Délégation d'événements pour les clics sur les images
+  // Cela permettra de gérer les images même après un re-render
+  document.addEventListener('click', (e) => {
+    const target = e.target;
+
+    // Si on clique sur une image de note (miniature)
+    if (target.classList.contains('note-card-image') || target.classList.contains('note-image')) {
+      e.preventDefault();
+      e.stopPropagation();
+      openImageModal(target.src);
+    }
+  });
 }
 
 // Démarrer l'application

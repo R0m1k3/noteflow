@@ -84,6 +84,13 @@
   object-fit: cover;
   border-radius: var(--radius-md);
   margin-bottom: var(--spacing-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.note-card-image:hover {
+  opacity: 0.9;
+  transform: scale(1.02);
 }
 
 .note-todos-preview {
@@ -840,9 +847,16 @@
 
 .note-image {
   width: 100%;
-  max-height: 300px;
+  max-height: 200px;
   object-fit: cover;
   border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.note-image:hover {
+  opacity: 0.9;
+  transform: scale(1.02);
 }
 
 .btn-remove-image {
