@@ -509,15 +509,29 @@
   background: var(--color-background);
 }
 
+.btn-edit-user,
 .btn-delete-user {
   padding: var(--spacing-sm) var(--spacing-md);
-  background: var(--color-danger);
   color: white;
   border: none;
   border-radius: 6px;
   cursor: pointer;
   font-size: 0.875rem;
   transition: all var(--transition-speed);
+  margin-right: var(--spacing-sm);
+}
+
+.btn-edit-user {
+  background: var(--color-primary);
+}
+
+.btn-edit-user:hover {
+  background: #2980b9;
+  transform: translateY(-1px);
+}
+
+.btn-delete-user {
+  background: var(--color-danger);
 }
 
 .btn-delete-user:hover {

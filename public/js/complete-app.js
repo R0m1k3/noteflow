@@ -692,11 +692,14 @@ function renderUsersTable(users) {
       <td>${user.is_admin ? '✓ Oui' : '✗ Non'}</td>
       <td>${new Date(user.created_at).toLocaleDateString('fr-FR')}</td>
       <td>
+        <button class="btn-edit-user" data-user-id="${user.id}" data-username="${escapeHtml(user.username)}">
+          🔑 Mot de passe
+        </button>
         ${user.id !== state.user.id ? `
           <button class="btn-delete-user" data-user-id="${user.id}" data-username="${escapeHtml(user.username)}">
             🗑️ Supprimer
           </button>
-        ` : '<span style="color: var(--text-secondary);">Vous-même</span>'}
+        ` : ''}
       </td>
     </tr>
   `).join('');
@@ -753,6 +756,32 @@ async function createUser() {
   } catch (error) {
     console.error('Erreur création utilisateur:', error);
     alert('Erreur lors de la création de l\'utilisateur. Il existe peut-être déjà.');
+  }
+}
+
+async function changeUserPassword(id, username) {
+  const password = prompt(`Nouveau mot de passe pour "${username}" :`);
+
+  if (!password) return;
+
+  if (password.length < 6) {
+    alert('Le mot de passe doit contenir au moins 6 caractères');
+    return;
+  }
+
+  const confirmPassword = prompt('Confirmer le nouveau mot de passe :');
+
+  if (password !== confirmPassword) {
+    alert('Les mots de passe ne correspondent pas');
+    return;
+  }
+
+  try {
+    await api.put(`/api/users/${id}`, { password });
+    alert('Mot de passe modifié avec succès');
+  } catch (error) {
+    console.error('Erreur modification mot de passe:', error);
+    alert('Erreur lors de la modification du mot de passe');
   }
 }
 
@@ -899,11 +928,19 @@ async function init() {
     });
   }
 
-  // Event delegation pour les boutons de suppression d'utilisateurs
+  // Event delegation pour les boutons d'administration des utilisateurs
   const usersTableBody = document.getElementById('usersTableBody');
   if (usersTableBody) {
     usersTableBody.addEventListener('click', (e) => {
-      if (e.target.classList.contains('btn-delete-user') || e.target.closest('.btn-delete-user')) {
+      // Bouton changer mot de passe
+      if (e.target.classList.contains('btn-edit-user') || e.target.closest('.btn-edit-user')) {
+        const btn = e.target.classList.contains('btn-edit-user') ? e.target : e.target.closest('.btn-edit-user');
+        const userId = parseInt(btn.dataset.userId);
+        const username = btn.dataset.username;
+        changeUserPassword(userId, username);
+      }
+      // Bouton supprimer utilisateur
+      else if (e.target.classList.contains('btn-delete-user') || e.target.closest('.btn-delete-user')) {
         const btn = e.target.classList.contains('btn-delete-user') ? e.target : e.target.closest('.btn-delete-user');
         const userId = parseInt(btn.dataset.userId);
         const username = btn.dataset.username;
