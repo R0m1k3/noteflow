@@ -1484,11 +1484,21 @@ async function fetchRssArticles() {
   }
 }
 
+// Cache des settings pour optimiser les performances
+let settingsCache = null;
+let settingsCacheTime = 0;
+const SETTINGS_CACHE_DURATION = 60000; // 1 minute
+
 async function loadRssArticles() {
   try {
-    // Vérifier si les résumés sont activés
-    const settings = await api.get('/api/settings');
-    const summaryEnabled = settings.rss_summary_enabled === '1' || settings.rss_summary_enabled === 'true';
+    // Vérifier si les résumés sont activés (avec cache)
+    const now = Date.now();
+    if (!settingsCache || (now - settingsCacheTime) > SETTINGS_CACHE_DURATION) {
+      settingsCache = await api.get('/api/settings');
+      settingsCacheTime = now;
+    }
+
+    const summaryEnabled = settingsCache.rss_summary_enabled === '1' || settingsCache.rss_summary_enabled === 'true';
 
     if (summaryEnabled) {
       // Charger les résumés
@@ -1734,6 +1744,13 @@ async function init() {
 
   // Setup search
   setupSearch();
+
+  // Auto-refresh RSS toutes les 30 secondes pour synchroniser avec le scheduler serveur
+  setInterval(() => {
+    loadRssArticles().catch(err => {
+      console.debug('Erreur auto-refresh RSS:', err);
+    });
+  }, 30000); // 30 secondes
 
   // Event listeners
   const newNoteBtn = document.getElementById('newNoteBtn');

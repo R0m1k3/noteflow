@@ -123,6 +123,11 @@ async function startServer() {
     await initDatabase();
     logger.info('✓ Base de données initialisée avec succès');
 
+    // Démarrer le scheduler RSS
+    const rssScheduler = require('./services/rss-scheduler');
+    rssScheduler.startScheduler();
+    logger.info('✓ Scheduler RSS démarré');
+
     // Démarrer le serveur
     app.listen(PORT, '0.0.0.0', () => {
       logger.info('═════════════════════════════════════════════');

@@ -112,78 +112,58 @@ router.delete('/feeds/:id', requireAdmin, async (req, res) => {
 
 /**
  * POST /api/rss/fetch
- * Récupérer tous les articles des flux actifs
+ * Récupérer manuellement les articles de tous les flux RSS activés
  */
 router.post('/fetch', requireAdmin, async (req, res) => {
   try {
-    const feeds = await getAll('SELECT * FROM rss_feeds WHERE enabled = 1');
+    const rssScheduler = require('../services/rss-scheduler');
+    await rssScheduler.manualFetch();
 
-    let totalArticles = 0;
+    // Invalider le cache
+    articlesCache = null;
+    articlesCacheTime = 0;
 
-    for (const feed of feeds) {
-      try {
-        const parsedFeed = await parser.parseURL(feed.url);
-
-        // Mettre à jour les infos du flux
-        await runQuery(
-          'UPDATE rss_feeds SET title = ?, description = ?, last_fetched_at = CURRENT_TIMESTAMP WHERE id = ?',
-          [parsedFeed.title || feed.url, parsedFeed.description || '', feed.id]
-        );
-
-        // Ajouter les articles
-        for (const item of parsedFeed.items) {
-          try {
-            // Vérifier si l'article existe déjà
-            const existing = await getOne('SELECT id FROM rss_articles WHERE link = ?', [item.link]);
-
-            if (!existing) {
-              await runQuery(
-                'INSERT INTO rss_articles (feed_id, title, link, description, pub_date, content) VALUES (?, ?, ?, ?, ?, ?)',
-                [
-                  feed.id,
-                  item.title || '',
-                  item.link || '',
-                  item.contentSnippet || item.description || '',
-                  item.pubDate || item.isoDate || new Date().toISOString(),
-                  item.content || item['content:encoded'] || ''
-                ]
-              );
-              totalArticles++;
-            }
-          } catch (articleError) {
-            // Ignorer les articles en double ou invalides
-            logger.warn(`Erreur lors de l'ajout d'un article: ${articleError.message}`);
-          }
-        }
-      } catch (feedError) {
-        logger.error(`Erreur lors du fetch du flux ${feed.url}:`, feedError);
-      }
-    }
-
-    logger.info(`${totalArticles} nouveaux articles récupérés`);
-    res.json({ message: `${totalArticles} nouveaux articles récupérés` });
+    res.json({ message: 'Mise à jour des flux RSS terminée avec succès' });
   } catch (error) {
-    logger.error('Erreur lors du fetch des flux RSS:', error);
+    logger.error('Erreur lors du fetch manuel des flux RSS:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
+// Cache pour les articles RSS (30 secondes)
+let articlesCache = null;
+let articlesCacheTime = 0;
+const ARTICLES_CACHE_DURATION = 30000; // 30 secondes
+
 /**
  * GET /api/rss/articles
- * Récupérer les 5 derniers articles
+ * Récupérer les 5 derniers articles (avec cache)
  */
 router.get('/articles', async (req, res) => {
   try {
+    // Utiliser le cache si disponible et récent
+    const now = Date.now();
+    if (articlesCache && (now - articlesCacheTime) < ARTICLES_CACHE_DURATION) {
+      logger.debug('Articles RSS servis depuis le cache');
+      return res.json(articlesCache);
+    }
+
     const articles = await getAll(`
       SELECT
         a.id, a.title, a.link, a.description, a.pub_date, a.content,
-        f.title as feed_title, f.url as feed_url
+        COALESCE(f.title, f.url) as feed_title, f.url as feed_url
       FROM rss_articles a
-      JOIN rss_feeds f ON a.feed_id = f.id
+      LEFT JOIN rss_feeds f ON a.feed_id = f.id
+      WHERE a.pub_date IS NOT NULL
       ORDER BY a.pub_date DESC
       LIMIT 5
     `);
 
+    // Mettre en cache
+    articlesCache = articles || [];
+    articlesCacheTime = now;
+
+    logger.info(`Articles RSS récupérés: ${articles?.length || 0}`);
     res.json(articles || []);
   } catch (error) {
     logger.error('Erreur lors de la récupération des articles RSS:', error);
