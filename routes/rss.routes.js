@@ -170,7 +170,7 @@ router.post('/fetch', requireAdmin, async (req, res) => {
 
 /**
  * GET /api/rss/articles
- * Récupérer les 10 derniers articles
+ * Récupérer les 5 derniers articles
  */
 router.get('/articles', async (req, res) => {
   try {
@@ -181,7 +181,7 @@ router.get('/articles', async (req, res) => {
       FROM rss_articles a
       JOIN rss_feeds f ON a.feed_id = f.id
       ORDER BY a.pub_date DESC
-      LIMIT 10
+      LIMIT 5
     `);
 
     res.json(articles || []);
@@ -193,7 +193,7 @@ router.get('/articles', async (req, res) => {
 
 /**
  * POST /api/rss/summarize
- * Générer un résumé des 10 derniers articles avec OpenRouter
+ * Générer un résumé des 5 derniers articles avec OpenRouter
  */
 router.post('/summarize', requireAdmin, async (req, res) => {
   try {
@@ -206,7 +206,7 @@ router.post('/summarize', requireAdmin, async (req, res) => {
       return res.status(400).json({ error: 'Clé API OpenRouter non configurée' });
     }
 
-    // Récupérer les 10 derniers articles
+    // Récupérer les 5 derniers articles
     const articles = await getAll(`
       SELECT
         a.title, a.description, a.link, a.pub_date,
@@ -214,7 +214,7 @@ router.post('/summarize', requireAdmin, async (req, res) => {
       FROM rss_articles a
       JOIN rss_feeds f ON a.feed_id = f.id
       ORDER BY a.pub_date DESC
-      LIMIT 10
+      LIMIT 5
     `);
 
     if (articles.length === 0) {
@@ -272,7 +272,13 @@ Format de sortie en Markdown avec des sections claires.`;
 
     const summary = response.data.choices[0].message.content;
 
-    logger.info('Résumé généré avec succès');
+    // Sauvegarder le résumé en base de données
+    await runQuery(
+      'INSERT INTO rss_summaries (summary, model, articles_count) VALUES (?, ?, ?)',
+      [summary, selectedModel, articles.length]
+    );
+
+    logger.info('Résumé généré et sauvegardé avec succès');
 
     res.json({
       summary,
@@ -295,29 +301,73 @@ Format de sortie en Markdown avec des sections claires.`;
 });
 
 /**
+ * GET /api/rss/summaries
+ * Récupérer les 5 derniers résumés
+ */
+router.get('/summaries', async (req, res) => {
+  try {
+    const summaries = await getAll(`
+      SELECT id, summary, model, articles_count, created_at
+      FROM rss_summaries
+      ORDER BY created_at DESC
+      LIMIT 5
+    `);
+
+    res.json(summaries || []);
+  } catch (error) {
+    logger.error('Erreur lors de la récupération des résumés:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+/**
  * GET /api/rss/models
- * Récupérer la liste des modèles OpenRouter
+ * Récupérer la liste des modèles OpenRouter depuis l'API
  */
 router.get('/models', requireAdmin, async (req, res) => {
   try {
-    // Liste des modèles populaires pour le résumé
-    const models = [
-      { id: 'openai/gpt-4-turbo', name: 'GPT-4 Turbo', provider: 'OpenAI' },
-      { id: 'openai/gpt-4', name: 'GPT-4', provider: 'OpenAI' },
-      { id: 'openai/gpt-3.5-turbo', name: 'GPT-3.5 Turbo', provider: 'OpenAI' },
-      { id: 'anthropic/claude-3-opus', name: 'Claude 3 Opus', provider: 'Anthropic' },
-      { id: 'anthropic/claude-3-sonnet', name: 'Claude 3 Sonnet', provider: 'Anthropic' },
-      { id: 'anthropic/claude-3-haiku', name: 'Claude 3 Haiku', provider: 'Anthropic' },
-      { id: 'google/gemini-pro', name: 'Gemini Pro', provider: 'Google' },
-      { id: 'meta-llama/llama-3-70b-instruct', name: 'Llama 3 70B', provider: 'Meta' },
-      { id: 'mistralai/mistral-large', name: 'Mistral Large', provider: 'Mistral AI' },
-      { id: 'mistralai/mixtral-8x7b-instruct', name: 'Mixtral 8x7B', provider: 'Mistral AI' }
-    ];
+    // Récupérer les modèles depuis l'API OpenRouter
+    const response = await axios.get('https://openrouter.ai/api/v1/models', {
+      headers: {
+        'HTTP-Referer': 'https://noteflow.app',
+        'X-Title': 'NoteFlow'
+      },
+      timeout: 10000
+    });
+
+    // Transformer les données en format simplifié
+    const models = response.data.data.map(model => ({
+      id: model.id,
+      name: model.name || model.id,
+      provider: model.id.split('/')[0] || 'Unknown',
+      context_length: model.context_length,
+      pricing: model.pricing
+    }));
+
+    // Trier par provider puis par nom
+    models.sort((a, b) => {
+      if (a.provider !== b.provider) {
+        return a.provider.localeCompare(b.provider);
+      }
+      return a.name.localeCompare(b.name);
+    });
 
     res.json(models);
   } catch (error) {
     logger.error('Erreur lors de la récupération des modèles:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
+
+    // Fallback sur une liste de modèles populaires si l'API échoue
+    const fallbackModels = [
+      { id: 'openai/gpt-4-turbo', name: 'GPT-4 Turbo', provider: 'openai' },
+      { id: 'openai/gpt-3.5-turbo', name: 'GPT-3.5 Turbo', provider: 'openai' },
+      { id: 'anthropic/claude-3-opus', name: 'Claude 3 Opus', provider: 'anthropic' },
+      { id: 'anthropic/claude-3-sonnet', name: 'Claude 3 Sonnet', provider: 'anthropic' },
+      { id: 'google/gemini-pro', name: 'Gemini Pro', provider: 'google' },
+      { id: 'meta-llama/llama-3-70b-instruct', name: 'Llama 3 70B', provider: 'meta-llama' },
+      { id: 'mistralai/mistral-large', name: 'Mistral Large', provider: 'mistralai' }
+    ];
+
+    res.json(fallbackModels);
   }
 });
 
