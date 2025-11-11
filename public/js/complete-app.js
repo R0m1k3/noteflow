@@ -420,10 +420,9 @@ function renderNoteTodos(todos) {
     const item = document.createElement('div');
     item.className = 'todo-item';
     item.innerHTML = `
-      <input type="checkbox" class="todo-checkbox" ${todo.completed ? 'checked' : ''}
-        onchange="toggleNoteTodo(${todo.id}, this.checked)">
+      <input type="checkbox" class="todo-checkbox" data-note-todo-id="${todo.id}" ${todo.completed ? 'checked' : ''}>
       <span class="todo-text">${escapeHtml(todo.text)}</span>
-      <button class="todo-delete" onclick="deleteNoteTodo(${todo.id})">✕</button>
+      <button class="todo-delete" data-note-todo-id="${todo.id}">✕</button>
     `;
     if (todo.completed) item.classList.add('completed');
     list.appendChild(item);
@@ -573,10 +572,9 @@ function renderTodos() {
     const item = document.createElement('div');
     item.className = 'todo-item' + (todo.completed ? ' completed' : '');
     item.innerHTML = `
-      <input type="checkbox" class="todo-checkbox" ${todo.completed ? 'checked' : ''}
-        onchange="toggleTodo(${todo.id}, this.checked)">
+      <input type="checkbox" class="todo-checkbox" data-todo-id="${todo.id}" ${todo.completed ? 'checked' : ''}>
       <span class="todo-text">${escapeHtml(todo.text)}</span>
-      <button class="todo-delete" onclick="deleteTodo(${todo.id})">✕</button>
+      <button class="todo-delete" data-todo-id="${todo.id}">✕</button>
     `;
     todoList.appendChild(item);
   });
@@ -599,17 +597,16 @@ async function addTodo() {
   }
 }
 
-// Exposer globalement pour les event handlers inline
-window.toggleTodo = async function(id, completed) {
+async function toggleTodo(id, completed) {
   try {
     await api.put(`/api/todos/${id}`, { completed });
     await loadTodos();
   } catch (error) {
     console.error('Erreur toggle todo:', error);
   }
-};
+}
 
-window.deleteTodo = async function(id) {
+async function deleteTodo(id) {
   const confirmed = await confirmDialog.show({
     icon: '🗑️',
     title: 'Supprimer cette tâche',
@@ -625,7 +622,7 @@ window.deleteTodo = async function(id) {
   } catch (error) {
     console.error('Erreur suppression todo:', error);
   }
-};
+}
 
 function setTodoFilter(filter) {
   state.filter = filter;
@@ -696,7 +693,7 @@ function renderUsersTable(users) {
       <td>${new Date(user.created_at).toLocaleDateString('fr-FR')}</td>
       <td>
         ${user.id !== state.user.id ? `
-          <button class="btn-delete-user" onclick="deleteUser(${user.id}, '${user.username}')">
+          <button class="btn-delete-user" data-user-id="${user.id}" data-username="${escapeHtml(user.username)}">
             🗑️ Supprimer
           </button>
         ` : '<span style="color: var(--text-secondary);">Vous-même</span>'}
@@ -759,8 +756,7 @@ async function createUser() {
   }
 }
 
-// Fonction globale pour la suppression d'utilisateur (appelée depuis onclick)
-window.deleteUser = async function(id, username) {
+async function deleteUser(id, username) {
   const confirmed = await confirmDialog.show({
     icon: '⚠️',
     title: 'Supprimer cet utilisateur',
@@ -866,6 +862,55 @@ async function init() {
   document.querySelectorAll('.filter-btn').forEach(btn => {
     btn.addEventListener('click', () => setTodoFilter(btn.dataset.filter));
   });
+
+  // Event delegation pour les todos de la sidebar
+  const todoList = document.getElementById('todoList');
+  if (todoList) {
+    todoList.addEventListener('change', (e) => {
+      if (e.target.classList.contains('todo-checkbox')) {
+        const todoId = parseInt(e.target.dataset.todoId);
+        toggleTodo(todoId, e.target.checked);
+      }
+    });
+
+    todoList.addEventListener('click', (e) => {
+      if (e.target.classList.contains('todo-delete')) {
+        const todoId = parseInt(e.target.dataset.todoId);
+        deleteTodo(todoId);
+      }
+    });
+  }
+
+  // Event delegation pour les todos des notes
+  const noteTodosList = document.getElementById('noteTodosList');
+  if (noteTodosList) {
+    noteTodosList.addEventListener('change', (e) => {
+      if (e.target.classList.contains('todo-checkbox')) {
+        const todoId = parseInt(e.target.dataset.noteTodoId);
+        toggleNoteTodo(todoId, e.target.checked);
+      }
+    });
+
+    noteTodosList.addEventListener('click', (e) => {
+      if (e.target.classList.contains('todo-delete')) {
+        const todoId = parseInt(e.target.dataset.noteTodoId);
+        deleteNoteTodo(todoId);
+      }
+    });
+  }
+
+  // Event delegation pour les boutons de suppression d'utilisateurs
+  const usersTableBody = document.getElementById('usersTableBody');
+  if (usersTableBody) {
+    usersTableBody.addEventListener('click', (e) => {
+      if (e.target.classList.contains('btn-delete-user') || e.target.closest('.btn-delete-user')) {
+        const btn = e.target.classList.contains('btn-delete-user') ? e.target : e.target.closest('.btn-delete-user');
+        const userId = parseInt(btn.dataset.userId);
+        const username = btn.dataset.username;
+        deleteUser(userId, username);
+      }
+    });
+  }
 
   // Close modal on backdrop click
   const noteModal = document.getElementById('noteModal');
