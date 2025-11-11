@@ -48,15 +48,13 @@ router.get('/', async (req, res) => {
       SELECT
         n.id, n.title, n.content, n.image_filename,
         n.created_at, n.updated_at,
-        COUNT(DISTINCT nt.id) as todos_count
+        (SELECT COUNT(*) FROM note_todos WHERE note_id = n.id) as todos_count
       FROM notes n
-      LEFT JOIN note_todos nt ON n.id = nt.note_id
       WHERE n.user_id = ?
-      GROUP BY n.id
       ORDER BY n.updated_at DESC
     `, [req.user.id]);
 
-    res.json(notes);
+    res.json(notes || []);
   } catch (error) {
     logger.error('Erreur lors de la récupération des notes:', error);
     res.status(500).json({ error: 'Erreur serveur' });
