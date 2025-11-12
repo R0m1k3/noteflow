@@ -130,7 +130,7 @@ router.get('/force-oauth2', async (req, res) => {
  * GET /api/calendar/auth-url
  * Générer l'URL d'authentification OAuth
  */
-router.get('/auth-url', requireAdmin, async (req, res) => {
+router.get('/auth-url', authenticateToken, async (req, res) => {
   try {
     // Permettre de passer une URL de redirection personnalisée via query param
     const customRedirectUri = req.query.redirect_uri;
