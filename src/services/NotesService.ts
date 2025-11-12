@@ -13,6 +13,13 @@ interface Image {
   filename: string;
 }
 
+interface NoteFile {
+  id?: number;
+  filename: string;
+  original_name?: string;
+  size?: number;
+}
+
 export interface Note {
   id?: number;
   title: string;
@@ -22,6 +29,7 @@ export interface Note {
   updated_at?: string;
   todos: Todo[];
   images: Image[];
+  files?: NoteFile[];
 }
 
 class NotesService {
