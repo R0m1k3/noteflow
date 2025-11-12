@@ -13,6 +13,22 @@ router.use(authenticateToken);
 const SCOPES = ['https://www.googleapis.com/auth/calendar.readonly'];
 
 /**
+ * Types d'authentification supportés
+ */
+const AUTH_TYPES = {
+  OAUTH2: 'oauth2',
+  SERVICE_ACCOUNT: 'service_account'
+};
+
+/**
+ * Récupérer le type d'authentification configuré
+ */
+async function getAuthType() {
+  const authType = await getOne("SELECT value FROM settings WHERE key = 'google_auth_type'");
+  return authType?.value || AUTH_TYPES.OAUTH2; // Par défaut OAuth2
+}
+
+/**
  * Créer un client OAuth2
  * @param {string} [customRedirectUri] - URI de redirection personnalisée (optionnel)
  */
@@ -33,6 +49,51 @@ async function getOAuth2Client(customRedirectUri = null) {
     clientSecret.value,
     redirectUri
   );
+}
+
+/**
+ * Créer un client avec Service Account
+ */
+async function getServiceAccountClient() {
+  const serviceAccountKey = await getOne("SELECT value FROM settings WHERE key = 'google_service_account_key'");
+
+  if (!serviceAccountKey || !serviceAccountKey.value) {
+    throw new Error('Clé Service Account non configurée');
+  }
+
+  try {
+    const credentials = JSON.parse(serviceAccountKey.value);
+
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: SCOPES
+    });
+
+    return await auth.getClient();
+  } catch (error) {
+    logger.error('Erreur lors de la création du client Service Account:', error);
+    throw new Error('Clé Service Account invalide');
+  }
+}
+
+/**
+ * Créer un client Google Calendar selon la méthode d'authentification
+ * @param {number} userId - ID de l'utilisateur (pour OAuth2)
+ */
+async function getCalendarClient(userId = null) {
+  const authType = await getAuthType();
+
+  if (authType === AUTH_TYPES.SERVICE_ACCOUNT) {
+    const auth = await getServiceAccountClient();
+    return google.calendar({ version: 'v3', auth });
+  } else {
+    // OAuth2
+    if (!userId) {
+      throw new Error('User ID requis pour OAuth2');
+    }
+    const oauth2Client = await getValidTokens(userId);
+    return google.calendar({ version: 'v3', auth: oauth2Client });
+  }
 }
 
 /**
@@ -153,19 +214,36 @@ router.get('/oauth-callback', async (req, res) => {
  */
 router.get('/auth-status', async (req, res) => {
   try {
-    const tokens = await getOne(
-      'SELECT access_token, expiry_date FROM google_oauth_tokens WHERE user_id = ?',
-      [req.user.id]
-    );
+    const authType = await getAuthType();
 
-    const isAuthenticated = !!tokens;
-    const isExpired = tokens && tokens.expiry_date && tokens.expiry_date < Date.now();
+    if (authType === AUTH_TYPES.SERVICE_ACCOUNT) {
+      // Vérifier si la clé Service Account est configurée
+      const serviceAccountKey = await getOne("SELECT value FROM settings WHERE key = 'google_service_account_key'");
+      const isAuthenticated = !!serviceAccountKey?.value;
 
-    res.json({
-      isAuthenticated,
-      isExpired,
-      needsReauth: !isAuthenticated || isExpired
-    });
+      res.json({
+        authType: AUTH_TYPES.SERVICE_ACCOUNT,
+        isAuthenticated,
+        isExpired: false,
+        needsReauth: !isAuthenticated
+      });
+    } else {
+      // OAuth2
+      const tokens = await getOne(
+        'SELECT access_token, expiry_date FROM google_oauth_tokens WHERE user_id = ?',
+        [req.user.id]
+      );
+
+      const isAuthenticated = !!tokens;
+      const isExpired = tokens && tokens.expiry_date && tokens.expiry_date < Date.now();
+
+      res.json({
+        authType: AUTH_TYPES.OAUTH2,
+        isAuthenticated,
+        isExpired,
+        needsReauth: !isAuthenticated || isExpired
+      });
+    }
   } catch (error) {
     logger.error('Erreur lors de la vérification du statut OAuth:', error);
     res.status(500).json({ error: 'Erreur serveur' });
@@ -246,15 +324,23 @@ router.get('/events', async (req, res) => {
 
 /**
  * POST /api/calendar/sync
- * Synchroniser avec Google Calendar via OAuth
+ * Synchroniser avec Google Calendar (OAuth2 ou Service Account)
  */
 router.post('/sync', async (req, res) => {
   try {
-    // Obtenir un client OAuth valide
-    const oauth2Client = await getValidTokens(req.user.id);
+    const authType = await getAuthType();
+    let calendarId = 'primary'; // Par défaut : calendrier principal
 
-    // Créer un client Google Calendar avec OAuth
-    const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+    // Si Service Account, permettre de spécifier l'email du calendrier
+    if (authType === AUTH_TYPES.SERVICE_ACCOUNT) {
+      const calendarEmail = await getOne("SELECT value FROM settings WHERE key = 'google_calendar_email'");
+      if (calendarEmail?.value) {
+        calendarId = calendarEmail.value;
+      }
+    }
+
+    // Créer un client Google Calendar selon la méthode d'authentification
+    const calendar = await getCalendarClient(req.user.id);
 
     // Récupérer les événements des 30 prochains jours
     const now = new Date();
@@ -262,7 +348,7 @@ router.post('/sync', async (req, res) => {
     futureDate.setDate(futureDate.getDate() + 30);
 
     const response = await calendar.events.list({
-      calendarId: 'primary', // Calendrier principal de l'utilisateur
+      calendarId, // Utilise le calendrier configuré
       timeMin: now.toISOString(),
       timeMax: futureDate.toISOString(),
       maxResults: 50,
