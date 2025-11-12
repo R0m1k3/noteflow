@@ -33,14 +33,19 @@ async function getAuthType() {
 async function getOAuth2Client(customRedirectUri = null) {
   const clientId = await getOne("SELECT value FROM settings WHERE key = 'google_client_id'");
   const clientSecret = await getOne("SELECT value FROM settings WHERE key = 'google_client_secret'");
+  const appUrl = await getOne("SELECT value FROM settings WHERE key = 'app_url'");
 
   if (!clientId || !clientId.value || !clientSecret || !clientSecret.value) {
     throw new Error('Client ID et Client Secret non configurés');
   }
 
-  // Utiliser l'URI personnalisée si fournie, sinon utiliser l'URL de production
+  // Utiliser l'URI personnalisée si fournie, sinon utiliser l'URL du site configurée
   const redirectUri = customRedirectUri ||
-    'https://note.ffnancy.fr/api/calendar/oauth-callback';
+    (appUrl?.value ? `${appUrl.value}/api/calendar/oauth-callback` : null);
+
+  if (!redirectUri) {
+    throw new Error('URL du site non configurée. Veuillez configurer l\'URL dans les paramètres.');
+  }
 
   return new google.auth.OAuth2(
     clientId.value,
@@ -412,6 +417,7 @@ router.post('/sync', authenticateToken, async (req, res) => {
     for (const event of events) {
       const startTime = event.start.dateTime || event.start.date;
       const endTime = event.end.dateTime || event.end.date;
+      const isAllDay = !event.start.dateTime; // Si pas de dateTime, c'est un événement toute la journée
 
       // Vérifier si l'événement existe déjà
       const existing = await getOne(
@@ -424,7 +430,7 @@ router.post('/sync', authenticateToken, async (req, res) => {
         await runQuery(`
           UPDATE calendar_events
           SET title = ?, description = ?, start_time = ?, end_time = ?,
-              location = ?, html_link = ?, synced_at = CURRENT_TIMESTAMP
+              location = ?, html_link = ?, all_day = ?, synced_at = CURRENT_TIMESTAMP
           WHERE id = ?
         `, [
           event.summary || 'Sans titre',
@@ -433,14 +439,15 @@ router.post('/sync', authenticateToken, async (req, res) => {
           endTime,
           event.location || '',
           event.htmlLink || '',
+          isAllDay ? 1 : 0,
           existing.id
         ]);
       } else {
         // Créer un nouvel événement
         await runQuery(`
           INSERT INTO calendar_events
-          (google_event_id, user_id, title, description, start_time, end_time, location, html_link)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          (google_event_id, user_id, title, description, start_time, end_time, location, html_link, all_day)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         `, [
           event.id,
           req.user.id,
@@ -449,7 +456,8 @@ router.post('/sync', authenticateToken, async (req, res) => {
           startTime,
           endTime,
           event.location || '',
-          event.htmlLink || ''
+          event.htmlLink || '',
+          isAllDay ? 1 : 0
         ]);
       }
       syncedCount++;
@@ -601,6 +609,113 @@ router.post('/events', authenticateToken, async (req, res) => {
     logger.error('Erreur lors de la création de l\'événement:', error);
     res.status(500).json({
       error: 'Erreur lors de la création de l\'événement',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * PUT /api/calendar/events/:id
+ * Mettre à jour un événement dans Google Calendar
+ */
+router.put('/events/:id', authenticateToken, async (req, res) => {
+  try {
+    const {
+      title,
+      description,
+      startDateTime,
+      endDateTime,
+      location,
+      attendees,
+      reminders,
+      recurrence,
+      visibility,
+      colorId
+    } = req.body;
+
+    // Récupérer l'événement existant depuis la DB
+    const dbEvent = await getOne(
+      'SELECT google_event_id FROM calendar_events WHERE id = ? AND user_id = ?',
+      [req.params.id, req.user.id]
+    );
+
+    if (!dbEvent) {
+      return res.status(404).json({ error: 'Événement non trouvé' });
+    }
+
+    // Validation
+    if (!title || !startDateTime || !endDateTime) {
+      return res.status(400).json({ error: 'Titre, date de début et date de fin requis' });
+    }
+
+    const calendar = await getCalendarClient(req.user.id);
+
+    // Préparer l'événement mis à jour
+    const event = {
+      summary: title,
+      location: location || undefined,
+      description: description || undefined,
+      start: {
+        dateTime: startDateTime,
+        timeZone: 'Europe/Paris',
+      },
+      end: {
+        dateTime: endDateTime,
+        timeZone: 'Europe/Paris',
+      },
+      attendees: attendees && attendees.length > 0 ?
+        attendees.map(email => ({ email })) : undefined,
+      reminders: reminders ? {
+        useDefault: false,
+        overrides: reminders
+      } : undefined,
+      recurrence: recurrence || undefined,
+      visibility: visibility || 'default',
+      colorId: colorId || undefined
+    };
+
+    // Récupérer le Calendar ID depuis les settings
+    const calendarIdSetting = await getOne("SELECT value FROM settings WHERE key = 'google_calendar_id'");
+    const calendarId = calendarIdSetting?.value || 'primary';
+
+    // Mettre à jour l'événement dans Google Calendar
+    const response = await calendar.events.update({
+      calendarId: calendarId,
+      eventId: dbEvent.google_event_id,
+      resource: event,
+      sendUpdates: attendees && attendees.length > 0 ? 'all' : 'none'
+    });
+
+    logger.info(`Événement mis à jour: ${response.data.id} pour l'utilisateur ${req.user.username}`);
+
+    // Mettre à jour dans la base de données locale
+    const isAllDay = !startDateTime.includes('T') && !endDateTime.includes('T');
+    await runQuery(`
+      UPDATE calendar_events
+      SET title = ?, description = ?, start_time = ?, end_time = ?,
+          location = ?, html_link = ?, all_day = ?, synced_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `, [
+      title,
+      description || null,
+      startDateTime,
+      endDateTime,
+      location || null,
+      response.data.htmlLink || null,
+      isAllDay ? 1 : 0,
+      req.params.id
+    ]);
+
+    res.json({
+      message: 'Événement mis à jour avec succès',
+      eventId: response.data.id,
+      htmlLink: response.data.htmlLink
+    });
+
+  } catch (error) {
+    logger.error('Erreur lors de la mise à jour de l\'événement:', error);
+    res.status(500).json({
+      error: 'Erreur lors de la mise à jour de l\'événement',
       details: error.message
     });
   }

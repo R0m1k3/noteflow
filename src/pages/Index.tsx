@@ -78,6 +78,7 @@ const Index = () => {
   const [addTagModal, setAddTagModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [addEventModal, setAddEventModal] = useState(false);
+  const [editEventModal, setEditEventModal] = useState<{open: boolean, event?: CalendarEvent}>({open: false});
 
   // Pagination states
   const [notesPage, setNotesPage] = useState(0);
@@ -97,7 +98,6 @@ const Index = () => {
   const [chatLoading, setChatLoading] = useState(false);
   const [selectedModel, setSelectedModel] = useState<string>("");
   const [defaultModel, setDefaultModel] = useState<string>("");
-  const [modelSearchQuery, setModelSearchQuery] = useState<string>("");
 
   // Debounce timer for auto-save
   const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -856,11 +856,13 @@ const Index = () => {
                       return (
                         <div
                           key={event.id}
-                          className={`p-3 border rounded-lg hover:bg-accent/50 transition-colors cursor-pointer ${isSoon ? 'border-red-500 bg-red-50 dark:bg-red-900/20' : ''}`}
-                          onClick={() => event.html_link && window.open(event.html_link, '_blank')}
+                          className={`p-3 border rounded-lg hover:bg-accent/50 transition-colors group relative ${isSoon ? 'border-red-500 bg-red-50 dark:bg-red-900/20' : ''}`}
                         >
                           <div className="flex items-start justify-between gap-2">
-                            <div className="flex-1 min-w-0">
+                            <div
+                              className="flex-1 min-w-0 cursor-pointer"
+                              onClick={() => event.html_link && window.open(event.html_link, '_blank')}
+                            >
                               <div className="flex items-center gap-2 mb-1">
                                 {isToday && (
                                   <div className="h-2 w-2 rounded-full bg-blue-500 flex-shrink-0 animate-pulse" />
@@ -868,7 +870,8 @@ const Index = () => {
                                 <h4 className="font-medium line-clamp-2 text-sm">{event.title}</h4>
                               </div>
                               <p className="text-xs text-muted-foreground">
-                                {isToday ? "Aujourd'hui" : startDate.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })} à {startDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                                {isToday ? "Aujourd'hui" : startDate.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}
+                                {event.all_day ? ' - Toute la journée' : ` à ${startDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`}
                               </p>
                               {event.location && (
                                 <p className="text-xs text-muted-foreground mt-1 truncate">
@@ -879,7 +882,23 @@ const Index = () => {
                                 <Badge variant="destructive" className="mt-1 text-xs">Dans moins de 30 min</Badge>
                               )}
                             </div>
-                            <ExternalLink className="h-3 w-3 text-muted-foreground flex-shrink-0 mt-1" />
+                            <div className="flex gap-1 items-start">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditEventModal({ open: true, event });
+                                }}
+                              >
+                                <Edit className="h-3 w-3" />
+                              </Button>
+                              <ExternalLink
+                                className="h-3 w-3 text-muted-foreground flex-shrink-0 mt-1 cursor-pointer"
+                                onClick={() => event.html_link && window.open(event.html_link, '_blank')}
+                              />
+                            </div>
                           </div>
                         </div>
                       );
@@ -1691,182 +1710,63 @@ const Index = () => {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <CalendarIcon className="h-5 w-5" />
-                    Configuration Google Calendar
+                    Configuration Google Calendar OAuth 2.0
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {/* Choix du type d'authentification */}
                   <div className="space-y-2">
-                    <Label htmlFor="google-auth-type">Méthode d'authentification</Label>
-                    <Select
-                      value={settings.google_auth_type || 'oauth2'}
-                      onValueChange={(value) => setSettings({ ...settings, google_auth_type: value as 'oauth2' | 'service_account' | 'api_externe' })}
-                    >
-                      <SelectTrigger id="google-auth-type">
-                        <SelectValue placeholder="Sélectionnez une méthode" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="oauth2">
-                          <div className="flex flex-col">
-                            <span className="font-medium">OAuth 2.0</span>
-                            <span className="text-xs text-muted-foreground">
-                              Calendrier personnel avec consentement utilisateur
-                            </span>
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="service_account">
-                          <div className="flex flex-col">
-                            <span className="font-medium">Service Account</span>
-                            <span className="text-xs text-muted-foreground">
-                              Clé JSON pour calendriers partagés (sans interaction)
-                            </span>
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="api_externe">
-                          <div className="flex flex-col">
-                            <span className="font-medium">API externe</span>
-                            <span className="text-xs text-muted-foreground">
-                              Connectez-vous à une API externe pour Google Calendar
-                            </span>
-                          </div>
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">
-                      <strong>OAuth 2.0</strong> : Pour accéder au calendrier personnel avec autorisation de l'utilisateur.<br/>
-                      <strong>Service Account</strong> : Pour accéder à des calendriers partagés sans interaction utilisateur.<br/>
-                      <strong>API externe</strong> : Utilisez votre propre API backend pour gérer la connexion à Google Calendar.
+                    <Label htmlFor="app-url">URL du site</Label>
+                    <Input
+                      id="app-url"
+                      type="url"
+                      placeholder="https://votre-domaine.com"
+                      value={settings.app_url || ''}
+                      onChange={(e) => setSettings({ ...settings, app_url: e.target.value })}
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      URL de votre site (utilisée pour les redirections OAuth)
                     </p>
                   </div>
 
-                  {/* Configuration OAuth2 */}
-                  {(!settings.google_auth_type || settings.google_auth_type === 'oauth2') && (
-                    <>
-                      <div className="space-y-2">
-                        <Label htmlFor="google-client-id">Client ID Google</Label>
-                        <Input
-                          id="google-client-id"
-                          type="text"
-                          placeholder="123456789-abcdef.apps.googleusercontent.com"
-                          value={settings.google_client_id || ''}
-                          onChange={(e) => setSettings({ ...settings, google_client_id: e.target.value })}
-                        />
-                      </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="google-client-id">Client ID Google</Label>
+                    <Input
+                      id="google-client-id"
+                      type="text"
+                      placeholder="123456789-abcdef.apps.googleusercontent.com"
+                      value={settings.google_client_id || ''}
+                      onChange={(e) => setSettings({ ...settings, google_client_id: e.target.value })}
+                    />
+                  </div>
 
-                      <div className="space-y-2">
-                        <Label htmlFor="google-client-secret">Client Secret Google</Label>
-                        <Input
-                          id="google-client-secret"
-                          type="password"
-                          placeholder="GOCSPX-..."
-                          value={settings.google_client_secret || ''}
-                          onChange={(e) => setSettings({ ...settings, google_client_secret: e.target.value })}
-                        />
-                        <p className="text-sm text-muted-foreground">
-                          Créez un projet OAuth 2.0 sur{' '}
-                          <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                            Google Cloud Console
-                          </a>
-                          {' '}et activez l'API Google Calendar.
-                        </p>
-                        <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-                          <p className="text-sm font-semibold text-yellow-900 dark:text-yellow-200 mb-1">
-                            ⚠️ IMPORTANT : URI de redirection autorisée
-                          </p>
-                          <p className="text-xs text-yellow-800 dark:text-yellow-300 mb-2">
-                            Ajoutez cette URL exacte dans la console Google Cloud (OAuth 2.0 Client IDs → URIs de redirection autorisées) :
-                          </p>
-                          <code className="block p-2 bg-white dark:bg-gray-800 border border-yellow-300 dark:border-yellow-700 rounded text-xs font-mono break-all">
-                            {window.location.origin}/api/calendar/oauth-callback
-                          </code>
-                          <p className="text-xs text-yellow-800 dark:text-yellow-300 mt-2">
-                            💡 Si vous utilisez un domaine différent, créez un fichier .env avec APP_URL=https://votre-domaine.com
-                          </p>
-                        </div>
-                      </div>
-                    </>
-                  )}
-
-                  {/* Configuration Service Account */}
-                  {settings.google_auth_type === 'service_account' && (
-                    <>
-                      <div className="space-y-2">
-                        <Label htmlFor="google-service-account-key">Clé Service Account (JSON)</Label>
-                        <textarea
-                          id="google-service-account-key"
-                          className="w-full min-h-[200px] p-3 text-xs font-mono border rounded-md"
-                          placeholder='Collez ici le contenu du fichier JSON de votre Service Account&#10;{&#10;  "type": "service_account",&#10;  "project_id": "...",&#10;  "private_key_id": "...",&#10;  ...&#10;}'
-                          value={settings.google_service_account_key || ''}
-                          onChange={(e) => setSettings({ ...settings, google_service_account_key: e.target.value })}
-                        />
-                        <p className="text-sm text-muted-foreground">
-                          Créez un Service Account sur{' '}
-                          <a href="https://console.cloud.google.com/iam-admin/serviceaccounts" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                            Google Cloud Console
-                          </a>
-                          {' '}et téléchargez la clé JSON.
-                        </p>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="google-calendar-email">Email du calendrier à synchroniser</Label>
-                        <Input
-                          id="google-calendar-email"
-                          type="email"
-                          placeholder="votre-email@gmail.com"
-                          value={settings.google_calendar_email || ''}
-                          onChange={(e) => setSettings({ ...settings, google_calendar_email: e.target.value })}
-                        />
-                        <p className="text-xs text-muted-foreground">
-                          ⚠️ Important : Vous devez partager votre calendrier avec l'email du Service Account (visible dans le JSON)
-                        </p>
-                      </div>
-                    </>
-                  )}
-
-                  {/* Configuration API Key */}
-                  {settings.google_auth_type === 'api_externe' && (
-                    <>
-                      <div className="space-y-2">
-                        <Label htmlFor="google-api-key">Clé API Google Calendar</Label>
-                        <Input
-                          id="google-api-key"
-                          type="password"
-                          placeholder="AIzaSy..."
-                          value={settings.google_calendar_api_key || ''}
-                          onChange={(e) => setSettings({ ...settings, google_calendar_api_key: e.target.value })}
-                        />
-                        <p className="text-sm text-muted-foreground">
-                          Entrez votre clé API Google Calendar.
-                        </p>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="google-calendar-id-api">ID du calendrier</Label>
-                        <Input
-                          id="google-calendar-id-api"
-                          type="text"
-                          placeholder="primary ou votre-email@gmail.com"
-                          value={settings.google_calendar_id || ''}
-                          onChange={(e) => setSettings({ ...settings, google_calendar_id: e.target.value })}
-                        />
-                        <p className="text-sm text-muted-foreground">
-                          Utilisez "primary" pour votre calendrier principal ou l'email du calendrier spécifique.
-                        </p>
-                        <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                          <p className="text-sm font-semibold text-blue-900 dark:text-blue-200 mb-1">
-                            ℹ️ Obtenir une clé API
-                          </p>
-                          <p className="text-xs text-blue-800 dark:text-blue-300 mb-2">
-                            1. Allez sur <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" className="underline">Google Cloud Console</a><br/>
-                            2. Créez une clé API<br/>
-                            3. Activez l'API Google Calendar<br/>
-                            4. Copiez la clé API ici
-                          </p>
-                        </div>
-                      </div>
-                    </>
-                  )}
+                  <div className="space-y-2">
+                    <Label htmlFor="google-client-secret">Client Secret Google</Label>
+                    <Input
+                      id="google-client-secret"
+                      type="password"
+                      placeholder="GOCSPX-..."
+                      value={settings.google_client_secret || ''}
+                      onChange={(e) => setSettings({ ...settings, google_client_secret: e.target.value })}
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      Créez un projet OAuth 2.0 sur{' '}
+                      <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                        Google Cloud Console
+                      </a>
+                      {' '}et activez l'API Google Calendar.
+                    </p>
+                    <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                      <p className="text-sm font-semibold text-yellow-900 dark:text-yellow-200 mb-1">
+                        ⚠️ IMPORTANT : URI de redirection autorisée
+                      </p>
+                      <p className="text-xs text-yellow-800 dark:text-yellow-300 mb-2">
+                        Ajoutez cette URL exacte dans la console Google Cloud (OAuth 2.0 Client IDs → URIs de redirection autorisées) :
+                      </p>
+                      <code className="block p-2 bg-white dark:bg-gray-800 border border-yellow-300 dark:border-yellow-700 rounded text-xs font-mono break-all">
+                        {settings.app_url || window.location.origin}/api/calendar/oauth-callback
+                      </code>
+                    </div>
+                  </div>
 
                   <div className="flex gap-2">
                     <Button onClick={handleSaveSettings} className="flex items-center gap-2">
@@ -1875,22 +1775,14 @@ const Index = () => {
                     </Button>
                   </div>
 
-                  {(
-                    ((!settings.google_auth_type || settings.google_auth_type === 'oauth2') && settings.google_client_id && settings.google_client_secret) ||
-                    (settings.google_auth_type === 'service_account' && settings.google_service_account_key) ||
-                    (settings.google_auth_type === 'api_externe' && settings.google_calendar_api_key)
-                  ) && (
+                  {settings.google_client_id && settings.google_client_secret && (
                     <>
                       <div className="border-t pt-4">
                         <h3 className="font-semibold mb-2">Statut de connexion</h3>
                         {calendarAuthStatus.isAuthenticated && !calendarAuthStatus.isExpired ? (
                           <div className="flex items-center gap-2 text-green-600">
                             <div className="h-2 w-2 rounded-full bg-green-600"></div>
-                            <span>Connecté à Google Calendar ({
-                              calendarAuthStatus.authType === 'service_account' ? 'Service Account' :
-                              calendarAuthStatus.authType === 'api_externe' ? 'API Key' :
-                              'OAuth 2.0'
-                            })</span>
+                            <span>Connecté à Google Calendar (OAuth 2.0)</span>
                           </div>
                         ) : (
                           <div className="flex items-center gap-2 text-yellow-600">
@@ -1901,12 +1793,12 @@ const Index = () => {
                       </div>
 
                       <div className="flex gap-2">
-                        {calendarAuthStatus.needsReauth && (!settings.google_auth_type || settings.google_auth_type === 'oauth2') ? (
+                        {calendarAuthStatus.needsReauth ? (
                           <Button onClick={handleGoogleConnect} className="flex items-center gap-2">
                             <CalendarIcon className="h-4 w-4" />
                             Se connecter avec Google
                           </Button>
-                        ) : !calendarAuthStatus.needsReauth && (!settings.google_auth_type || settings.google_auth_type === 'oauth2') ? (
+                        ) : (
                           <>
                             <Button
                               onClick={async () => {
@@ -1937,23 +1829,7 @@ const Index = () => {
                               Déconnecter
                             </Button>
                           </>
-                        ) : settings.google_auth_type === 'api_externe' || settings.google_auth_type === 'service_account' ? (
-                          <Button
-                            onClick={async () => {
-                              try {
-                                const result = await CalendarService.sync();
-                                showSuccess(`${result.syncedCount} événements synchronisés`);
-                                await loadCalendarEvents();
-                              } catch (error) {
-                                showError("Erreur lors de la synchronisation");
-                              }
-                            }}
-                            className="flex items-center gap-2"
-                          >
-                            <RefreshCw className="h-4 w-4" />
-                            Synchroniser
-                          </Button>
-                        ) : null}
+                        )}
                       </div>
                     </>
                   )}
@@ -2286,6 +2162,185 @@ const Index = () => {
         </DialogContent>
       </Dialog>
 
+      {/* Edit Event Modal */}
+      <Dialog open={editEventModal.open} onOpenChange={(open) => setEditEventModal({open, event: undefined})}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Modifier le rendez-vous</DialogTitle>
+            <DialogDescription>
+              Modifier l'événement dans votre Google Calendar
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={async (e) => {
+            e.preventDefault();
+            if (!editEventModal.event?.id) return;
+
+            const formData = new FormData(e.currentTarget);
+
+            try {
+              const reminderMinutes = formData.get('reminderMinutes') as string;
+              const recurrenceValue = formData.get('recurrence') as string;
+
+              const eventData = {
+                title: formData.get('title') as string,
+                description: formData.get('description') as string || undefined,
+                startDateTime: new Date(formData.get('startDateTime') as string).toISOString(),
+                endDateTime: new Date(formData.get('endDateTime') as string).toISOString(),
+                location: formData.get('location') as string || undefined,
+                attendees: (formData.get('attendees') as string || '').split(',').map(e => e.trim()).filter(e => e),
+                reminders: reminderMinutes && reminderMinutes !== '0' ? [
+                  { method: 'popup', minutes: parseInt(reminderMinutes) }
+                ] : undefined,
+                recurrence: recurrenceValue ? [recurrenceValue] : undefined,
+                visibility: formData.get('visibility') as string || 'default',
+                colorId: formData.get('colorId') as string || undefined
+              };
+
+              await CalendarService.updateEvent(editEventModal.event.id, eventData);
+              showSuccess('Événement mis à jour avec succès');
+              setEditEventModal({open: false, event: undefined});
+              await loadCalendarEvents();
+            } catch (error: any) {
+              showError(error.response?.data?.error || 'Erreur lors de la mise à jour de l\'événement');
+            }
+          }} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-title">Titre *</Label>
+              <Input id="edit-title" name="title" required defaultValue={editEventModal.event?.title || ''} />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-description">Description</Label>
+              <textarea
+                id="edit-description"
+                name="description"
+                className="w-full min-h-[80px] px-3 py-2 border border-input rounded-md bg-background"
+                defaultValue={editEventModal.event?.description || ''}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-startDateTime">Début *</Label>
+                <Input
+                  id="edit-startDateTime"
+                  name="startDateTime"
+                  type="datetime-local"
+                  required
+                  defaultValue={editEventModal.event ? new Date(editEventModal.event.start_time).toISOString().slice(0, 16) : ''}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-endDateTime">Fin *</Label>
+                <Input
+                  id="edit-endDateTime"
+                  name="endDateTime"
+                  type="datetime-local"
+                  required
+                  defaultValue={editEventModal.event ? new Date(editEventModal.event.end_time).toISOString().slice(0, 16) : ''}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-location">Lieu</Label>
+              <Input id="edit-location" name="location" defaultValue={editEventModal.event?.location || ''} />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-attendees">Participants (emails séparés par des virgules)</Label>
+              <Input
+                id="edit-attendees"
+                name="attendees"
+                type="text"
+                placeholder="email1@example.com, email2@example.com"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-reminderMinutes">Rappel (minutes avant)</Label>
+              <select
+                id="edit-reminderMinutes"
+                name="reminderMinutes"
+                className="w-full h-10 px-3 py-2 border border-input rounded-md bg-background"
+                defaultValue="30"
+              >
+                <option value="0">Aucun</option>
+                <option value="10">10 minutes</option>
+                <option value="15">15 minutes</option>
+                <option value="30">30 minutes</option>
+                <option value="60">1 heure</option>
+                <option value="120">2 heures</option>
+                <option value="1440">1 jour</option>
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-recurrence">Récurrence</Label>
+              <select
+                id="edit-recurrence"
+                name="recurrence"
+                className="w-full h-10 px-3 py-2 border border-input rounded-md bg-background"
+                defaultValue=""
+              >
+                <option value="">Aucune</option>
+                <option value="RRULE:FREQ=DAILY">Quotidienne</option>
+                <option value="RRULE:FREQ=WEEKLY">Hebdomadaire</option>
+                <option value="RRULE:FREQ=MONTHLY">Mensuelle</option>
+                <option value="RRULE:FREQ=YEARLY">Annuelle</option>
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-visibility">Visibilité</Label>
+              <select
+                id="edit-visibility"
+                name="visibility"
+                className="w-full h-10 px-3 py-2 border border-input rounded-md bg-background"
+                defaultValue="default"
+              >
+                <option value="default">Par défaut</option>
+                <option value="public">Public</option>
+                <option value="private">Privé</option>
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-colorId">Couleur</Label>
+              <select
+                id="edit-colorId"
+                name="colorId"
+                className="w-full h-10 px-3 py-2 border border-input rounded-md bg-background"
+                defaultValue=""
+              >
+                <option value="">Par défaut</option>
+                <option value="1">Lavande</option>
+                <option value="2">Sauge</option>
+                <option value="3">Raisin</option>
+                <option value="4">Flamant rose</option>
+                <option value="5">Banane</option>
+                <option value="6">Mandarine</option>
+                <option value="7">Paon</option>
+                <option value="8">Graphite</option>
+                <option value="9">Myrtille</option>
+                <option value="10">Basilic</option>
+                <option value="11">Tomate</option>
+              </select>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-4">
+              <Button type="button" variant="outline" onClick={() => setEditEventModal({open: false, event: undefined})}>
+                Annuler
+              </Button>
+              <Button type="submit">
+                Enregistrer les modifications
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
       {/* AI Chatbox */}
       {!chatOpen ? (
         <Button
@@ -2320,60 +2375,41 @@ const Index = () => {
                 </Button>
               </div>
             </div>
-            <div className="mt-3 space-y-2">
-              {/* Search field */}
-              <Input
-                placeholder="Rechercher un modèle..."
-                value={modelSearchQuery}
-                onChange={(e) => setModelSearchQuery(e.target.value)}
-                className="text-xs h-8"
-                disabled={loadingModels}
-              />
-
-              {/* Models list */}
-              <div className="max-h-32 overflow-y-auto border rounded-md">
+            <div className="mt-3 flex gap-2">
+              <select
+                value={selectedModel}
+                onChange={(e) => setSelectedModel(e.target.value)}
+                className="flex-1 text-xs px-2 py-1.5 border border-input rounded-md bg-background"
+                disabled={chatLoading || loadingModels}
+              >
                 {loadingModels ? (
-                  <div className="text-xs text-center py-2 text-muted-foreground">
-                    Chargement des modèles...
-                  </div>
+                  <option value="">Chargement des modèles...</option>
                 ) : openRouterModels.length === 0 ? (
-                  <div className="text-xs text-center py-2 text-muted-foreground">
-                    Aucun modèle disponible
-                  </div>
+                  <option value="">Aucun modèle disponible</option>
                 ) : (
-                  openRouterModels
-                    .filter(model =>
-                      model.name.toLowerCase().includes(modelSearchQuery.toLowerCase()) ||
-                      model.id.toLowerCase().includes(modelSearchQuery.toLowerCase())
-                    )
-                    .map(model => (
-                      <div
-                        key={model.id}
-                        className={`flex items-center justify-between px-2 py-1.5 hover:bg-accent cursor-pointer text-xs ${
-                          selectedModel === model.id ? 'bg-accent' : ''
-                        }`}
-                        onClick={() => setSelectedModel(model.id)}
-                      >
-                        <span className="flex-1 truncate">{model.name}</span>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-5 w-5"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleSetDefaultModel(model.id);
-                          }}
-                        >
-                          {defaultModel === model.id ? (
-                            <span className="text-yellow-500">★</span>
-                          ) : (
-                            <span className="text-muted-foreground">☆</span>
-                          )}
-                        </Button>
-                      </div>
-                    ))
+                  openRouterModels.map(model => (
+                    <option key={model.id} value={model.id}>
+                      {model.name}
+                    </option>
+                  ))
                 )}
-              </div>
+              </select>
+              {selectedModel && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => handleSetDefaultModel(selectedModel)}
+                  disabled={loadingModels}
+                  title="Définir comme modèle par défaut"
+                >
+                  {defaultModel === selectedModel ? (
+                    <span className="text-yellow-500">★</span>
+                  ) : (
+                    <span className="text-muted-foreground">☆</span>
+                  )}
+                </Button>
+              )}
             </div>
           </CardHeader>
 
