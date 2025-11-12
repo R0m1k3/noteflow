@@ -54,6 +54,8 @@ const Index = () => {
   const [noteTags, setNoteTags] = useState<Tag[]>([]);
   const [openRouterModels, setOpenRouterModels] = useState<OpenRouterModel[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
+  const [currentDateTime, setCurrentDateTime] = useState(new Date());
+  const [upcomingAlert, setUpcomingAlert] = useState<CalendarEvent | null>(null);
   const [calendarAuthStatus, setCalendarAuthStatus] = useState<{
     isAuthenticated: boolean;
     isExpired: boolean;
@@ -78,6 +80,33 @@ const Index = () => {
 
   // Debounce timer for auto-save
   const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Update current date/time every second
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentDateTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Check for upcoming events every minute
+  useEffect(() => {
+    const checkUpcomingEvents = () => {
+      const now = new Date();
+      const thirtyMinutesFromNow = new Date(now.getTime() + 30 * 60 * 1000);
+
+      const upcomingEvent = calendarEvents.find(event => {
+        const eventStart = new Date(event.start_time);
+        return eventStart > now && eventStart <= thirtyMinutesFromNow;
+      });
+
+      setUpcomingAlert(upcomingEvent || null);
+    };
+
+    checkUpcomingEvents();
+    const timer = setInterval(checkUpcomingEvents, 60000); // Check every minute
+    return () => clearInterval(timer);
+  }, [calendarEvents]);
 
   useEffect(() => {
     const userFromAuth = AuthService.getUser();
@@ -565,13 +594,55 @@ const Index = () => {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Top Navigation */}
       <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-30">
+        {/* Alert bar for upcoming events */}
+        {upcomingAlert && (
+          <div className="bg-red-500 text-white px-8 py-2 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <CalendarIcon className="h-5 w-5" />
+              <span className="font-medium">
+                Rendez-vous dans moins de 30 minutes : {upcomingAlert.title}
+              </span>
+              <span className="text-sm opacity-90">
+                à {new Date(upcomingAlert.start_time).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-white hover:bg-red-600"
+              onClick={() => upcomingAlert.html_link && window.open(upcomingAlert.html_link, '_blank')}
+            >
+              Voir
+            </Button>
+          </div>
+        )}
+
         <div className="max-w-[1920px] mx-auto px-8">
           <div className="flex h-16 items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                <FileText className="h-5 w-5 text-primary" />
+            <div className="flex items-center gap-6">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                  <FileText className="h-5 w-5 text-primary" />
+                </div>
+                <span className="text-2xl font-semibold">NoteFlow</span>
               </div>
-              <span className="text-2xl font-semibold">NoteFlow</span>
+              <div className="text-sm text-muted-foreground">
+                <div className="font-medium">
+                  {currentDateTime.toLocaleDateString('fr-FR', {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                  })}
+                </div>
+                <div className="text-lg font-mono">
+                  {currentDateTime.toLocaleTimeString('fr-FR', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                  })}
+                </div>
+              </div>
             </div>
 
             <div className="flex items-center gap-6">
@@ -616,9 +687,84 @@ const Index = () => {
 
       {/* Main Content */}
       <div className="max-w-[1920px] mx-auto px-8 py-8">
-        {/* Two Column Layout: Notes Left | Boxes Right */}
-        <div className="grid grid-cols-[2fr,1fr] gap-8">
-          {/* Left Column: Notes or Open Note */}
+        {/* Three Column Layout: Calendar Left | Notes Middle | Todo/RSS Right */}
+        <div className="grid grid-cols-[300px,1fr,380px] gap-6">
+          {/* Left Column: Calendar */}
+          <div className="space-y-6">
+            <Card className="shadow-lg">
+              <CardHeader className="pb-4">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-xl flex items-center gap-2">
+                    <CalendarIcon className="h-6 w-6" />
+                    Rendez-vous
+                  </CardTitle>
+                  <Button size="sm" variant="outline" onClick={async () => {
+                    try {
+                      const result = await CalendarService.sync();
+                      showSuccess(`${result.syncedCount} événements synchronisés`);
+                      await loadCalendarEvents();
+                    } catch (error) {
+                      showError("Erreur lors de la synchronisation");
+                    }
+                  }} className="gap-1">
+                    <RefreshCw className="h-4 w-4" />
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3 max-h-[calc(100vh-250px)] overflow-y-auto">
+                  {calendarEvents.length > 0 ? (
+                    calendarEvents.map(event => {
+                      const startDate = new Date(event.start_time);
+                      const endDate = new Date(event.end_time);
+                      const isToday = startDate.toDateString() === new Date().toDateString();
+                      const isSoon = startDate.getTime() - new Date().getTime() < 30 * 60 * 1000 && startDate > new Date();
+
+                      return (
+                        <div
+                          key={event.id}
+                          className={`p-3 border rounded-lg hover:bg-accent/50 transition-colors cursor-pointer ${isSoon ? 'border-red-500 bg-red-50 dark:bg-red-900/20' : ''}`}
+                          onClick={() => event.html_link && window.open(event.html_link, '_blank')}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <h4 className="font-medium line-clamp-2 mb-1 text-sm">{event.title}</h4>
+                              <p className="text-xs text-muted-foreground">
+                                {isToday ? "Aujourd'hui" : startDate.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })} à {startDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                              </p>
+                              {event.location && (
+                                <p className="text-xs text-muted-foreground mt-1 truncate">
+                                  📍 {event.location}
+                                </p>
+                              )}
+                              {isSoon && (
+                                <Badge variant="destructive" className="mt-1 text-xs">Dans moins de 30 min</Badge>
+                              )}
+                            </div>
+                            <ExternalLink className="h-3 w-3 text-muted-foreground flex-shrink-0 mt-1" />
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <p className="text-center text-muted-foreground py-8 text-sm">
+                      Aucun rendez-vous à venir
+                      <br />
+                      <Button
+                        variant="link"
+                        className="mt-2 text-xs"
+                        onClick={() => setShowAdmin(true)}
+                      >
+                        Configurer Google Calendar
+                      </Button>
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Middle Column: Notes or Open Note */}
           <div className="space-y-6">
             {!openNote ? (
               <>
@@ -654,23 +800,23 @@ const Index = () => {
                   </div>
                 </div>
 
-                {/* Notes Grid - 2 columns */}
-                <div className="grid grid-cols-2 gap-6">
+                {/* Notes Grid - 1 column for better visibility */}
+                <div className="grid grid-cols-1 gap-4">
                   {filteredNotes.length > 0 ? (
                     filteredNotes.map(note => (
                       <Card
                         key={note.id}
-                        className="cursor-pointer hover:shadow-xl transition-all hover:scale-105 group"
+                        className="cursor-pointer hover:shadow-md transition-all group"
                         onClick={() => handleOpenNote(note)}
                       >
-                        <CardContent className="p-6">
-                          <h3 className="font-semibold text-lg mb-3 line-clamp-2 min-h-[56px]">
+                        <CardContent className="p-4">
+                          <h3 className="font-semibold text-base mb-2 line-clamp-1">
                             {note.title || "Sans titre"}
                           </h3>
-                          <p className="text-sm text-muted-foreground line-clamp-4 mb-4 min-h-[80px]">
+                          <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
                             {note.content ? note.content.replace(/<[^>]*>/g, '') : "Note vide"}
                           </p>
-                          <div className="flex gap-2 flex-wrap mb-3">
+                          <div className="flex gap-2 flex-wrap mb-2">
                             {note.todos && note.todos.length > 0 && (
                               <Badge variant="secondary">
                                 <CheckSquare className="h-3 w-3 mr-1" />
@@ -703,7 +849,7 @@ const Index = () => {
                       </Card>
                     ))
                   ) : (
-                    <div className="col-span-2 text-center py-16">
+                    <div className="col-span-1 text-center py-16">
                       <FileText className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
                       <p className="text-muted-foreground text-lg mb-4">
                         {searchQuery ? "Aucune note trouvée" : "Aucune note"}
@@ -1029,7 +1175,7 @@ const Index = () => {
           </div>
 
           {/* Right Column: Todos & RSS Boxes stacked */}
-          <div className="space-y-6">
+          <div className="space-y-6 h-fit sticky top-24">
           {/* Todos Box */}
           <Card className="shadow-lg">
             <CardHeader className="pb-4">
@@ -1171,75 +1317,6 @@ const Index = () => {
             </CardContent>
           </Card>
 
-          {/* Calendar Box */}
-          <Card className="shadow-lg">
-            <CardHeader className="pb-4">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-xl flex items-center gap-2">
-                  <CalendarIcon className="h-6 w-6" />
-                  Rendez-vous
-                </CardTitle>
-                <Button size="lg" variant="outline" onClick={async () => {
-                  try {
-                    const result = await CalendarService.sync();
-                    showSuccess(`${result.syncedCount} événements synchronisés`);
-                    await loadCalendarEvents();
-                  } catch (error) {
-                    showError("Erreur lors de la synchronisation");
-                  }
-                }} className="gap-2">
-                  <RefreshCw className="h-5 w-5" />
-                  Synchroniser
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3 max-h-[480px] overflow-y-auto">
-                {calendarEvents.length > 0 ? (
-                  calendarEvents.map(event => {
-                    const startDate = new Date(event.start_time);
-                    const endDate = new Date(event.end_time);
-                    const isToday = startDate.toDateString() === new Date().toDateString();
-
-                    return (
-                      <div
-                        key={event.id}
-                        className="p-3 border rounded-lg hover:bg-accent/50 transition-colors cursor-pointer"
-                        onClick={() => event.html_link && window.open(event.html_link, '_blank')}
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex-1 min-w-0">
-                            <h4 className="font-medium line-clamp-2 mb-1">{event.title}</h4>
-                            <p className="text-sm text-muted-foreground">
-                              {isToday ? "Aujourd'hui" : startDate.toLocaleDateString('fr-FR')} à {startDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-                            </p>
-                            {event.location && (
-                              <p className="text-xs text-muted-foreground mt-1">
-                                📍 {event.location}
-                              </p>
-                            )}
-                          </div>
-                          <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-1" />
-                        </div>
-                      </div>
-                    );
-                  })
-                ) : (
-                  <p className="text-center text-muted-foreground py-8">
-                    Aucun rendez-vous à venir
-                    <br />
-                    <Button
-                      variant="link"
-                      className="mt-2"
-                      onClick={() => setShowAdmin(true)}
-                    >
-                      Configurer Google Calendar
-                    </Button>
-                  </p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
         </div>
       </div>
     </div>
