@@ -286,6 +286,27 @@ function initDatabase() {
           }
         });
 
+        // Migration pour calendar_events - ajouter all_day
+        db.all("PRAGMA table_info(calendar_events)", (err, columns) => {
+          if (err) {
+            logger.error('Erreur lors de la vérification de la structure de la table calendar_events:', err);
+            return;
+          }
+
+          const hasAllDay = columns.some(col => col.name === 'all_day');
+
+          if (!hasAllDay) {
+            logger.info('Migration: Ajout de la colonne all_day à calendar_events...');
+            db.run('ALTER TABLE calendar_events ADD COLUMN all_day BOOLEAN DEFAULT 0', (err) => {
+              if (err) {
+                logger.error('Erreur lors de l\'ajout de la colonne all_day:', err);
+              } else {
+                logger.info('✓ Colonne all_day ajoutée avec succès');
+              }
+            });
+          }
+        });
+
         // Créer l'utilisateur admin par défaut si la table est vide
         db.get('SELECT COUNT(*) as count FROM users', async (err, row) => {
           if (err) {

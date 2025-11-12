@@ -78,6 +78,7 @@ const Index = () => {
   const [addTagModal, setAddTagModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [addEventModal, setAddEventModal] = useState(false);
+  const [editEventModal, setEditEventModal] = useState<{open: boolean, event?: CalendarEvent}>({open: false});
 
   // Pagination states
   const [notesPage, setNotesPage] = useState(0);
@@ -856,11 +857,13 @@ const Index = () => {
                       return (
                         <div
                           key={event.id}
-                          className={`p-3 border rounded-lg hover:bg-accent/50 transition-colors cursor-pointer ${isSoon ? 'border-red-500 bg-red-50 dark:bg-red-900/20' : ''}`}
-                          onClick={() => event.html_link && window.open(event.html_link, '_blank')}
+                          className={`p-3 border rounded-lg hover:bg-accent/50 transition-colors group relative ${isSoon ? 'border-red-500 bg-red-50 dark:bg-red-900/20' : ''}`}
                         >
                           <div className="flex items-start justify-between gap-2">
-                            <div className="flex-1 min-w-0">
+                            <div
+                              className="flex-1 min-w-0 cursor-pointer"
+                              onClick={() => event.html_link && window.open(event.html_link, '_blank')}
+                            >
                               <div className="flex items-center gap-2 mb-1">
                                 {isToday && (
                                   <div className="h-2 w-2 rounded-full bg-blue-500 flex-shrink-0 animate-pulse" />
@@ -868,7 +871,8 @@ const Index = () => {
                                 <h4 className="font-medium line-clamp-2 text-sm">{event.title}</h4>
                               </div>
                               <p className="text-xs text-muted-foreground">
-                                {isToday ? "Aujourd'hui" : startDate.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })} à {startDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                                {isToday ? "Aujourd'hui" : startDate.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}
+                                {event.all_day ? ' - Toute la journée' : ` à ${startDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`}
                               </p>
                               {event.location && (
                                 <p className="text-xs text-muted-foreground mt-1 truncate">
@@ -879,7 +883,23 @@ const Index = () => {
                                 <Badge variant="destructive" className="mt-1 text-xs">Dans moins de 30 min</Badge>
                               )}
                             </div>
-                            <ExternalLink className="h-3 w-3 text-muted-foreground flex-shrink-0 mt-1" />
+                            <div className="flex gap-1 items-start">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditEventModal({ open: true, event });
+                                }}
+                              >
+                                <Edit className="h-3 w-3" />
+                              </Button>
+                              <ExternalLink
+                                className="h-3 w-3 text-muted-foreground flex-shrink-0 mt-1 cursor-pointer"
+                                onClick={() => event.html_link && window.open(event.html_link, '_blank')}
+                              />
+                            </div>
                           </div>
                         </div>
                       );
@@ -2280,6 +2300,185 @@ const Index = () => {
               </Button>
               <Button type="submit">
                 Créer l'événement
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Event Modal */}
+      <Dialog open={editEventModal.open} onOpenChange={(open) => setEditEventModal({open, event: undefined})}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Modifier le rendez-vous</DialogTitle>
+            <DialogDescription>
+              Modifier l'événement dans votre Google Calendar
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={async (e) => {
+            e.preventDefault();
+            if (!editEventModal.event?.id) return;
+
+            const formData = new FormData(e.currentTarget);
+
+            try {
+              const reminderMinutes = formData.get('reminderMinutes') as string;
+              const recurrenceValue = formData.get('recurrence') as string;
+
+              const eventData = {
+                title: formData.get('title') as string,
+                description: formData.get('description') as string || undefined,
+                startDateTime: new Date(formData.get('startDateTime') as string).toISOString(),
+                endDateTime: new Date(formData.get('endDateTime') as string).toISOString(),
+                location: formData.get('location') as string || undefined,
+                attendees: (formData.get('attendees') as string || '').split(',').map(e => e.trim()).filter(e => e),
+                reminders: reminderMinutes && reminderMinutes !== '0' ? [
+                  { method: 'popup', minutes: parseInt(reminderMinutes) }
+                ] : undefined,
+                recurrence: recurrenceValue ? [recurrenceValue] : undefined,
+                visibility: formData.get('visibility') as string || 'default',
+                colorId: formData.get('colorId') as string || undefined
+              };
+
+              await CalendarService.updateEvent(editEventModal.event.id, eventData);
+              showSuccess('Événement mis à jour avec succès');
+              setEditEventModal({open: false, event: undefined});
+              await loadCalendarEvents();
+            } catch (error: any) {
+              showError(error.response?.data?.error || 'Erreur lors de la mise à jour de l\'événement');
+            }
+          }} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-title">Titre *</Label>
+              <Input id="edit-title" name="title" required defaultValue={editEventModal.event?.title || ''} />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-description">Description</Label>
+              <textarea
+                id="edit-description"
+                name="description"
+                className="w-full min-h-[80px] px-3 py-2 border border-input rounded-md bg-background"
+                defaultValue={editEventModal.event?.description || ''}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-startDateTime">Début *</Label>
+                <Input
+                  id="edit-startDateTime"
+                  name="startDateTime"
+                  type="datetime-local"
+                  required
+                  defaultValue={editEventModal.event ? new Date(editEventModal.event.start_time).toISOString().slice(0, 16) : ''}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-endDateTime">Fin *</Label>
+                <Input
+                  id="edit-endDateTime"
+                  name="endDateTime"
+                  type="datetime-local"
+                  required
+                  defaultValue={editEventModal.event ? new Date(editEventModal.event.end_time).toISOString().slice(0, 16) : ''}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-location">Lieu</Label>
+              <Input id="edit-location" name="location" defaultValue={editEventModal.event?.location || ''} />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-attendees">Participants (emails séparés par des virgules)</Label>
+              <Input
+                id="edit-attendees"
+                name="attendees"
+                type="text"
+                placeholder="email1@example.com, email2@example.com"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-reminderMinutes">Rappel (minutes avant)</Label>
+              <select
+                id="edit-reminderMinutes"
+                name="reminderMinutes"
+                className="w-full h-10 px-3 py-2 border border-input rounded-md bg-background"
+                defaultValue="30"
+              >
+                <option value="0">Aucun</option>
+                <option value="10">10 minutes</option>
+                <option value="15">15 minutes</option>
+                <option value="30">30 minutes</option>
+                <option value="60">1 heure</option>
+                <option value="120">2 heures</option>
+                <option value="1440">1 jour</option>
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-recurrence">Récurrence</Label>
+              <select
+                id="edit-recurrence"
+                name="recurrence"
+                className="w-full h-10 px-3 py-2 border border-input rounded-md bg-background"
+                defaultValue=""
+              >
+                <option value="">Aucune</option>
+                <option value="RRULE:FREQ=DAILY">Quotidienne</option>
+                <option value="RRULE:FREQ=WEEKLY">Hebdomadaire</option>
+                <option value="RRULE:FREQ=MONTHLY">Mensuelle</option>
+                <option value="RRULE:FREQ=YEARLY">Annuelle</option>
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-visibility">Visibilité</Label>
+              <select
+                id="edit-visibility"
+                name="visibility"
+                className="w-full h-10 px-3 py-2 border border-input rounded-md bg-background"
+                defaultValue="default"
+              >
+                <option value="default">Par défaut</option>
+                <option value="public">Public</option>
+                <option value="private">Privé</option>
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit-colorId">Couleur</Label>
+              <select
+                id="edit-colorId"
+                name="colorId"
+                className="w-full h-10 px-3 py-2 border border-input rounded-md bg-background"
+                defaultValue=""
+              >
+                <option value="">Par défaut</option>
+                <option value="1">Lavande</option>
+                <option value="2">Sauge</option>
+                <option value="3">Raisin</option>
+                <option value="4">Flamant rose</option>
+                <option value="5">Banane</option>
+                <option value="6">Mandarine</option>
+                <option value="7">Paon</option>
+                <option value="8">Graphite</option>
+                <option value="9">Myrtille</option>
+                <option value="10">Basilic</option>
+                <option value="11">Tomate</option>
+              </select>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-4">
+              <Button type="button" variant="outline" onClick={() => setEditEventModal({open: false, event: undefined})}>
+                Annuler
+              </Button>
+              <Button type="submit">
+                Enregistrer les modifications
               </Button>
             </div>
           </form>

@@ -11,6 +11,7 @@ export interface CalendarEvent {
   location?: string;
   html_link?: string;
   synced_at?: string;
+  all_day?: boolean;
 }
 
 class CalendarService {
@@ -108,6 +109,25 @@ class CalendarService {
     colorId?: string;
   }): Promise<{ eventId: string; htmlLink: string }> {
     const response = await axios.post(`${this.baseURL}/events`, eventData, this.getAuthHeader());
+    return response.data;
+  }
+
+  /**
+   * Mettre à jour un événement dans Google Calendar
+   */
+  async updateEvent(eventId: number, eventData: {
+    title: string;
+    description?: string;
+    startDateTime: string;
+    endDateTime: string;
+    location?: string;
+    attendees?: string[];
+    reminders?: Array<{ method: string; minutes: number }>;
+    recurrence?: string[];
+    visibility?: string;
+    colorId?: string;
+  }): Promise<{ eventId: string; htmlLink: string }> {
+    const response = await axios.put(`${this.baseURL}/events/${eventId}`, eventData, this.getAuthHeader());
     return response.data;
   }
 }
