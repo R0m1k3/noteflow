@@ -56,7 +56,6 @@ const Index = () => {
   const [loadingModels, setLoadingModels] = useState(false);
   const [currentDateTime, setCurrentDateTime] = useState(new Date());
   const [upcomingAlert, setUpcomingAlert] = useState<CalendarEvent | null>(null);
-  const [rssDisplayOffset, setRssDisplayOffset] = useState(0);
   const [calendarAuthStatus, setCalendarAuthStatus] = useState<{
     isAuthenticated: boolean;
     isExpired: boolean;
@@ -111,18 +110,6 @@ const Index = () => {
     return () => clearInterval(timer);
   }, [calendarEvents]);
 
-  // RSS articles rotation every 20 seconds
-  useEffect(() => {
-    if (rssArticles.length > 3) {
-      const timer = setInterval(() => {
-        setRssDisplayOffset(prev => {
-          const maxOffset = Math.max(0, rssArticles.length - 3);
-          return (prev + 3) % (maxOffset + 3);
-        });
-      }, 20000); // Rotate every 20 seconds
-      return () => clearInterval(timer);
-    }
-  }, [rssArticles.length]);
 
   useEffect(() => {
     const userFromAuth = AuthService.getUser();
@@ -702,8 +689,8 @@ const Index = () => {
 
       {/* Main Content */}
       <div className="max-w-[1920px] mx-auto px-8 py-8">
-        {/* Three Column Layout: Calendar Left | Notes Middle | Todo/RSS Right */}
-        <div className="grid grid-cols-[300px,1fr,380px] gap-6">
+        {/* Three Column Layout: Calendar Left | Notes Middle | Todo+RSS Right */}
+        <div className="grid grid-cols-[300px,1fr,760px] gap-6">
           {/* Left Column: Calendar */}
           <div className="space-y-6">
             <Card className="shadow-lg">
@@ -1192,8 +1179,8 @@ const Index = () => {
             )}
           </div>
 
-          {/* Right Column: Todos & RSS Boxes stacked */}
-          <div className="space-y-6 h-fit sticky top-24">
+          {/* Right Column: Todos & RSS Boxes side by side */}
+          <div className="grid grid-cols-2 gap-6">
           {/* Todos Box */}
           <Card className="shadow-lg">
             <CardHeader className="pb-3">
@@ -1215,7 +1202,7 @@ const Index = () => {
                 </TabsList>
 
                 <TabsContent value="active" className="mt-0">
-                  <div className="space-y-1.5 max-h-[350px] overflow-y-auto">
+                  <div className="space-y-1.5 max-h-[calc(100vh-300px)] overflow-y-auto">
                     {todos.filter(t => !t.completed).length > 0 ? (
                       todos.filter(t => !t.completed).map(todo => (
                         <div key={todo.id} className="flex items-center gap-2 p-2 border rounded hover:bg-accent/50 transition-colors group">
@@ -1244,7 +1231,7 @@ const Index = () => {
                 </TabsContent>
 
                 <TabsContent value="completed" className="mt-0">
-                  <div className="space-y-1.5 max-h-[350px] overflow-y-auto">
+                  <div className="space-y-1.5 max-h-[calc(100vh-300px)] overflow-y-auto">
                     {todos.filter(t => t.completed).length > 0 ? (
                       todos.filter(t => t.completed).map(todo => (
                         <div key={todo.id} className="flex items-center gap-2 p-2 border rounded hover:bg-accent/50 transition-colors group">
@@ -1294,9 +1281,9 @@ const Index = () => {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="space-y-2">
+              <div className="space-y-2 max-h-[calc(100vh-300px)] overflow-y-auto">
                 {rssArticles.length > 0 ? (
-                  rssArticles.slice(rssDisplayOffset, rssDisplayOffset + 3).map(article => (
+                  rssArticles.map(article => (
                     <div
                       key={article.id}
                       className="p-2.5 border rounded hover:bg-accent/50 transition-colors cursor-pointer"
@@ -1327,20 +1314,6 @@ const Index = () => {
                       Ajouter un flux RSS
                     </Button>
                   </p>
-                )}
-                {rssArticles.length > 3 && (
-                  <div className="flex justify-center pt-2">
-                    <div className="flex gap-1">
-                      {Array.from({ length: Math.ceil(rssArticles.length / 3) }).map((_, i) => (
-                        <div
-                          key={i}
-                          className={`h-1.5 w-1.5 rounded-full transition-colors ${
-                            i === Math.floor(rssDisplayOffset / 3) ? 'bg-primary' : 'bg-muted'
-                          }`}
-                        />
-                      ))}
-                    </div>
-                  </div>
                 )}
               </div>
             </CardContent>
@@ -1954,6 +1927,9 @@ const Index = () => {
             const formData = new FormData(e.currentTarget);
 
             try {
+              const reminderMinutes = formData.get('reminderMinutes') as string;
+              const recurrenceValue = formData.get('recurrence') as string;
+
               const eventData = {
                 title: formData.get('title') as string,
                 description: formData.get('description') as string || undefined,
@@ -1961,10 +1937,10 @@ const Index = () => {
                 endDateTime: new Date(formData.get('endDateTime') as string).toISOString(),
                 location: formData.get('location') as string || undefined,
                 attendees: (formData.get('attendees') as string || '').split(',').map(e => e.trim()).filter(e => e),
-                reminders: formData.get('reminderMinutes') ? [
-                  { method: 'popup', minutes: parseInt(formData.get('reminderMinutes') as string) }
+                reminders: reminderMinutes && reminderMinutes !== '0' ? [
+                  { method: 'popup', minutes: parseInt(reminderMinutes) }
                 ] : undefined,
-                recurrence: formData.get('recurrence') ? [formData.get('recurrence') as string] : undefined,
+                recurrence: recurrenceValue ? [recurrenceValue] : undefined,
                 visibility: formData.get('visibility') as string || 'default',
                 colorId: formData.get('colorId') as string || undefined
               };
@@ -1973,6 +1949,7 @@ const Index = () => {
               showSuccess('Événement créé avec succès');
               setAddEventModal(false);
               await loadCalendarEvents();
+              e.currentTarget.reset();
             } catch (error: any) {
               showError(error.response?.data?.error || 'Erreur lors de la création de l\'événement');
             }
@@ -2032,71 +2009,71 @@ const Index = () => {
 
             <div className="space-y-2">
               <Label htmlFor="reminderMinutes">Rappel (minutes avant)</Label>
-              <Select name="reminderMinutes" defaultValue="30">
-                <SelectTrigger>
-                  <SelectValue placeholder="Sélectionner un rappel" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="0">Aucun</SelectItem>
-                  <SelectItem value="10">10 minutes</SelectItem>
-                  <SelectItem value="30">30 minutes</SelectItem>
-                  <SelectItem value="60">1 heure</SelectItem>
-                  <SelectItem value="1440">1 jour</SelectItem>
-                </SelectContent>
-              </Select>
+              <select
+                id="reminderMinutes"
+                name="reminderMinutes"
+                className="w-full h-10 px-3 py-2 border border-input rounded-md bg-background"
+                defaultValue="30"
+              >
+                <option value="0">Aucun</option>
+                <option value="10">10 minutes</option>
+                <option value="30">30 minutes</option>
+                <option value="60">1 heure</option>
+                <option value="1440">1 jour</option>
+              </select>
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="recurrence">Récurrence</Label>
-              <Select name="recurrence" defaultValue="">
-                <SelectTrigger>
-                  <SelectValue placeholder="Pas de récurrence" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">Pas de récurrence</SelectItem>
-                  <SelectItem value="RRULE:FREQ=DAILY">Tous les jours</SelectItem>
-                  <SelectItem value="RRULE:FREQ=WEEKLY">Toutes les semaines</SelectItem>
-                  <SelectItem value="RRULE:FREQ=MONTHLY">Tous les mois</SelectItem>
-                  <SelectItem value="RRULE:FREQ=YEARLY">Tous les ans</SelectItem>
-                </SelectContent>
-              </Select>
+              <select
+                id="recurrence"
+                name="recurrence"
+                className="w-full h-10 px-3 py-2 border border-input rounded-md bg-background"
+                defaultValue=""
+              >
+                <option value="">Pas de récurrence</option>
+                <option value="RRULE:FREQ=DAILY">Tous les jours</option>
+                <option value="RRULE:FREQ=WEEKLY">Toutes les semaines</option>
+                <option value="RRULE:FREQ=MONTHLY">Tous les mois</option>
+                <option value="RRULE:FREQ=YEARLY">Tous les ans</option>
+              </select>
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="visibility">Visibilité</Label>
-              <Select name="visibility" defaultValue="default">
-                <SelectTrigger>
-                  <SelectValue placeholder="Sélectionner la visibilité" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="default">Par défaut</SelectItem>
-                  <SelectItem value="public">Public</SelectItem>
-                  <SelectItem value="private">Privé</SelectItem>
-                </SelectContent>
-              </Select>
+              <select
+                id="visibility"
+                name="visibility"
+                className="w-full h-10 px-3 py-2 border border-input rounded-md bg-background"
+                defaultValue="default"
+              >
+                <option value="default">Par défaut</option>
+                <option value="public">Public</option>
+                <option value="private">Privé</option>
+              </select>
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="colorId">Couleur</Label>
-              <Select name="colorId" defaultValue="">
-                <SelectTrigger>
-                  <SelectValue placeholder="Couleur par défaut" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">Par défaut</SelectItem>
-                  <SelectItem value="1">Lavande</SelectItem>
-                  <SelectItem value="2">Sauge</SelectItem>
-                  <SelectItem value="3">Raisin</SelectItem>
-                  <SelectItem value="4">Flamant rose</SelectItem>
-                  <SelectItem value="5">Banane</SelectItem>
-                  <SelectItem value="6">Mandarine</SelectItem>
-                  <SelectItem value="7">Paon</SelectItem>
-                  <SelectItem value="8">Graphite</SelectItem>
-                  <SelectItem value="9">Myrtille</SelectItem>
-                  <SelectItem value="10">Basilic</SelectItem>
-                  <SelectItem value="11">Tomate</SelectItem>
-                </SelectContent>
-              </Select>
+              <select
+                id="colorId"
+                name="colorId"
+                className="w-full h-10 px-3 py-2 border border-input rounded-md bg-background"
+                defaultValue=""
+              >
+                <option value="">Par défaut</option>
+                <option value="1">Lavande</option>
+                <option value="2">Sauge</option>
+                <option value="3">Raisin</option>
+                <option value="4">Flamant rose</option>
+                <option value="5">Banane</option>
+                <option value="6">Mandarine</option>
+                <option value="7">Paon</option>
+                <option value="8">Graphite</option>
+                <option value="9">Myrtille</option>
+                <option value="10">Basilic</option>
+                <option value="11">Tomate</option>
+              </select>
             </div>
 
             <div className="flex justify-end gap-2 pt-4">
