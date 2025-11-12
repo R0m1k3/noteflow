@@ -157,15 +157,17 @@ const ARTICLES_CACHE_DURATION = 30000; // 30 secondes
 
 /**
  * GET /api/rss/articles
- * Récupérer les 5 derniers articles (avec cache)
+ * Récupérer les articles RSS (avec cache et paramètre limit)
  */
 router.get('/articles', async (req, res) => {
   try {
+    const limit = parseInt(req.query.limit) || 5;
+
     // Utiliser le cache si disponible et récent
     const now = Date.now();
     if (articlesCache && (now - articlesCacheTime) < ARTICLES_CACHE_DURATION) {
       logger.debug('Articles RSS servis depuis le cache');
-      return res.json(articlesCache);
+      return res.json(articlesCache.slice(0, limit));
     }
 
     const articles = await getAll(`
@@ -176,8 +178,8 @@ router.get('/articles', async (req, res) => {
       LEFT JOIN rss_feeds f ON a.feed_id = f.id
       WHERE a.pub_date IS NOT NULL
       ORDER BY a.pub_date DESC
-      LIMIT 5
-    `);
+      LIMIT ?
+    `, [limit]);
 
     // Mettre en cache
     articlesCache = articles || [];
