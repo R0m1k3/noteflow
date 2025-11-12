@@ -1,7 +1,7 @@
 // Routes pour OpenRouter API
 const express = require('express');
 const router = express.Router();
-const { requireAuth, requireAdmin } = require('../middleware/auth');
+const { authenticateToken, requireAdmin } = require('../middleware/auth');
 const { getOne } = require('../config/database');
 const logger = require('../config/logger');
 
@@ -14,7 +14,7 @@ const CACHE_DURATION = 60 * 60 * 1000; // 1 heure
  * GET /api/openrouter/models
  * Récupérer la liste des modèles disponibles depuis OpenRouter
  */
-router.get('/models', requireAuth, requireAdmin, async (req, res) => {
+router.get('/models', authenticateToken, requireAdmin, async (req, res) => {
   try {
     // Vérifier le cache
     const now = Date.now();
@@ -83,7 +83,7 @@ router.get('/models', requireAuth, requireAdmin, async (req, res) => {
  * POST /api/openrouter/refresh-models
  * Forcer le rafraîchissement du cache des modèles
  */
-router.post('/refresh-models', requireAuth, requireAdmin, async (req, res) => {
+router.post('/refresh-models', authenticateToken, requireAdmin, async (req, res) => {
   try {
     // Invalider le cache
     modelsCache = null;
