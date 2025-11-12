@@ -4,6 +4,9 @@ FROM node:20-alpine AS builder
 # Définir le répertoire de travail
 WORKDIR /app
 
+# Installer les dépendances nécessaires pour compiler les modules natifs
+RUN apk add --no-cache python3 make g++
+
 # Copier les fichiers de dépendances
 COPY package*.json ./
 COPY tsconfig*.json ./
@@ -29,8 +32,8 @@ FROM node:20-alpine
 # Définir le répertoire de travail
 WORKDIR /app
 
-# Installer SQLite
-RUN apk add --no-cache sqlite
+# Installer SQLite et les outils de build pour les modules natifs
+RUN apk add --no-cache sqlite python3 make g++
 
 # Copier les fichiers de dépendances
 COPY package*.json ./
