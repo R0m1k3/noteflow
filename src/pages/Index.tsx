@@ -54,7 +54,12 @@ const Index = () => {
   const [noteTags, setNoteTags] = useState<Tag[]>([]);
   const [openRouterModels, setOpenRouterModels] = useState<OpenRouterModel[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
-  const [calendarAuthStatus, setCalendarAuthStatus] = useState({
+  const [calendarAuthStatus, setCalendarAuthStatus] = useState<{
+    isAuthenticated: boolean;
+    isExpired: boolean;
+    needsReauth: boolean;
+    authType?: 'oauth2' | 'service_account';
+  }>({
     isAuthenticated: false,
     isExpired: false,
     needsReauth: true
@@ -1354,7 +1359,7 @@ const Index = () => {
                     <Label htmlFor="google-auth-type">Méthode d'authentification</Label>
                     <Select
                       value={settings.google_auth_type || 'oauth2'}
-                      onValueChange={(value) => setSettings({ ...settings, google_auth_type: value })}
+                      onValueChange={(value) => setSettings({ ...settings, google_auth_type: value as 'oauth2' | 'service_account' })}
                     >
                       <SelectTrigger id="google-auth-type">
                         <SelectValue placeholder="Sélectionnez une méthode" />
@@ -1533,6 +1538,22 @@ const Index = () => {
                               Déconnecter
                             </Button>
                           </>
+                        ) : (
+                          <Button
+                            onClick={async () => {
+                              try {
+                                const result = await CalendarService.sync();
+                                showSuccess(`${result.syncedCount} événements synchronisés`);
+                                await loadCalendarEvents();
+                              } catch (error) {
+                                showError("Erreur lors de la synchronisation");
+                              }
+                            }}
+                            className="flex items-center gap-2"
+                          >
+                            <RefreshCw className="h-4 w-4" />
+                            Synchroniser
+                          </Button>
                         )}
                       </div>
                     </>
