@@ -130,6 +130,26 @@ router.post('/fetch', requireAdmin, async (req, res) => {
   }
 });
 
+/**
+ * POST /api/rss/refresh
+ * Alias pour fetch (pour compatibilité)
+ */
+router.post('/refresh', requireAdmin, async (req, res) => {
+  try {
+    const rssScheduler = require('../services/rss-scheduler');
+    await rssScheduler.manualFetch();
+
+    // Invalider le cache
+    articlesCache = null;
+    articlesCacheTime = 0;
+
+    res.json({ message: 'Mise à jour des flux RSS terminée avec succès' });
+  } catch (error) {
+    logger.error('Erreur lors du refresh des flux RSS:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
 // Cache pour les articles RSS (30 secondes)
 let articlesCache = null;
 let articlesCacheTime = 0;

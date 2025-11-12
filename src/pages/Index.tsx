@@ -24,6 +24,9 @@ import SettingsService, { Settings as AppSettings } from "@/services/SettingsSer
 import CalendarService, { CalendarEvent } from "@/services/CalendarService";
 import { useNavigate } from "react-router-dom";
 import { showError, showSuccess } from "@/utils/toast";
+import { ConfirmModal } from "@/components/modals/ConfirmModal";
+import { InputModal } from "@/components/modals/InputModal";
+import { AddUserModal } from "@/components/modals/AddUserModal";
 
 interface UserType {
   id: number;
@@ -46,6 +49,15 @@ const Index = () => {
   const [adminTab, setAdminTab] = useState("users");
   const [showArchived, setShowArchived] = useState(false);
   const navigate = useNavigate();
+
+  // Modal states
+  const [deleteNoteModal, setDeleteNoteModal] = useState(false);
+  const [addTodoModal, setAddTodoModal] = useState(false);
+  const [addRssFeedModal, setAddRssFeedModal] = useState(false);
+  const [addUserModal, setAddUserModal] = useState(false);
+  const [deleteUserModal, setDeleteUserModal] = useState<{open: boolean, userId?: number}>({open: false});
+  const [changePasswordModal, setChangePasswordModal] = useState<{open: boolean, userId?: number}>({open: false});
+  const [addNoteTodoModal, setAddNoteTodoModal] = useState(false);
 
   useEffect(() => {
     const userFromAuth = AuthService.getUser();
@@ -195,37 +207,32 @@ const Index = () => {
     }
   };
 
-  const handleDeleteNote = async () => {
+  const confirmDeleteNote = async () => {
     if (!openNote?.id) return;
 
-    if (window.confirm("Êtes-vous sûr de vouloir supprimer cette note ?")) {
-      try {
-        const success = await NotesService.deleteNote(openNote.id);
+    try {
+      const success = await NotesService.deleteNote(openNote.id);
 
-        if (success) {
-          const updatedNotes = notes.filter(note => note.id !== openNote.id);
-          setNotes(updatedNotes);
-          setOpenNote(null);
-          showSuccess("Note supprimée");
-        }
-      } catch (error) {
-        showError("Erreur lors de la suppression");
+      if (success) {
+        const updatedNotes = notes.filter(note => note.id !== openNote.id);
+        setNotes(updatedNotes);
+        setOpenNote(null);
+        showSuccess("Note supprimée");
       }
+    } catch (error) {
+      showError("Erreur lors de la suppression");
     }
   };
 
-  const handleAddTodo = async () => {
-    const text = prompt("Nouvelle tâche:");
-    if (text) {
-      try {
-        const newTodo = await TodosService.createTodo(text);
-        if (newTodo) {
-          setTodos([newTodo, ...todos]);
-          showSuccess("Tâche ajoutée");
-        }
-      } catch (error) {
-        showError("Erreur lors de l'ajout de la tâche");
+  const confirmAddTodo = async (text: string) => {
+    try {
+      const newTodo = await TodosService.createTodo(text);
+      if (newTodo) {
+        setTodos([newTodo, ...todos]);
+        showSuccess("Tâche ajoutée");
       }
+    } catch (error) {
+      showError("Erreur lors de l'ajout de la tâche");
     }
   };
 
@@ -248,19 +255,16 @@ const Index = () => {
     }
   };
 
-  const handleAddRssFeed = async () => {
-    const url = prompt("URL du flux RSS:");
-    if (url) {
-      try {
-        const newFeed = await RssService.addFeed(url);
-        if (newFeed) {
-          setRssFeeds([...rssFeeds, newFeed]);
-          showSuccess("Flux RSS ajouté");
-          loadRssArticles();
-        }
-      } catch (error) {
-        showError("Erreur lors de l'ajout du flux");
+  const confirmAddRssFeed = async (url: string) => {
+    try {
+      const newFeed = await RssService.addFeed(url);
+      if (newFeed) {
+        setRssFeeds([...rssFeeds, newFeed]);
+        showSuccess("Flux RSS ajouté");
+        loadRssArticles();
       }
+    } catch (error) {
+      showError("Erreur lors de l'ajout du flux");
     }
   };
 
@@ -285,13 +289,7 @@ const Index = () => {
     }
   };
 
-  const handleAddUser = async () => {
-    const username = prompt("Nom d'utilisateur:");
-    if (!username) return;
-    const password = prompt("Mot de passe:");
-    if (!password) return;
-    const isAdmin = window.confirm("Donner les droits administrateur ?");
-
+  const confirmAddUser = async (username: string, password: string, isAdmin: boolean) => {
     try {
       const newUser = await AdminService.createUser(username, password, isAdmin);
       if (newUser) {
@@ -303,31 +301,30 @@ const Index = () => {
     }
   };
 
-  const handleDeleteUser = async (userId: number) => {
-    if (window.confirm("Êtes-vous sûr de vouloir supprimer cet utilisateur ?")) {
-      try {
-        const success = await AdminService.deleteUser(userId);
-        if (success) {
-          loadUsers();
-          showSuccess("Utilisateur supprimé");
-        }
-      } catch (error) {
-        showError("Erreur lors de la suppression");
+  const confirmDeleteUser = async () => {
+    if (!deleteUserModal.userId) return;
+
+    try {
+      const success = await AdminService.deleteUser(deleteUserModal.userId);
+      if (success) {
+        loadUsers();
+        showSuccess("Utilisateur supprimé");
       }
+    } catch (error) {
+      showError("Erreur lors de la suppression");
     }
   };
 
-  const handleChangePassword = async (userId: number) => {
-    const newPassword = prompt("Nouveau mot de passe:");
-    if (newPassword) {
-      try {
-        const success = await AdminService.updateUserPassword(userId, newPassword);
-        if (success) {
-          showSuccess("Mot de passe modifié");
-        }
-      } catch (error) {
-        showError("Erreur lors de la modification");
+  const confirmChangePassword = async (newPassword: string) => {
+    if (!changePasswordModal.userId) return;
+
+    try {
+      const success = await AdminService.updateUserPassword(changePasswordModal.userId, newPassword);
+      if (success) {
+        showSuccess("Mot de passe modifié");
       }
+    } catch (error) {
+      showError("Erreur lors de la modification");
     }
   };
 
@@ -548,7 +545,7 @@ const Index = () => {
                     <Button
                       variant="outline"
                       size="icon"
-                      onClick={handleDeleteNote}
+                      onClick={() => setDeleteNoteModal(true)}
                       title="Supprimer"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -596,13 +593,7 @@ const Index = () => {
 
                   <TabsContent value="todos" className="mt-4 space-y-4">
                     <Button
-                      onClick={async () => {
-                        const text = prompt("Nouvelle tâche:");
-                        if (text) {
-                          const updatedTodos = [...(openNote.todos || []), { text, completed: false }];
-                          await handleUpdateNote({ todos: updatedTodos });
-                        }
-                      }}
+                      onClick={() => setAddNoteTodoModal(true)}
                       className="w-full"
                     >
                       <Plus className="h-4 w-4 mr-2" />
@@ -780,7 +771,7 @@ const Index = () => {
                   <CheckSquare className="h-6 w-6" />
                   Tâches
                 </CardTitle>
-                <Button size="lg" variant="outline" onClick={handleAddTodo} className="gap-2">
+                <Button size="lg" variant="outline" onClick={() => setAddTodoModal(true)} className="gap-2">
                   <Plus className="h-5 w-5" />
                   Ajouter
                 </Button>
@@ -867,7 +858,7 @@ const Index = () => {
                     <RefreshCw className="h-5 w-5" />
                     Actualiser
                   </Button>
-                  <Button size="lg" variant="outline" onClick={handleAddRssFeed} className="gap-2">
+                  <Button size="lg" variant="outline" onClick={() => setAddRssFeedModal(true)} className="gap-2">
                     <Plus className="h-5 w-5" />
                     Ajouter
                   </Button>
@@ -903,7 +894,7 @@ const Index = () => {
                     <Button
                       variant="link"
                       className="mt-2"
-                      onClick={handleAddRssFeed}
+                      onClick={() => setAddRssFeedModal(true)}
                     >
                       Ajouter un flux RSS
                     </Button>
@@ -1008,7 +999,7 @@ const Index = () => {
             <TabsContent value="users" className="mt-4 space-y-4">
               <Button
                 className="flex items-center gap-2"
-                onClick={handleAddUser}
+                onClick={() => setAddUserModal(true)}
               >
                 <User className="h-4 w-4" />
                 Ajouter un utilisateur
@@ -1033,7 +1024,7 @@ const Index = () => {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => handleChangePassword(u.id)}
+                          onClick={() => setChangePasswordModal({open: true, userId: u.id})}
                         >
                           <Key className="h-4 w-4 mr-2" />
                           Mot de passe
@@ -1042,7 +1033,7 @@ const Index = () => {
                           <Button
                             variant="destructive"
                             size="sm"
-                            onClick={() => handleDeleteUser(u.id)}
+                            onClick={() => setDeleteUserModal({open: true, userId: u.id})}
                           >
                             Supprimer
                           </Button>
@@ -1057,7 +1048,7 @@ const Index = () => {
             <TabsContent value="rss" className="mt-4 space-y-4">
               <Button
                 className="flex items-center gap-2"
-                onClick={handleAddRssFeed}
+                onClick={() => setAddRssFeedModal(true)}
               >
                 <Rss className="h-4 w-4" />
                 Ajouter un flux RSS
@@ -1227,6 +1218,81 @@ const Index = () => {
           </Tabs>
         </DialogContent>
       </Dialog>
+
+      {/* Modals */}
+      <ConfirmModal
+        open={deleteNoteModal}
+        onOpenChange={setDeleteNoteModal}
+        title="Supprimer la note"
+        description="Êtes-vous sûr de vouloir supprimer cette note ? Cette action est irréversible."
+        onConfirm={confirmDeleteNote}
+        confirmText="Supprimer"
+        cancelText="Annuler"
+        variant="destructive"
+      />
+
+      <InputModal
+        open={addTodoModal}
+        onOpenChange={setAddTodoModal}
+        title="Nouvelle tâche"
+        label="Tâche"
+        placeholder="Entrez la tâche..."
+        onConfirm={confirmAddTodo}
+        confirmText="Ajouter"
+      />
+
+      <InputModal
+        open={addRssFeedModal}
+        onOpenChange={setAddRssFeedModal}
+        title="Ajouter un flux RSS"
+        label="URL du flux RSS"
+        placeholder="https://example.com/feed.xml"
+        onConfirm={confirmAddRssFeed}
+        confirmText="Ajouter"
+        type="url"
+      />
+
+      <AddUserModal
+        open={addUserModal}
+        onOpenChange={setAddUserModal}
+        onConfirm={confirmAddUser}
+      />
+
+      <ConfirmModal
+        open={deleteUserModal.open}
+        onOpenChange={(open) => setDeleteUserModal({open})}
+        title="Supprimer l'utilisateur"
+        description="Êtes-vous sûr de vouloir supprimer cet utilisateur ? Cette action est irréversible."
+        onConfirm={confirmDeleteUser}
+        confirmText="Supprimer"
+        variant="destructive"
+      />
+
+      <InputModal
+        open={changePasswordModal.open}
+        onOpenChange={(open) => setChangePasswordModal({open})}
+        title="Changer le mot de passe"
+        label="Nouveau mot de passe"
+        placeholder="Entrez le nouveau mot de passe..."
+        onConfirm={confirmChangePassword}
+        confirmText="Modifier"
+        type="password"
+      />
+
+      <InputModal
+        open={addNoteTodoModal}
+        onOpenChange={setAddNoteTodoModal}
+        title="Nouvelle tâche"
+        label="Tâche"
+        placeholder="Entrez la tâche..."
+        onConfirm={async (text) => {
+          if (openNote) {
+            const updatedTodos = [...(openNote.todos || []), { text, completed: false }];
+            await handleUpdateNote({ todos: updatedTodos });
+          }
+        }}
+        confirmText="Ajouter"
+      />
 
       <div className="fixed bottom-4 right-4">
         <MadeWithDyad />
