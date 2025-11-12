@@ -167,12 +167,26 @@ function initDatabase() {
           )
         `);
 
+        // Table note_tags (tags pour les notes)
+        db.run(`
+          CREATE TABLE IF NOT EXISTS note_tags (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            note_id INTEGER NOT NULL,
+            tag TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE,
+            UNIQUE(note_id, tag)
+          )
+        `);
+
         // Créer les index pour la performance
         db.run('CREATE INDEX IF NOT EXISTS idx_notes_user ON notes(user_id)');
         db.run('CREATE INDEX IF NOT EXISTS idx_note_todos ON note_todos(note_id)');
         db.run('CREATE INDEX IF NOT EXISTS idx_global_todos_user ON global_todos(user_id)');
         db.run('CREATE INDEX IF NOT EXISTS idx_note_images ON note_images(note_id)');
         db.run('CREATE INDEX IF NOT EXISTS idx_note_files ON note_files(note_id)');
+        db.run('CREATE INDEX IF NOT EXISTS idx_note_tags ON note_tags(note_id)');
+        db.run('CREATE INDEX IF NOT EXISTS idx_note_tags_tag ON note_tags(tag)');
         db.run('CREATE INDEX IF NOT EXISTS idx_settings_key ON settings(key)');
         db.run('CREATE INDEX IF NOT EXISTS idx_rss_articles_feed ON rss_articles(feed_id)');
         db.run('CREATE INDEX IF NOT EXISTS idx_rss_articles_date ON rss_articles(pub_date)');
