@@ -14,7 +14,7 @@ const CACHE_DURATION = 60 * 60 * 1000; // 1 heure
  * GET /api/openrouter/models
  * Récupérer la liste des modèles disponibles depuis OpenRouter
  */
-router.get('/models', authenticateToken, requireAdmin, async (req, res) => {
+router.get('/models', authenticateToken, async (req, res) => {
   try {
     // Vérifier le cache
     const now = Date.now();
