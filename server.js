@@ -14,8 +14,9 @@ const app = express();
 const PORT = process.env.PORT || 2222;
 
 // Configurer Express pour faire confiance au proxy (nginx, etc.)
-// Nécessaire pour express-rate-limit et pour obtenir la vraie IP du client
-app.set('trust proxy', true);
+// Utiliser 1 pour indiquer qu'il y a 1 proxy devant (nginx/reverse proxy)
+// Plus sécurisé que 'true' qui accepterait n'importe quel proxy
+app.set('trust proxy', 1);
 
 // Créer les dossiers nécessaires (silencieusement, ils peuvent déjà exister via les volumes Docker)
 const dataDir = path.join(__dirname, 'data');
