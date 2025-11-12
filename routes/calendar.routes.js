@@ -17,7 +17,8 @@ const SCOPES = ['https://www.googleapis.com/auth/calendar.readonly'];
  */
 const AUTH_TYPES = {
   OAUTH2: 'oauth2',
-  SERVICE_ACCOUNT: 'service_account'
+  SERVICE_ACCOUNT: 'service_account',
+  API_KEY: 'api_externe'
 };
 
 /**
@@ -77,6 +78,19 @@ async function getServiceAccountClient() {
 }
 
 /**
+ * Créer un client avec API Key
+ */
+async function getApiKeyClient() {
+  const apiKey = await getOne("SELECT value FROM settings WHERE key = 'google_calendar_api_key'");
+
+  if (!apiKey || !apiKey.value) {
+    throw new Error('Clé API non configurée');
+  }
+
+  return apiKey.value;
+}
+
+/**
  * Créer un client Google Calendar selon la méthode d'authentification
  * @param {number} userId - ID de l'utilisateur (pour OAuth2)
  */
@@ -86,6 +100,9 @@ async function getCalendarClient(userId = null) {
   if (authType === AUTH_TYPES.SERVICE_ACCOUNT) {
     const auth = await getServiceAccountClient();
     return google.calendar({ version: 'v3', auth });
+  } else if (authType === AUTH_TYPES.API_KEY) {
+    const apiKey = await getApiKeyClient();
+    return google.calendar({ version: 'v3', auth: apiKey });
   } else {
     // OAuth2
     if (!userId) {
@@ -227,6 +244,17 @@ router.get('/auth-status', async (req, res) => {
         isExpired: false,
         needsReauth: !isAuthenticated
       });
+    } else if (authType === AUTH_TYPES.API_KEY) {
+      // Vérifier si la clé API est configurée
+      const apiKey = await getOne("SELECT value FROM settings WHERE key = 'google_calendar_api_key'");
+      const isAuthenticated = !!apiKey?.value;
+
+      res.json({
+        authType: AUTH_TYPES.API_KEY,
+        isAuthenticated,
+        isExpired: false,
+        needsReauth: !isAuthenticated
+      });
     } else {
       // OAuth2
       const tokens = await getOne(
@@ -324,7 +352,7 @@ router.get('/events', async (req, res) => {
 
 /**
  * POST /api/calendar/sync
- * Synchroniser avec Google Calendar (OAuth2 ou Service Account)
+ * Synchroniser avec Google Calendar (OAuth2, Service Account ou API Key)
  */
 router.post('/sync', async (req, res) => {
   try {
@@ -336,6 +364,14 @@ router.post('/sync', async (req, res) => {
       const calendarEmail = await getOne("SELECT value FROM settings WHERE key = 'google_calendar_email'");
       if (calendarEmail?.value) {
         calendarId = calendarEmail.value;
+      }
+    }
+
+    // Si API Key, permettre de spécifier l'ID du calendrier
+    if (authType === AUTH_TYPES.API_KEY) {
+      const calendarIdSetting = await getOne("SELECT value FROM settings WHERE key = 'google_calendar_id'");
+      if (calendarIdSetting?.value) {
+        calendarId = calendarIdSetting.value;
       }
     }
 
