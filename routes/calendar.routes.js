@@ -33,14 +33,19 @@ async function getAuthType() {
 async function getOAuth2Client(customRedirectUri = null) {
   const clientId = await getOne("SELECT value FROM settings WHERE key = 'google_client_id'");
   const clientSecret = await getOne("SELECT value FROM settings WHERE key = 'google_client_secret'");
+  const appUrl = await getOne("SELECT value FROM settings WHERE key = 'app_url'");
 
   if (!clientId || !clientId.value || !clientSecret || !clientSecret.value) {
     throw new Error('Client ID et Client Secret non configurés');
   }
 
-  // Utiliser l'URI personnalisée si fournie, sinon utiliser l'URL de production
+  // Utiliser l'URI personnalisée si fournie, sinon utiliser l'URL du site configurée
   const redirectUri = customRedirectUri ||
-    'https://note.ffnancy.fr/api/calendar/oauth-callback';
+    (appUrl?.value ? `${appUrl.value}/api/calendar/oauth-callback` : null);
+
+  if (!redirectUri) {
+    throw new Error('URL du site non configurée. Veuillez configurer l\'URL dans les paramètres.');
+  }
 
   return new google.auth.OAuth2(
     clientId.value,
