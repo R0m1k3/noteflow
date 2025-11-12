@@ -58,7 +58,7 @@ const Index = () => {
     isAuthenticated: boolean;
     isExpired: boolean;
     needsReauth: boolean;
-    authType?: 'oauth2' | 'service_account';
+    authType?: 'oauth2' | 'service_account' | 'api_externe';
   }>({
     isAuthenticated: false,
     isExpired: false,
@@ -1359,7 +1359,7 @@ const Index = () => {
                     <Label htmlFor="google-auth-type">Méthode d'authentification</Label>
                     <Select
                       value={settings.google_auth_type || 'oauth2'}
-                      onValueChange={(value) => setSettings({ ...settings, google_auth_type: value as 'oauth2' | 'service_account' })}
+                      onValueChange={(value) => setSettings({ ...settings, google_auth_type: value as 'oauth2' | 'service_account' | 'api_externe' })}
                     >
                       <SelectTrigger id="google-auth-type">
                         <SelectValue placeholder="Sélectionnez une méthode" />
@@ -1381,11 +1381,20 @@ const Index = () => {
                             </span>
                           </div>
                         </SelectItem>
+                        <SelectItem value="api_externe">
+                          <div className="flex flex-col">
+                            <span className="font-medium">API externe</span>
+                            <span className="text-xs text-muted-foreground">
+                              Connectez-vous à une API externe pour Google Calendar
+                            </span>
+                          </div>
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground">
                       <strong>OAuth 2.0</strong> : Pour accéder au calendrier personnel avec autorisation de l'utilisateur.<br/>
-                      <strong>Service Account</strong> : Pour accéder à des calendriers partagés sans interaction utilisateur.
+                      <strong>Service Account</strong> : Pour accéder à des calendriers partagés sans interaction utilisateur.<br/>
+                      <strong>API externe</strong> : Utilisez votre propre API backend pour gérer la connexion à Google Calendar.
                     </p>
                   </div>
 
@@ -1474,6 +1483,50 @@ const Index = () => {
                     </>
                   )}
 
+                  {/* Configuration API Key */}
+                  {settings.google_auth_type === 'api_externe' && (
+                    <>
+                      <div className="space-y-2">
+                        <Label htmlFor="google-api-key">Clé API Google Calendar</Label>
+                        <Input
+                          id="google-api-key"
+                          type="password"
+                          placeholder="AIzaSy..."
+                          value={settings.google_calendar_api_key || ''}
+                          onChange={(e) => setSettings({ ...settings, google_calendar_api_key: e.target.value })}
+                        />
+                        <p className="text-sm text-muted-foreground">
+                          Entrez votre clé API Google Calendar.
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="google-calendar-id-api">ID du calendrier</Label>
+                        <Input
+                          id="google-calendar-id-api"
+                          type="text"
+                          placeholder="primary ou votre-email@gmail.com"
+                          value={settings.google_calendar_id || ''}
+                          onChange={(e) => setSettings({ ...settings, google_calendar_id: e.target.value })}
+                        />
+                        <p className="text-sm text-muted-foreground">
+                          Utilisez "primary" pour votre calendrier principal ou l'email du calendrier spécifique.
+                        </p>
+                        <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                          <p className="text-sm font-semibold text-blue-900 dark:text-blue-200 mb-1">
+                            ℹ️ Obtenir une clé API
+                          </p>
+                          <p className="text-xs text-blue-800 dark:text-blue-300 mb-2">
+                            1. Allez sur <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" className="underline">Google Cloud Console</a><br/>
+                            2. Créez une clé API<br/>
+                            3. Activez l'API Google Calendar<br/>
+                            4. Copiez la clé API ici
+                          </p>
+                        </div>
+                      </div>
+                    </>
+                  )}
+
                   <div className="flex gap-2">
                     <Button onClick={handleSaveSettings} className="flex items-center gap-2">
                       <Key className="h-4 w-4" />
@@ -1483,7 +1536,8 @@ const Index = () => {
 
                   {(
                     ((!settings.google_auth_type || settings.google_auth_type === 'oauth2') && settings.google_client_id && settings.google_client_secret) ||
-                    (settings.google_auth_type === 'service_account' && settings.google_service_account_key)
+                    (settings.google_auth_type === 'service_account' && settings.google_service_account_key) ||
+                    (settings.google_auth_type === 'api_externe' && settings.google_calendar_api_key)
                   ) && (
                     <>
                       <div className="border-t pt-4">
@@ -1491,7 +1545,11 @@ const Index = () => {
                         {calendarAuthStatus.isAuthenticated && !calendarAuthStatus.isExpired ? (
                           <div className="flex items-center gap-2 text-green-600">
                             <div className="h-2 w-2 rounded-full bg-green-600"></div>
-                            <span>Connecté à Google Calendar ({calendarAuthStatus.authType === 'service_account' ? 'Service Account' : 'OAuth 2.0'})</span>
+                            <span>Connecté à Google Calendar ({
+                              calendarAuthStatus.authType === 'service_account' ? 'Service Account' :
+                              calendarAuthStatus.authType === 'api_externe' ? 'API Key' :
+                              'OAuth 2.0'
+                            })</span>
                           </div>
                         ) : (
                           <div className="flex items-center gap-2 text-yellow-600">
@@ -1538,7 +1596,7 @@ const Index = () => {
                               Déconnecter
                             </Button>
                           </>
-                        ) : (
+                        ) : settings.google_auth_type === 'api_externe' || settings.google_auth_type === 'service_account' ? (
                           <Button
                             onClick={async () => {
                               try {
@@ -1554,7 +1612,7 @@ const Index = () => {
                             <RefreshCw className="h-4 w-4" />
                             Synchroniser
                           </Button>
-                        )}
+                        ) : null}
                       </div>
                     </>
                   )}
