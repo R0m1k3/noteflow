@@ -12,6 +12,7 @@ export interface Settings {
   google_calendar_email?: string;
   google_calendar_api_key?: string;
   google_calendar_id?: string;
+  app_url?: string;
 }
 
 class SettingsService {
