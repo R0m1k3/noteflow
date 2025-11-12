@@ -96,6 +96,8 @@ const Index = () => {
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
   const [selectedModel, setSelectedModel] = useState<string>("");
+  const [defaultModel, setDefaultModel] = useState<string>("");
+  const [modelSearchQuery, setModelSearchQuery] = useState<string>("");
 
   // Debounce timer for auto-save
   const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -527,6 +529,14 @@ const Index = () => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages]);
 
+  // Load default model from localStorage on mount
+  useEffect(() => {
+    const savedDefaultModel = localStorage.getItem('defaultAiModel');
+    if (savedDefaultModel) {
+      setDefaultModel(savedDefaultModel);
+    }
+  }, []);
+
   // Load models when chatbox opens
   useEffect(() => {
     if (chatOpen && openRouterModels.length === 0) {
@@ -537,9 +547,22 @@ const Index = () => {
   // Set default model when models are loaded
   useEffect(() => {
     if (openRouterModels.length > 0 && !selectedModel) {
-      setSelectedModel(openRouterModels[0].id);
+      // If there's a default model saved, use it
+      if (defaultModel && openRouterModels.find(m => m.id === defaultModel)) {
+        setSelectedModel(defaultModel);
+      } else {
+        // Otherwise use the first model
+        setSelectedModel(openRouterModels[0].id);
+      }
     }
-  }, [openRouterModels, selectedModel]);
+  }, [openRouterModels, selectedModel, defaultModel]);
+
+  // Save default model to localStorage
+  const handleSetDefaultModel = (modelId: string) => {
+    setDefaultModel(modelId);
+    localStorage.setItem('defaultAiModel', modelId);
+    showSuccess("Modèle par défaut défini");
+  };
 
   const confirmAddUser = async (username: string, password: string, isAdmin: boolean) => {
     try {
@@ -2266,25 +2289,60 @@ const Index = () => {
                 </Button>
               </div>
             </div>
-            <div className="mt-2">
-              <select
-                value={selectedModel}
-                onChange={(e) => setSelectedModel(e.target.value)}
-                className="w-full text-xs px-2 py-1.5 border border-input rounded-md bg-background"
-                disabled={chatLoading || loadingModels}
-              >
+            <div className="mt-3 space-y-2">
+              {/* Search field */}
+              <Input
+                placeholder="Rechercher un modèle..."
+                value={modelSearchQuery}
+                onChange={(e) => setModelSearchQuery(e.target.value)}
+                className="text-xs h-8"
+                disabled={loadingModels}
+              />
+
+              {/* Models list */}
+              <div className="max-h-32 overflow-y-auto border rounded-md">
                 {loadingModels ? (
-                  <option value="">Chargement des modèles...</option>
+                  <div className="text-xs text-center py-2 text-muted-foreground">
+                    Chargement des modèles...
+                  </div>
                 ) : openRouterModels.length === 0 ? (
-                  <option value="">Aucun modèle disponible</option>
+                  <div className="text-xs text-center py-2 text-muted-foreground">
+                    Aucun modèle disponible
+                  </div>
                 ) : (
-                  openRouterModels.map(model => (
-                    <option key={model.id} value={model.id}>
-                      {model.name}
-                    </option>
-                  ))
+                  openRouterModels
+                    .filter(model =>
+                      model.name.toLowerCase().includes(modelSearchQuery.toLowerCase()) ||
+                      model.id.toLowerCase().includes(modelSearchQuery.toLowerCase())
+                    )
+                    .map(model => (
+                      <div
+                        key={model.id}
+                        className={`flex items-center justify-between px-2 py-1.5 hover:bg-accent cursor-pointer text-xs ${
+                          selectedModel === model.id ? 'bg-accent' : ''
+                        }`}
+                        onClick={() => setSelectedModel(model.id)}
+                      >
+                        <span className="flex-1 truncate">{model.name}</span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-5 w-5"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSetDefaultModel(model.id);
+                          }}
+                        >
+                          {defaultModel === model.id ? (
+                            <span className="text-yellow-500">★</span>
+                          ) : (
+                            <span className="text-muted-foreground">☆</span>
+                          )}
+                        </Button>
+                      </div>
+                    ))
                 )}
-              </select>
+              </div>
             </div>
           </CardHeader>
 
