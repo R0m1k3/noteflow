@@ -944,11 +944,34 @@ const Index = () => {
                     paginatedNotes.map(note => (
                       <Card
                         key={note.id}
-                        className="cursor-pointer hover:shadow-md transition-all group"
+                        className="cursor-pointer hover:shadow-md transition-all group relative"
                         onClick={() => handleOpenNote(note)}
                       >
                         <CardContent className="p-4">
-                          <h3 className="font-semibold text-base mb-2 line-clamp-1">
+                          {/* Priority icon */}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className={`absolute top-2 right-2 h-6 w-6 transition-opacity ${
+                              note.priority ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                            }`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const newPriority = !note.priority;
+                              if (note.id) {
+                                NotesService.togglePriority(note.id, newPriority);
+                                setNotes(notes.map(n => n.id === note.id ? { ...n, priority: newPriority } : n));
+                              }
+                            }}
+                          >
+                            {note.priority ? (
+                              <span className="text-red-500 text-lg font-bold">!</span>
+                            ) : (
+                              <span className="text-muted-foreground text-lg">!</span>
+                            )}
+                          </Button>
+
+                          <h3 className="font-semibold text-base mb-2 line-clamp-1 pr-8">
                             {note.title || "Sans titre"}
                           </h3>
                           <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
@@ -972,6 +995,14 @@ const Index = () => {
                                 <Paperclip className="h-3 w-3 mr-1" />
                                 {note.files.length}
                               </Badge>
+                            )}
+                            {note.tags && note.tags.length > 0 && (
+                              note.tags.map((tag) => (
+                                <Badge key={tag.id} variant="outline" className="text-xs">
+                                  <TagIcon className="h-3 w-3 mr-1" />
+                                  {tag.name}
+                                </Badge>
+                              ))
                             )}
                           </div>
                           {note.updated_at && (

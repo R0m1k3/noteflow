@@ -31,6 +31,8 @@ export interface Note {
   todos: Todo[];
   images: Image[];
   files?: NoteFile[];
+  tags?: Array<{ id: number; name: string }>;
+  priority?: boolean;
 }
 
 class NotesService {
@@ -158,11 +160,30 @@ class NotesService {
         method: "DELETE",
         headers: AuthService.getHeaders()
       });
-      
+
       if (!response.ok) {
         throw new Error("Erreur lors de la suppression de l'image");
       }
-      
+
+      return true;
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "Erreur serveur");
+      return false;
+    }
+  }
+
+  async togglePriority(noteId: number, priority: boolean): Promise<boolean> {
+    try {
+      const response = await fetch(`/api/notes/${noteId}/priority`, {
+        method: "PATCH",
+        headers: AuthService.getHeaders(),
+        body: JSON.stringify({ priority })
+      });
+
+      if (!response.ok) {
+        throw new Error("Erreur lors de la mise à jour de la priorité");
+      }
+
       return true;
     } catch (error) {
       showError(error instanceof Error ? error.message : "Erreur serveur");
