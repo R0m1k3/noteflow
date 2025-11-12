@@ -1,7 +1,7 @@
 {
   "name": "noteflow",
   "version": "1.0.0",
-  "description": "Application web de notes et todo list moderne avec Docker",
+  "description": "Application NoteFlow - Notes et gestion de tâches moderne avec Docker",
   "main": "server.js",
   "scripts": {
     "dev": "vite",
