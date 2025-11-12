@@ -84,10 +84,12 @@ const Index = () => {
   const [notesPage, setNotesPage] = useState(0);
   const [todosActivePage, setTodosActivePage] = useState(0);
   const [todosCompletedPage, setTodosCompletedPage] = useState(0);
+  const [rssPage, setRssPage] = useState(0);
 
   const NOTES_PER_PAGE = 5;
   const TODOS_PER_PAGE = 10;
-  const RSS_MAX_ARTICLES = 8;
+  const RSS_MAX_ARTICLES = 14;
+  const RSS_PER_PAGE = 7;
 
   // Debounce timer for auto-save
   const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -169,7 +171,7 @@ const Index = () => {
 
   const loadRssArticles = async () => {
     try {
-      const articles = await RssService.getArticles(15);
+      const articles = await RssService.getArticles(14);
       if (Array.isArray(articles)) {
         setRssArticles(articles);
       }
@@ -619,6 +621,10 @@ const Index = () => {
     setTodosCompletedPage(0);
   }, [todos.length]);
 
+  useEffect(() => {
+    setRssPage(0);
+  }, [rssArticles.length]);
+
   // Pagination for todos
   const activeTodos = todos.filter(t => !t.completed);
   const completedTodos = todos.filter(t => t.completed);
@@ -631,6 +637,13 @@ const Index = () => {
   const paginatedCompletedTodos = completedTodos.slice(
     todosCompletedPage * TODOS_PER_PAGE,
     (todosCompletedPage + 1) * TODOS_PER_PAGE
+  );
+
+  // Pagination for RSS
+  const totalRssPages = Math.ceil(rssArticles.length / RSS_PER_PAGE);
+  const paginatedRssArticles = rssArticles.slice(
+    rssPage * RSS_PER_PAGE,
+    (rssPage + 1) * RSS_PER_PAGE
   );
 
   return (
@@ -1392,9 +1405,9 @@ const Index = () => {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="space-y-2 max-h-[calc(100vh-400px)] overflow-y-auto">
+              <div className="space-y-2 max-h-[calc(100vh-500px)] overflow-y-auto">
                 {rssArticles.length > 0 ? (
-                  rssArticles.slice(0, RSS_MAX_ARTICLES).map(article => (
+                  paginatedRssArticles.map(article => (
                     <div
                       key={article.id}
                       className="p-2.5 border rounded hover:bg-accent/50 transition-colors cursor-pointer"
@@ -1427,6 +1440,29 @@ const Index = () => {
                   </p>
                 )}
               </div>
+              {totalRssPages > 1 && (
+                <div className="flex items-center justify-center gap-2 mt-3 pt-3 border-t">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setRssPage(p => Math.max(0, p - 1))}
+                    disabled={rssPage === 0}
+                  >
+                    ‹
+                  </Button>
+                  <span className="text-xs text-muted-foreground">
+                    {rssPage + 1}/{totalRssPages}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setRssPage(p => Math.min(totalRssPages - 1, p + 1))}
+                    disabled={rssPage >= totalRssPages - 1}
+                  >
+                    ›
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
 
