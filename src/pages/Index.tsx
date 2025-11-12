@@ -1002,14 +1002,7 @@ const Index = () => {
               /* Open Note Editor */
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <Button
-                    variant="ghost"
-                    onClick={handleCloseNote}
-                    className="gap-2"
-                  >
-                    <X className="h-4 w-4" />
-                    Retour aux notes
-                  </Button>
+                  <div></div>
 
                   <div className="flex items-center gap-2">
                     <Button
@@ -1132,10 +1125,12 @@ const Index = () => {
 
                 {/* Todos */}
                 {openNote.todos && openNote.todos.length > 0 && (
-                  <Card>
-                    <CardContent className="p-4">
-                      <div className="space-y-2">
-                        {openNote.todos.map((todo, index) => (
+                  <>
+                    <div className="text-sm font-medium text-muted-foreground mb-2">todo list:</div>
+                    <Card>
+                      <CardContent className="p-4">
+                        <div className="space-y-2">
+                          {openNote.todos.map((todo, index) => (
                           <div key={index} className="flex items-center gap-3 p-2 border rounded">
                             <Checkbox
                               checked={todo.completed}
@@ -1161,10 +1156,11 @@ const Index = () => {
                               <Trash2 className="h-3 w-3" />
                             </Button>
                           </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </>
                 )}
 
                 {/* Images in thumbnails */}
@@ -1206,10 +1202,14 @@ const Index = () => {
 
                 {/* Files */}
                 {openNote.files && openNote.files.length > 0 && (
-                  <Card>
-                    <CardContent className="p-4">
-                      <div className="space-y-2">
-                        {openNote.files.map((file: any, index: number) => (
+                  <>
+                    <div className="text-sm font-medium text-muted-foreground mb-2">
+                      Fichiers divers : Fichier(s)
+                    </div>
+                    <Card>
+                      <CardContent className="p-4">
+                        <div className="space-y-2">
+                          {openNote.files.map((file: any, index: number) => (
                           <div key={index} className="flex items-center gap-3 p-2 border rounded group">
                             <Paperclip className="h-4 w-4 text-muted-foreground" />
                             <div className="flex-1 min-w-0">
@@ -1258,10 +1258,11 @@ const Index = () => {
                               </Button>
                             </div>
                           </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </>
                 )}
 
                 {/* Rich text editor */}
@@ -1297,6 +1298,16 @@ const Index = () => {
                     </div>
                   </CardContent>
                 </Card>
+
+                {/* Save button */}
+                <div className="flex justify-end mt-6">
+                  <Button
+                    onClick={handleCloseNote}
+                    className="gap-2"
+                  >
+                    Enregistrer
+                  </Button>
+                </div>
               </div>
             )}
           </div>
