@@ -223,16 +223,15 @@ const Index = () => {
   };
 
   const loadOpenRouterModels = async () => {
-    if (settings.openrouter_api_key) {
-      setLoadingModels(true);
-      try {
-        const models = await OpenRouterService.getModels();
-        setOpenRouterModels(models);
-      } catch (error) {
-        console.error("Erreur lors du chargement des modèles:", error);
-      } finally {
-        setLoadingModels(false);
-      }
+    setLoadingModels(true);
+    try {
+      const models = await OpenRouterService.getModels();
+      setOpenRouterModels(models);
+    } catch (error) {
+      console.error("Erreur lors du chargement des modèles:", error);
+      setOpenRouterModels([]); // Vider en cas d'erreur
+    } finally {
+      setLoadingModels(false);
     }
   };
 
@@ -1931,70 +1930,6 @@ const Index = () => {
                       <a href="https://openrouter.ai" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
                         openrouter.ai
                       </a>
-                    </p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="ai-model">Modèle IA</Label>
-                      {settings.openrouter_api_key && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={async () => {
-                            try {
-                              setLoadingModels(true);
-                              const models = await OpenRouterService.refreshModels();
-                              setOpenRouterModels(models);
-                              showSuccess(`${models.length} modèles chargés`);
-                            } catch (error) {
-                              showError("Erreur lors du chargement des modèles");
-                            } finally {
-                              setLoadingModels(false);
-                            }
-                          }}
-                          disabled={loadingModels}
-                        >
-                          <RefreshCw className={`h-4 w-4 mr-2 ${loadingModels ? 'animate-spin' : ''}`} />
-                          Actualiser les modèles
-                        </Button>
-                      )}
-                    </div>
-                    {settings.openrouter_api_key && openRouterModels.length > 0 ? (
-                      <Select
-                        value={settings.ai_model || ''}
-                        onValueChange={(value) => setSettings({ ...settings, ai_model: value })}
-                      >
-                        <SelectTrigger id="ai-model">
-                          <SelectValue placeholder="Sélectionnez un modèle" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {openRouterModels.map((model) => (
-                            <SelectItem key={model.id} value={model.id}>
-                              <div className="flex flex-col">
-                                <span className="font-medium">{model.name}</span>
-                                {model.description && (
-                                  <span className="text-xs text-muted-foreground line-clamp-1">
-                                    {model.description}
-                                  </span>
-                                )}
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <Input
-                        id="ai-model"
-                        placeholder="anthropic/claude-3-sonnet"
-                        value={settings.ai_model || ''}
-                        onChange={(e) => setSettings({ ...settings, ai_model: e.target.value })}
-                      />
-                    )}
-                    <p className="text-sm text-muted-foreground">
-                      {settings.openrouter_api_key
-                        ? `${openRouterModels.length} modèles disponibles. Cliquez sur "Actualiser" pour charger la liste.`
-                        : "Ajoutez d'abord une clé API pour voir les modèles disponibles."}
                     </p>
                   </div>
 
