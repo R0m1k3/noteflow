@@ -41,9 +41,9 @@ async function getOAuth2Client(customRedirectUri = null) {
     throw new Error('Client ID et Client Secret non configurés');
   }
 
-  // Utiliser l'URI personnalisée si fournie, sinon utiliser APP_URL ou localhost
+  // Utiliser l'URI personnalisée si fournie, sinon utiliser l'URL de production
   const redirectUri = customRedirectUri ||
-    `${process.env.APP_URL || 'http://localhost:2222'}/api/calendar/oauth-callback`;
+    'https://note.ffnancy.fr/api/calendar/oauth-callback';
 
   return new google.auth.OAuth2(
     clientId.value,
