@@ -130,7 +130,7 @@ class NotesService {
   async uploadImage(noteId: number, file: File): Promise<Image | null> {
     const formData = new FormData();
     formData.append("image", file);
-    
+
     try {
       const response = await fetch(`/api/notes/${noteId}/images`, {
         method: "POST",
@@ -139,12 +139,13 @@ class NotesService {
         },
         body: formData
       });
-      
+
       if (!response.ok) {
         throw new Error("Erreur lors de l'upload de l'image");
       }
-      
-      return await response.json();
+
+      const result = await response.json();
+      return result.image || result;
     } catch (error) {
       showError(error instanceof Error ? error.message : "Erreur serveur");
       return null;
