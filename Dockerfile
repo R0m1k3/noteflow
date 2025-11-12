@@ -7,19 +7,19 @@ WORKDIR /app
 # Installer les dépendances nécessaires pour compiler les modules natifs
 RUN apk add --no-cache python3 make g++
 
-# Copier les fichiers de dépendances
-COPY package*.json ./
-COPY tsconfig*.json ./
+# Copier les fichiers de configuration et dépendances
+COPY package.json package-lock.json ./
+COPY tsconfig.json tsconfig.app.json tsconfig.node.json ./
 COPY vite.config.ts ./
 COPY components.json ./
 COPY postcss.config.js ./
-COPY tailwind.config.* ./
+COPY tailwind.config.js tailwind.config.ts ./
 COPY eslint.config.js ./
 
 # Installer TOUTES les dépendances (dev + prod)
 RUN npm ci
 
-# Copier le code source
+# Copier le code source complet
 COPY index.html ./
 COPY src ./src
 COPY public ./public
@@ -37,7 +37,7 @@ WORKDIR /app
 RUN apk add --no-cache sqlite python3 make g++
 
 # Copier les fichiers de dépendances
-COPY package*.json ./
+COPY package.json package-lock.json ./
 
 # Installer les dépendances backend
 # Note: On installe toutes les dépendances car package.json contient aussi les deps frontend
