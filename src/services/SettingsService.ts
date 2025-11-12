@@ -5,6 +5,8 @@ export interface Settings {
   ai_model?: string;
   rss_refresh_interval?: number;
   theme?: 'light' | 'dark' | 'auto';
+  google_calendar_api_key?: string;
+  google_calendar_id?: string;
 }
 
 class SettingsService {

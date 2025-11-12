@@ -13,7 +13,7 @@ import { RichTextEditor } from "@/components/RichTextEditor";
 import { MadeWithDyad } from "@/components/made-with-dyad";
 import {
   PlusCircle, Search, User, LogOut, Settings, ChevronDown, Plus, Archive, Trash2,
-  Image as ImageIcon, CheckSquare, FileText, Rss, ExternalLink, RefreshCw, Key, Zap, Paperclip, X, Edit
+  Image as ImageIcon, CheckSquare, FileText, Rss, ExternalLink, RefreshCw, Key, Zap, Paperclip, X, Edit, Calendar as CalendarIcon
 } from "lucide-react";
 import AuthService from "@/services/AuthService";
 import AdminService from "@/services/AdminService";
@@ -21,6 +21,7 @@ import NotesService, { Note } from "@/services/NotesService";
 import TodosService, { Todo } from "@/services/TodosService";
 import RssService, { RssFeed, RssArticle } from "@/services/RssService";
 import SettingsService, { Settings as AppSettings } from "@/services/SettingsService";
+import CalendarService, { CalendarEvent } from "@/services/CalendarService";
 import { useNavigate } from "react-router-dom";
 import { showError, showSuccess } from "@/utils/toast";
 
@@ -40,6 +41,7 @@ const Index = () => {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [rssFeeds, setRssFeeds] = useState<RssFeed[]>([]);
   const [rssArticles, setRssArticles] = useState<RssArticle[]>([]);
+  const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
   const [settings, setSettings] = useState<AppSettings>({});
   const [adminTab, setAdminTab] = useState("users");
   const [showArchived, setShowArchived] = useState(false);
@@ -53,6 +55,7 @@ const Index = () => {
       loadTodos();
       loadRssFeeds();
       loadRssArticles();
+      loadCalendarEvents();
     } else {
       navigate("/login");
     }
@@ -99,6 +102,17 @@ const Index = () => {
       }
     } catch (error) {
       console.error("Erreur lors du chargement des articles RSS:", error);
+    }
+  };
+
+  const loadCalendarEvents = async () => {
+    try {
+      const events = await CalendarService.getEvents(10);
+      if (Array.isArray(events)) {
+        setCalendarEvents(events);
+      }
+    } catch (error) {
+      console.error("Erreur lors du chargement des événements:", error);
     }
   };
 
@@ -898,11 +912,80 @@ const Index = () => {
               </div>
             </CardContent>
           </Card>
+
+          {/* Calendar Box */}
+          <Card className="shadow-lg">
+            <CardHeader className="pb-4">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-xl flex items-center gap-2">
+                  <CalendarIcon className="h-6 w-6" />
+                  Rendez-vous
+                </CardTitle>
+                <Button size="lg" variant="outline" onClick={async () => {
+                  try {
+                    const result = await CalendarService.sync();
+                    showSuccess(`${result.syncedCount} événements synchronisés`);
+                    await loadCalendarEvents();
+                  } catch (error) {
+                    showError("Erreur lors de la synchronisation");
+                  }
+                }} className="gap-2">
+                  <RefreshCw className="h-5 w-5" />
+                  Synchroniser
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3 max-h-[480px] overflow-y-auto">
+                {calendarEvents.length > 0 ? (
+                  calendarEvents.map(event => {
+                    const startDate = new Date(event.start_time);
+                    const endDate = new Date(event.end_time);
+                    const isToday = startDate.toDateString() === new Date().toDateString();
+
+                    return (
+                      <div
+                        key={event.id}
+                        className="p-3 border rounded-lg hover:bg-accent/50 transition-colors cursor-pointer"
+                        onClick={() => event.html_link && window.open(event.html_link, '_blank')}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-medium line-clamp-2 mb-1">{event.title}</h4>
+                            <p className="text-sm text-muted-foreground">
+                              {isToday ? "Aujourd'hui" : startDate.toLocaleDateString('fr-FR')} à {startDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                            {event.location && (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                📍 {event.location}
+                              </p>
+                            )}
+                          </div>
+                          <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-1" />
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <p className="text-center text-muted-foreground py-8">
+                    Aucun rendez-vous à venir
+                    <br />
+                    <Button
+                      variant="link"
+                      className="mt-2"
+                      onClick={() => setShowAdmin(true)}
+                    >
+                      Configurer Google Calendar
+                    </Button>
+                  </p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>
 
-      {/* Admin Modal */}
       {/* Admin Modal */}
       <Dialog open={showAdmin} onOpenChange={setShowAdmin}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -914,9 +997,10 @@ const Index = () => {
           </DialogHeader>
 
           <Tabs value={adminTab} onValueChange={setAdminTab}>
-            <TabsList className="grid grid-cols-4 w-full">
+            <TabsList className="grid grid-cols-5 w-full">
               <TabsTrigger value="users">Utilisateurs</TabsTrigger>
               <TabsTrigger value="rss">Flux RSS</TabsTrigger>
+              <TabsTrigger value="calendar">Google Calendar</TabsTrigger>
               <TabsTrigger value="openrouter">OpenRouter</TabsTrigger>
               <TabsTrigger value="settings">Paramètres</TabsTrigger>
             </TabsList>
@@ -1001,6 +1085,73 @@ const Index = () => {
                   <p className="text-center text-muted-foreground py-8">Aucun flux RSS configuré</p>
                 )}
               </div>
+            </TabsContent>
+
+            <TabsContent value="calendar" className="mt-4 space-y-4">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <CalendarIcon className="h-5 w-5" />
+                    Configuration Google Calendar
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="calendar-api-key">Clé API Google Calendar</Label>
+                    <Input
+                      id="calendar-api-key"
+                      type="password"
+                      placeholder="AIza..."
+                      value={settings.google_calendar_api_key || ''}
+                      onChange={(e) => setSettings({ ...settings, google_calendar_api_key: e.target.value })}
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      Créez une clé API sur{' '}
+                      <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                        Google Cloud Console
+                      </a>
+                      {' '}et activez l'API Google Calendar
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="calendar-id">ID du calendrier</Label>
+                    <Input
+                      id="calendar-id"
+                      placeholder="votre-email@gmail.com ou id-calendrier"
+                      value={settings.google_calendar_id || ''}
+                      onChange={(e) => setSettings({ ...settings, google_calendar_id: e.target.value })}
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      Trouvez l'ID du calendrier dans les paramètres de votre calendrier Google.<br />
+                      Pour votre calendrier principal, utilisez votre adresse email.
+                    </p>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button onClick={handleSaveSettings} className="flex items-center gap-2">
+                      <CalendarIcon className="h-4 w-4" />
+                      Enregistrer
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={async () => {
+                        try {
+                          const result = await CalendarService.sync();
+                          showSuccess(`${result.syncedCount} événements synchronisés`);
+                          await loadCalendarEvents();
+                        } catch (error) {
+                          showError("Erreur lors de la synchronisation. Vérifiez votre configuration.");
+                        }
+                      }}
+                      className="flex items-center gap-2"
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                      Tester la synchronisation
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
             </TabsContent>
 
             <TabsContent value="openrouter" className="mt-4 space-y-4">
