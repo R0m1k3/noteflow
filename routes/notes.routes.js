@@ -86,11 +86,10 @@ router.get('/', async (req, res) => {
       note.files_count = files?.length || 0;
 
       const tags = await getAll(`
-        SELECT t.id, t.name
-        FROM tags t
-        INNER JOIN note_tags nt ON t.id = nt.tag_id
-        WHERE nt.note_id = ?
-        ORDER BY t.name ASC
+        SELECT id, tag as name
+        FROM note_tags
+        WHERE note_id = ?
+        ORDER BY tag ASC
       `, [note.id]);
       note.tags = tags || [];
     }
