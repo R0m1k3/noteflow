@@ -77,6 +77,7 @@ const Index = () => {
   const [changePasswordModal, setChangePasswordModal] = useState<{open: boolean, userId?: number}>({open: false});
   const [addNoteTodoModal, setAddNoteTodoModal] = useState(false);
   const [addTagModal, setAddTagModal] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   // Debounce timer for auto-save
   const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -168,7 +169,7 @@ const Index = () => {
 
   const loadCalendarEvents = async () => {
     try {
-      const events = await CalendarService.getEvents(10);
+      const events = await CalendarService.getEvents(10); // Limité à 10 événements
       if (Array.isArray(events)) {
         setCalendarEvents(events);
       }
@@ -618,34 +619,33 @@ const Index = () => {
         )}
 
         <div className="max-w-[1920px] mx-auto px-8">
-          <div className="flex h-16 items-center justify-between">
-            <div className="flex items-center gap-6">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                  <FileText className="h-5 w-5 text-primary" />
-                </div>
-                <span className="text-2xl font-semibold">NoteFlow</span>
+          <div className="grid grid-cols-3 h-16 items-center">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                <FileText className="h-5 w-5 text-primary" />
               </div>
-              <div className="text-sm text-muted-foreground">
-                <div className="font-medium">
-                  {currentDateTime.toLocaleDateString('fr-FR', {
-                    weekday: 'long',
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric'
-                  })}
-                </div>
-                <div className="text-lg font-mono">
-                  {currentDateTime.toLocaleTimeString('fr-FR', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit'
-                  })}
-                </div>
+              <span className="text-2xl font-semibold">NoteFlow</span>
+            </div>
+
+            <div className="flex flex-col items-center text-center text-sm text-muted-foreground">
+              <div className="font-medium">
+                {currentDateTime.toLocaleDateString('fr-FR', {
+                  weekday: 'long',
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric'
+                })}
+              </div>
+              <div className="text-lg font-mono">
+                {currentDateTime.toLocaleTimeString('fr-FR', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  second: '2-digit'
+                })}
               </div>
             </div>
 
-            <div className="flex items-center gap-6">
+            <div className="flex items-center gap-6 justify-end">
               <Button onClick={handleCreateNote} size="lg" className="gap-2">
                 <PlusCircle className="h-5 w-5" />
                 Nouvelle Note
@@ -905,56 +905,104 @@ const Index = () => {
                   onChange={(e) => handleUpdateNote({ title: e.target.value })}
                 />
 
-                <Tabs defaultValue="content" className="mt-4">
-                  <TabsList className="grid grid-cols-5 w-full max-w-2xl">
-                    <TabsTrigger value="content">Contenu</TabsTrigger>
-                    <TabsTrigger value="todos">
-                      Tâches
-                      {openNote.todos && openNote.todos.length > 0 && (
-                        <Badge variant="secondary" className="ml-2">{openNote.todos.length}</Badge>
-                      )}
-                    </TabsTrigger>
-                    <TabsTrigger value="images">
-                      Images
-                      {openNote.images && openNote.images.length > 0 && (
-                        <Badge variant="secondary" className="ml-2">{openNote.images.length}</Badge>
-                      )}
-                    </TabsTrigger>
-                    <TabsTrigger value="files">
-                      Fichiers
-                      {openNote.files && openNote.files.length > 0 && (
-                        <Badge variant="secondary" className="ml-2">{openNote.files.length}</Badge>
-                      )}
-                    </TabsTrigger>
-                    <TabsTrigger value="tags">
-                      Tags
-                      {noteTags.length > 0 && (
-                        <Badge variant="secondary" className="ml-2">{noteTags.length}</Badge>
-                      )}
-                    </TabsTrigger>
-                  </TabsList>
+                {/* Action buttons */}
+                <div className="flex gap-2 flex-wrap">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setAddNoteTodoModal(true)}
+                    className="gap-2"
+                  >
+                    <CheckSquare className="h-4 w-4" />
+                    Ajouter une tâche
+                  </Button>
 
-                  <TabsContent value="content" className="mt-4">
-                    <RichTextEditor
-                      key={openNote.id}
-                      content={openNote.content || ""}
-                      onChange={handleContentChange}
-                    />
-                  </TabsContent>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => document.getElementById('image-upload')?.click()}
+                    className="gap-2"
+                  >
+                    <ImageIcon className="h-4 w-4" />
+                    Ajouter une image
+                  </Button>
+                  <input
+                    id="image-upload"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={async (e) => {
+                      if (e.target.files && e.target.files[0] && openNote?.id) {
+                        try {
+                          const image = await NotesService.uploadImage(openNote.id, e.target.files[0]);
+                          if (image) {
+                            const updatedImages = [...(openNote.images || []), image];
+                            setOpenNote({ ...openNote, images: updatedImages });
+                            await handleUpdateNote({ images: updatedImages });
+                            showSuccess("Image ajoutée");
+                          }
+                        } catch (error) {
+                          showError("Erreur lors de l'upload de l'image");
+                        }
+                        e.target.value = '';
+                      }
+                    }}
+                  />
 
-                  <TabsContent value="todos" className="mt-4 space-y-4">
-                    <Button
-                      onClick={() => setAddNoteTodoModal(true)}
-                      className="w-full"
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Ajouter une tâche
-                    </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => document.getElementById('file-upload')?.click()}
+                    className="gap-2"
+                  >
+                    <Paperclip className="h-4 w-4" />
+                    Ajouter un fichier
+                  </Button>
+                  <input
+                    id="file-upload"
+                    type="file"
+                    className="hidden"
+                    onChange={handleFileUpload}
+                  />
 
-                    <div className="space-y-2">
-                      {openNote.todos && openNote.todos.length > 0 ? (
-                        openNote.todos.map((todo, index) => (
-                          <div key={index} className="flex items-center gap-3 p-3 border rounded-lg">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setAddTagModal(true)}
+                    className="gap-2"
+                  >
+                    <TagIcon className="h-4 w-4" />
+                    Ajouter un tag
+                  </Button>
+                </div>
+
+                {/* Tags */}
+                {noteTags.length > 0 && (
+                  <div className="flex gap-2 flex-wrap">
+                    {noteTags.map((tag) => (
+                      <Badge
+                        key={tag.id}
+                        variant="secondary"
+                        className="text-sm px-2 py-1 gap-1 cursor-pointer hover:bg-destructive hover:text-destructive-foreground transition-colors group"
+                      >
+                        <TagIcon className="h-3 w-3" />
+                        {tag.tag}
+                        <X
+                          className="h-3 w-3 opacity-50 group-hover:opacity-100"
+                          onClick={() => tag.id && handleDeleteTag(tag.id)}
+                        />
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+
+                {/* Todos */}
+                {openNote.todos && openNote.todos.length > 0 && (
+                  <Card>
+                    <CardContent className="p-4">
+                      <div className="space-y-2">
+                        {openNote.todos.map((todo, index) => (
+                          <div key={index} className="flex items-center gap-3 p-2 border rounded">
                             <Checkbox
                               checked={todo.completed}
                               onCheckedChange={async () => {
@@ -963,123 +1011,94 @@ const Index = () => {
                                 await handleUpdateNote({ todos: updatedTodos });
                               }}
                             />
-                            <span className={todo.completed ? "line-through text-muted-foreground flex-1" : "flex-1"}>
+                            <span className={todo.completed ? "line-through text-muted-foreground flex-1 text-sm" : "flex-1 text-sm"}>
                               {todo.text}
                             </span>
                             <Button
                               variant="ghost"
                               size="icon"
+                              className="h-6 w-6"
                               onClick={async () => {
                                 const updatedTodos = [...(openNote.todos || [])];
                                 updatedTodos.splice(index, 1);
                                 await handleUpdateNote({ todos: updatedTodos });
                               }}
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <Trash2 className="h-3 w-3" />
                             </Button>
                           </div>
-                        ))
-                      ) : (
-                        <p className="text-center text-muted-foreground py-8">Aucune tâche</p>
-                      )}
-                    </div>
-                  </TabsContent>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
 
-                  <TabsContent value="images" className="mt-4 space-y-4">
-                    <div>
-                      <Input
-                        type="file"
-                        accept="image/*"
-                        onChange={async (e) => {
-                          if (e.target.files && e.target.files[0] && openNote.id) {
-                            try {
-                              const image = await NotesService.uploadImage(openNote.id, e.target.files[0]);
-                              if (image) {
-                                const updatedImages = [...(openNote.images || []), image];
-                                setOpenNote({ ...openNote, images: updatedImages });
-                                await handleUpdateNote({ images: updatedImages });
-                                showSuccess("Image ajoutée");
-                              }
-                            } catch (error) {
-                              showError("Erreur lors de l'upload de l'image");
-                            }
-                            e.target.value = '';
-                          }
-                        }}
-                        className="cursor-pointer"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-4">
-                      {openNote.images && openNote.images.length > 0 ? (
-                        openNote.images.map((image, index) => (
-                          <div key={index} className="relative group">
-                            <img
-                              src={`/uploads/images/${image.filename}`}
-                              alt={image.original_name}
-                              className="w-full h-32 object-cover rounded-lg"
-                            />
-                            <Button
-                              variant="destructive"
-                              size="icon"
-                              className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                              onClick={async () => {
-                                if (image.id && openNote.id) {
-                                  try {
-                                    const success = await NotesService.deleteImage(openNote.id, image.id);
-                                    if (success) {
-                                      const updatedImages = (openNote.images || []).filter((_, i) => i !== index);
-                                      await handleUpdateNote({ images: updatedImages });
-                                    }
-                                  } catch (error) {
-                                    showError("Erreur lors de la suppression");
-                                  }
+                {/* Images in thumbnails */}
+                {openNote.images && openNote.images.length > 0 && (
+                  <div className="grid grid-cols-4 gap-3">
+                    {openNote.images.map((image, index) => (
+                      <div key={index} className="relative group">
+                        <img
+                          src={`/uploads/images/${image.filename}`}
+                          alt={image.original_name}
+                          className="w-full h-24 object-cover rounded-lg cursor-pointer hover:opacity-80 transition-opacity"
+                          onClick={() => setSelectedImage(`/uploads/images/${image.filename}`)}
+                        />
+                        <Button
+                          variant="destructive"
+                          size="icon"
+                          className="absolute top-1 right-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={async () => {
+                            if (image.id && openNote.id) {
+                              try {
+                                const success = await NotesService.deleteImage(openNote.id, image.id);
+                                if (success) {
+                                  const updatedImages = (openNote.images || []).filter((_, i) => i !== index);
+                                  await handleUpdateNote({ images: updatedImages });
+                                  showSuccess("Image supprimée");
                                 }
-                              }}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        ))
-                      ) : (
-                        <p className="col-span-3 text-center text-muted-foreground py-8">Aucune image</p>
-                      )}
-                    </div>
-                  </TabsContent>
+                              } catch (error) {
+                                showError("Erreur lors de la suppression");
+                              }
+                            }
+                          }}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
-                  <TabsContent value="files" className="mt-4 space-y-4">
-                    <div>
-                      <Input
-                        type="file"
-                        onChange={handleFileUpload}
-                        className="cursor-pointer"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      {openNote.files && openNote.files.length > 0 ? (
-                        openNote.files.map((file: any, index: number) => (
-                          <div key={index} className="flex items-center gap-3 p-3 border rounded-lg group">
-                            <Paperclip className="h-5 w-5 text-muted-foreground" />
+                {/* Files */}
+                {openNote.files && openNote.files.length > 0 && (
+                  <Card>
+                    <CardContent className="p-4">
+                      <div className="space-y-2">
+                        {openNote.files.map((file: any, index: number) => (
+                          <div key={index} className="flex items-center gap-3 p-2 border rounded group">
+                            <Paperclip className="h-4 w-4 text-muted-foreground" />
                             <div className="flex-1 min-w-0">
-                              <p className="font-medium truncate">{file.original_name || file.filename}</p>
+                              <p className="font-medium truncate text-sm">{file.original_name || file.filename}</p>
                               {file.size && (
-                                <p className="text-sm text-muted-foreground">
+                                <p className="text-xs text-muted-foreground">
                                   {(file.size / 1024).toFixed(2)} KB
                                 </p>
                               )}
                             </div>
-                            <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="flex gap-1">
                               <Button
                                 variant="outline"
                                 size="icon"
+                                className="h-7 w-7"
                                 onClick={() => window.open(`/uploads/files/${file.filename}`, '_blank')}
                               >
-                                <ExternalLink className="h-4 w-4" />
+                                <ExternalLink className="h-3 w-3" />
                               </Button>
                               <Button
                                 variant="destructive"
                                 size="icon"
+                                className="h-7 w-7"
                                 onClick={async () => {
                                   if (file.id && openNote.id) {
                                     try {
@@ -1093,6 +1112,7 @@ const Index = () => {
                                       if (response.ok) {
                                         const updatedFiles = (openNote.files || []).filter((_, i) => i !== index);
                                         await handleUpdateNote({ files: updatedFiles });
+                                        showSuccess("Fichier supprimé");
                                       }
                                     } catch (error) {
                                       showError("Erreur lors de la suppression");
@@ -1100,48 +1120,21 @@ const Index = () => {
                                   }
                                 }}
                               >
-                                <Trash2 className="h-4 w-4" />
+                                <Trash2 className="h-3 w-3" />
                               </Button>
                             </div>
                           </div>
-                        ))
-                      ) : (
-                        <p className="text-center text-muted-foreground py-8">Aucun fichier</p>
-                      )}
-                    </div>
-                  </TabsContent>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
 
-                  <TabsContent value="tags" className="mt-4 space-y-4">
-                    <Button
-                      onClick={() => setAddTagModal(true)}
-                      className="w-full"
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Ajouter un tag
-                    </Button>
-
-                    <div className="flex gap-2 flex-wrap">
-                      {noteTags.length > 0 ? (
-                        noteTags.map((tag) => (
-                          <Badge
-                            key={tag.id}
-                            variant="secondary"
-                            className="text-base px-3 py-2 gap-2 cursor-pointer hover:bg-destructive hover:text-destructive-foreground transition-colors group"
-                          >
-                            <TagIcon className="h-4 w-4" />
-                            {tag.tag}
-                            <X
-                              className="h-4 w-4 opacity-50 group-hover:opacity-100"
-                              onClick={() => tag.id && handleDeleteTag(tag.id)}
-                            />
-                          </Badge>
-                        ))
-                      ) : (
-                        <p className="text-center text-muted-foreground py-8 w-full">Aucun tag</p>
-                      )}
-                    </div>
-                  </TabsContent>
-                </Tabs>
+                {/* Rich text editor */}
+                <RichTextEditor
+                  content={openNote.content || ""}
+                  onChange={handleContentChange}
+                />
 
                 {/* Note metadata */}
                 <Card className="mt-4">
@@ -1913,6 +1906,31 @@ const Index = () => {
       <div className="fixed bottom-4 right-4">
         <MadeWithDyad />
       </div>
+
+      {/* Image modal for fullscreen view */}
+      {selectedImage && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setSelectedImage(null)}
+        >
+          <div className="relative max-w-7xl max-h-full">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute -top-12 right-0 text-white hover:bg-white/20"
+              onClick={() => setSelectedImage(null)}
+            >
+              <X className="h-6 w-6" />
+            </Button>
+            <img
+              src={selectedImage}
+              alt="Preview"
+              className="max-w-full max-h-[90vh] object-contain rounded-lg"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
