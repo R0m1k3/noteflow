@@ -9,11 +9,12 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RichTextEditor } from "@/components/RichTextEditor";
 import { MadeWithDyad } from "@/components/made-with-dyad";
 import {
   PlusCircle, Search, User, LogOut, Settings, ChevronDown, Plus, Archive, Trash2,
-  Image as ImageIcon, CheckSquare, FileText, Rss, ExternalLink, RefreshCw, Key, Zap, Paperclip, X, Edit, Calendar as CalendarIcon
+  Image as ImageIcon, CheckSquare, FileText, Rss, ExternalLink, RefreshCw, Key, Zap, Paperclip, X, Edit, Calendar as CalendarIcon, Tag as TagIcon
 } from "lucide-react";
 import AuthService from "@/services/AuthService";
 import AdminService from "@/services/AdminService";
@@ -22,6 +23,8 @@ import TodosService, { Todo } from "@/services/TodosService";
 import RssService, { RssFeed, RssArticle } from "@/services/RssService";
 import SettingsService, { Settings as AppSettings } from "@/services/SettingsService";
 import CalendarService, { CalendarEvent } from "@/services/CalendarService";
+import TagsService, { Tag } from "@/services/TagsService";
+import OpenRouterService, { OpenRouterModel } from "@/services/OpenRouterService";
 import { useNavigate } from "react-router-dom";
 import { showError, showSuccess } from "@/utils/toast";
 import { ConfirmModal } from "@/components/modals/ConfirmModal";
@@ -48,6 +51,9 @@ const Index = () => {
   const [settings, setSettings] = useState<AppSettings>({});
   const [adminTab, setAdminTab] = useState("users");
   const [showArchived, setShowArchived] = useState(false);
+  const [noteTags, setNoteTags] = useState<Tag[]>([]);
+  const [openRouterModels, setOpenRouterModels] = useState<OpenRouterModel[]>([]);
+  const [loadingModels, setLoadingModels] = useState(false);
   const navigate = useNavigate();
 
   // Modal states
@@ -58,6 +64,7 @@ const Index = () => {
   const [deleteUserModal, setDeleteUserModal] = useState<{open: boolean, userId?: number}>({open: false});
   const [changePasswordModal, setChangePasswordModal] = useState<{open: boolean, userId?: number}>({open: false});
   const [addNoteTodoModal, setAddNoteTodoModal] = useState(false);
+  const [addTagModal, setAddTagModal] = useState(false);
 
   // Debounce timer for auto-save
   const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -155,12 +162,32 @@ const Index = () => {
     }
   };
 
+  const loadOpenRouterModels = async () => {
+    if (user?.is_admin && settings.openrouter_api_key) {
+      setLoadingModels(true);
+      try {
+        const models = await OpenRouterService.getModels();
+        setOpenRouterModels(models);
+      } catch (error) {
+        console.error("Erreur lors du chargement des modèles:", error);
+      } finally {
+        setLoadingModels(false);
+      }
+    }
+  };
+
   useEffect(() => {
     if (showAdmin) {
       loadUsers();
       loadSettings();
     }
   }, [showAdmin]);
+
+  useEffect(() => {
+    if (showAdmin && adminTab === 'openrouter' && settings.openrouter_api_key && openRouterModels.length === 0) {
+      loadOpenRouterModels();
+    }
+  }, [showAdmin, adminTab, settings.openrouter_api_key]);
 
   const handleLogout = () => {
     AuthService.logout();
@@ -179,12 +206,26 @@ const Index = () => {
     }
   };
 
+  const loadNoteTags = async (noteId: number) => {
+    try {
+      const tags = await TagsService.getTags(noteId);
+      setNoteTags(tags || []);
+    } catch (error) {
+      console.error("Erreur lors du chargement des tags:", error);
+      setNoteTags([]);
+    }
+  };
+
   const handleOpenNote = (note: Note) => {
     setOpenNote(note);
+    if (note.id) {
+      loadNoteTags(note.id);
+    }
   };
 
   const handleCloseNote = () => {
     setOpenNote(null);
+    setNoteTags([]);
   };
 
   // Update note with immediate local state update
@@ -217,9 +258,9 @@ const Index = () => {
   const handleContentChange = useCallback((content: string) => {
     if (!openNote) return;
 
-    // Update local state immediately for responsiveness
+    // Don't update local state to avoid re-render during typing
+    // Just save to API in background
     const updatedNote = { ...openNote, content };
-    setOpenNote(updatedNote);
 
     // Debounce the API call
     if (saveTimerRef.current) {
@@ -229,11 +270,13 @@ const Index = () => {
     saveTimerRef.current = setTimeout(async () => {
       try {
         await NotesService.updateNote(updatedNote);
+        // Update notes list silently after save
+        setNotes(prev => prev.map(note => note.id === updatedNote.id ? updatedNote : note));
       } catch (error) {
         showError("Erreur lors de la sauvegarde automatique");
       }
     }, 1000); // Save after 1 second of inactivity
-  }, [openNote]);
+  }, [openNote, setNotes]);
 
   // Clean up timer on unmount
   useEffect(() => {
@@ -371,6 +414,34 @@ const Index = () => {
       showSuccess("Paramètres enregistrés");
     } catch (error) {
       showError("Erreur lors de l'enregistrement");
+    }
+  };
+
+  const confirmAddTag = async (tagText: string) => {
+    if (!openNote?.id) return;
+
+    try {
+      const newTag = await TagsService.addTag(openNote.id, tagText);
+      if (newTag) {
+        setNoteTags([...noteTags, newTag]);
+        showSuccess("Tag ajouté");
+      }
+    } catch (error) {
+      showError("Erreur lors de l'ajout du tag");
+    }
+  };
+
+  const handleDeleteTag = async (tagId: number) => {
+    if (!openNote?.id) return;
+
+    try {
+      const success = await TagsService.deleteTag(openNote.id, tagId);
+      if (success) {
+        setNoteTags(noteTags.filter(t => t.id !== tagId));
+        showSuccess("Tag supprimé");
+      }
+    } catch (error) {
+      showError("Erreur lors de la suppression du tag");
     }
   };
 
@@ -520,7 +591,7 @@ const Index = () => {
                           <p className="text-sm text-muted-foreground line-clamp-4 mb-4 min-h-[80px]">
                             {note.content ? note.content.replace(/<[^>]*>/g, '') : "Note vide"}
                           </p>
-                          <div className="flex gap-2 flex-wrap">
+                          <div className="flex gap-2 flex-wrap mb-3">
                             {note.todos && note.todos.length > 0 && (
                               <Badge variant="secondary">
                                 <CheckSquare className="h-3 w-3 mr-1" />
@@ -540,6 +611,15 @@ const Index = () => {
                               </Badge>
                             )}
                           </div>
+                          {note.updated_at && (
+                            <p className="text-xs text-muted-foreground">
+                              Modifiée le {new Date(note.updated_at).toLocaleDateString('fr-FR', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: 'numeric'
+                              })}
+                            </p>
+                          )}
                         </CardContent>
                       </Card>
                     ))
@@ -601,7 +681,7 @@ const Index = () => {
                 />
 
                 <Tabs defaultValue="content" className="mt-4">
-                  <TabsList className="grid grid-cols-4 w-full max-w-md">
+                  <TabsList className="grid grid-cols-5 w-full max-w-2xl">
                     <TabsTrigger value="content">Contenu</TabsTrigger>
                     <TabsTrigger value="todos">
                       Tâches
@@ -621,10 +701,17 @@ const Index = () => {
                         <Badge variant="secondary" className="ml-2">{openNote.files.length}</Badge>
                       )}
                     </TabsTrigger>
+                    <TabsTrigger value="tags">
+                      Tags
+                      {noteTags.length > 0 && (
+                        <Badge variant="secondary" className="ml-2">{noteTags.length}</Badge>
+                      )}
+                    </TabsTrigger>
                   </TabsList>
 
                   <TabsContent value="content" className="mt-4">
                     <RichTextEditor
+                      key={openNote.id}
                       content={openNote.content || ""}
                       onChange={handleContentChange}
                     />
@@ -798,7 +885,66 @@ const Index = () => {
                       )}
                     </div>
                   </TabsContent>
+
+                  <TabsContent value="tags" className="mt-4 space-y-4">
+                    <Button
+                      onClick={() => setAddTagModal(true)}
+                      className="w-full"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Ajouter un tag
+                    </Button>
+
+                    <div className="flex gap-2 flex-wrap">
+                      {noteTags.length > 0 ? (
+                        noteTags.map((tag) => (
+                          <Badge
+                            key={tag.id}
+                            variant="secondary"
+                            className="text-base px-3 py-2 gap-2 cursor-pointer hover:bg-destructive hover:text-destructive-foreground transition-colors group"
+                          >
+                            <TagIcon className="h-4 w-4" />
+                            {tag.tag}
+                            <X
+                              className="h-4 w-4 opacity-50 group-hover:opacity-100"
+                              onClick={() => tag.id && handleDeleteTag(tag.id)}
+                            />
+                          </Badge>
+                        ))
+                      ) : (
+                        <p className="text-center text-muted-foreground py-8 w-full">Aucun tag</p>
+                      )}
+                    </div>
+                  </TabsContent>
                 </Tabs>
+
+                {/* Note metadata */}
+                <Card className="mt-4">
+                  <CardContent className="p-4">
+                    <div className="text-sm text-muted-foreground space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">Créée le:</span>
+                        <span>{openNote.created_at ? new Date(openNote.created_at).toLocaleString('fr-FR', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        }) : 'N/A'}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">Modifiée le:</span>
+                        <span>{openNote.updated_at ? new Date(openNote.updated_at).toLocaleString('fr-FR', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        }) : 'N/A'}</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
             )}
           </div>
@@ -1214,13 +1360,67 @@ const Index = () => {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="ai-model">Modèle IA</Label>
-                    <Input
-                      id="ai-model"
-                      placeholder="anthropic/claude-3-sonnet"
-                      value={settings.ai_model || ''}
-                      onChange={(e) => setSettings({ ...settings, ai_model: e.target.value })}
-                    />
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="ai-model">Modèle IA</Label>
+                      {settings.openrouter_api_key && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={async () => {
+                            try {
+                              setLoadingModels(true);
+                              const models = await OpenRouterService.refreshModels();
+                              setOpenRouterModels(models);
+                              showSuccess(`${models.length} modèles chargés`);
+                            } catch (error) {
+                              showError("Erreur lors du chargement des modèles");
+                            } finally {
+                              setLoadingModels(false);
+                            }
+                          }}
+                          disabled={loadingModels}
+                        >
+                          <RefreshCw className={`h-4 w-4 mr-2 ${loadingModels ? 'animate-spin' : ''}`} />
+                          Actualiser les modèles
+                        </Button>
+                      )}
+                    </div>
+                    {settings.openrouter_api_key && openRouterModels.length > 0 ? (
+                      <Select
+                        value={settings.ai_model || ''}
+                        onValueChange={(value) => setSettings({ ...settings, ai_model: value })}
+                      >
+                        <SelectTrigger id="ai-model">
+                          <SelectValue placeholder="Sélectionnez un modèle" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {openRouterModels.map((model) => (
+                            <SelectItem key={model.id} value={model.id}>
+                              <div className="flex flex-col">
+                                <span className="font-medium">{model.name}</span>
+                                {model.description && (
+                                  <span className="text-xs text-muted-foreground line-clamp-1">
+                                    {model.description}
+                                  </span>
+                                )}
+                              </div>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input
+                        id="ai-model"
+                        placeholder="anthropic/claude-3-sonnet"
+                        value={settings.ai_model || ''}
+                        onChange={(e) => setSettings({ ...settings, ai_model: e.target.value })}
+                      />
+                    )}
+                    <p className="text-sm text-muted-foreground">
+                      {settings.openrouter_api_key
+                        ? `${openRouterModels.length} modèles disponibles. Cliquez sur "Actualiser" pour charger la liste.`
+                        : "Ajoutez d'abord une clé API pour voir les modèles disponibles."}
+                    </p>
                   </div>
 
                   <div className="flex gap-2">
@@ -1333,6 +1533,16 @@ const Index = () => {
             await handleUpdateNote({ todos: updatedTodos });
           }
         }}
+        confirmText="Ajouter"
+      />
+
+      <InputModal
+        open={addTagModal}
+        onOpenChange={setAddTagModal}
+        title="Nouveau tag"
+        label="Tag"
+        placeholder="Entrez le nom du tag..."
+        onConfirm={confirmAddTag}
         confirmText="Ajouter"
       />
 

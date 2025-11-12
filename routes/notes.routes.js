@@ -823,5 +823,77 @@ router.delete('/files/:fileId', async (req, res) => {
   }
 });
 
+// ==================== TAGS ====================
+
+/**
+ * GET /api/notes/:id/tags
+ * Récupérer les tags d'une note
+ */
+router.get('/:id/tags', async (req, res) => {
+  try {
+    const note = await getOne('SELECT id FROM notes WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+    if (!note) {
+      return res.status(404).json({ error: 'Note non trouvée' });
+    }
+
+    const tags = await getAll('SELECT id, tag FROM note_tags WHERE note_id = ? ORDER BY tag ASC', [req.params.id]);
+    res.json(tags || []);
+  } catch (error) {
+    logger.error('Erreur lors de la récupération des tags:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+/**
+ * POST /api/notes/:id/tags
+ * Ajouter un tag à une note
+ */
+router.post('/:id/tags', async (req, res) => {
+  try {
+    const { tag } = req.body;
+    if (!tag || !tag.trim()) {
+      return res.status(400).json({ error: 'Tag invalide' });
+    }
+
+    const note = await getOne('SELECT id FROM notes WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+    if (!note) {
+      return res.status(404).json({ error: 'Note non trouvée' });
+    }
+
+    const result = await runQuery('INSERT INTO note_tags (note_id, tag) VALUES (?, ?)', [req.params.id, tag.trim().toLowerCase()]);
+    res.json({ id: result.id, tag: tag.trim().toLowerCase() });
+  } catch (error) {
+    if (error.message && error.message.includes('UNIQUE constraint')) {
+      return res.status(409).json({ error: 'Ce tag existe déjà' });
+    }
+    logger.error('Erreur lors de l\'ajout du tag:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+/**
+ * DELETE /api/notes/:noteId/tags/:tagId
+ * Supprimer un tag d'une note
+ */
+router.delete('/:noteId/tags/:tagId', async (req, res) => {
+  try {
+    const tag = await getOne(`
+      SELECT nt.id FROM note_tags nt
+      JOIN notes n ON nt.note_id = n.id
+      WHERE nt.id = ? AND nt.note_id = ? AND n.user_id = ?
+    `, [req.params.tagId, req.params.noteId, req.user.id]);
+
+    if (!tag) {
+      return res.status(404).json({ error: 'Tag non trouvé' });
+    }
+
+    await runQuery('DELETE FROM note_tags WHERE id = ?', [req.params.tagId]);
+    res.json({ message: 'Tag supprimé' });
+  } catch (error) {
+    logger.error('Erreur lors de la suppression du tag:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
 module.exports = router;
 module.exports.searchNotes = searchNotes;
