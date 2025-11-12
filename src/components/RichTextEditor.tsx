@@ -29,11 +29,13 @@ export function RichTextEditor({ content, onChange, placeholder }: RichTextEdito
   const editorRef = useRef<HTMLDivElement>(null);
   const [selectedFormat, setSelectedFormat] = useState<string[]>([]);
 
+  // Set initial content only once on mount
   useEffect(() => {
-    if (editorRef.current && editorRef.current.innerHTML !== content) {
+    if (editorRef.current) {
       editorRef.current.innerHTML = content;
     }
-  }, [content]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty deps - only run once on mount
 
   const execCommand = (command: string, value?: string) => {
     document.execCommand(command, false, value);

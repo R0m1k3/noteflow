@@ -217,9 +217,9 @@ const Index = () => {
   const handleContentChange = useCallback((content: string) => {
     if (!openNote) return;
 
-    // Update local state immediately for responsiveness
+    // Don't update local state to avoid re-render during typing
+    // Just save to API in background
     const updatedNote = { ...openNote, content };
-    setOpenNote(updatedNote);
 
     // Debounce the API call
     if (saveTimerRef.current) {
@@ -229,11 +229,13 @@ const Index = () => {
     saveTimerRef.current = setTimeout(async () => {
       try {
         await NotesService.updateNote(updatedNote);
+        // Update notes list silently after save
+        setNotes(prev => prev.map(note => note.id === updatedNote.id ? updatedNote : note));
       } catch (error) {
         showError("Erreur lors de la sauvegarde automatique");
       }
     }, 1000); // Save after 1 second of inactivity
-  }, [openNote]);
+  }, [openNote, setNotes]);
 
   // Clean up timer on unmount
   useEffect(() => {
@@ -625,6 +627,7 @@ const Index = () => {
 
                   <TabsContent value="content" className="mt-4">
                     <RichTextEditor
+                      key={openNote.id}
                       content={openNote.content || ""}
                       onChange={handleContentChange}
                     />
