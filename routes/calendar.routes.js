@@ -6,9 +6,6 @@ const { getAll, getOne, runQuery } = require('../config/database');
 const { authenticateToken, requireAdmin } = require('../middleware/auth');
 const logger = require('../config/logger');
 
-// Toutes les routes nécessitent authentification
-router.use(authenticateToken);
-
 // Scopes Google Calendar requis
 const SCOPES = ['https://www.googleapis.com/auth/calendar.readonly'];
 
@@ -245,7 +242,7 @@ router.get('/oauth-callback', async (req, res) => {
  * GET /api/calendar/auth-status
  * Vérifier si l'utilisateur est authentifié avec Google
  */
-router.get('/auth-status', async (req, res) => {
+router.get('/auth-status', authenticateToken, async (req, res) => {
   try {
     const authType = await getAuthType();
 
@@ -343,7 +340,7 @@ async function getValidTokens(userId) {
  * GET /api/calendar/events
  * Récupérer les événements du calendrier
  */
-router.get('/events', async (req, res) => {
+router.get('/events', authenticateToken, async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 10;
     const now = new Date().toISOString();
@@ -370,7 +367,7 @@ router.get('/events', async (req, res) => {
  * POST /api/calendar/sync
  * Synchroniser avec Google Calendar (OAuth2, Service Account ou API Key)
  */
-router.post('/sync', async (req, res) => {
+router.post('/sync', authenticateToken, async (req, res) => {
   try {
     const authType = await getAuthType();
     let calendarId = 'primary'; // Par défaut : calendrier principal
@@ -487,7 +484,7 @@ router.post('/sync', async (req, res) => {
  * POST /api/calendar/disconnect
  * Déconnecter Google Calendar (supprimer les tokens)
  */
-router.post('/disconnect', async (req, res) => {
+router.post('/disconnect', authenticateToken, async (req, res) => {
   try {
     await runQuery('DELETE FROM google_oauth_tokens WHERE user_id = ?', [req.user.id]);
     logger.info(`Tokens OAuth supprimés pour l'utilisateur ${req.user.username}`);
@@ -503,7 +500,7 @@ router.post('/disconnect', async (req, res) => {
  * DELETE /api/calendar/events/:id
  * Supprimer un événement local
  */
-router.delete('/events/:id', async (req, res) => {
+router.delete('/events/:id', authenticateToken, async (req, res) => {
   try {
     const event = await getOne(
       'SELECT id FROM calendar_events WHERE id = ? AND user_id = ?',
