@@ -31,6 +31,43 @@ router.get('/', async (req, res) => {
 });
 
 /**
+ * PUT /api/settings
+ * Mettre à jour plusieurs paramètres en une fois
+ */
+router.put('/', async (req, res) => {
+  try {
+    const settings = req.body;
+
+    // Mettre à jour chaque paramètre
+    for (const [key, value] of Object.entries(settings)) {
+      // Ignorer les valeurs undefined ou null
+      if (value === undefined || value === null) continue;
+
+      // Vérifier si le paramètre existe
+      const existing = await getOne('SELECT id FROM settings WHERE key = ?', [key]);
+
+      if (existing) {
+        await runQuery(
+          'UPDATE settings SET value = ?, updated_at = CURRENT_TIMESTAMP WHERE key = ?',
+          [value, key]
+        );
+      } else {
+        await runQuery(
+          'INSERT INTO settings (key, value) VALUES (?, ?)',
+          [key, value]
+        );
+      }
+    }
+
+    logger.info(`${Object.keys(settings).length} paramètres mis à jour`);
+    res.json({ message: 'Paramètres mis à jour avec succès' });
+  } catch (error) {
+    logger.error('Erreur lors de la mise à jour des paramètres:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+/**
  * GET /api/settings/:key
  * Récupérer un paramètre spécifique
  */

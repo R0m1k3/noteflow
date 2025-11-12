@@ -13,6 +13,10 @@ const { initDatabase } = require('./config/database');
 const app = express();
 const PORT = process.env.PORT || 2222;
 
+// Configurer Express pour faire confiance au proxy (nginx, etc.)
+// Nécessaire pour express-rate-limit et pour obtenir la vraie IP du client
+app.set('trust proxy', true);
+
 // Créer les dossiers nécessaires (silencieusement, ils peuvent déjà exister via les volumes Docker)
 const dataDir = path.join(__dirname, 'data');
 const uploadsDir = path.join(__dirname, 'public', 'uploads');
