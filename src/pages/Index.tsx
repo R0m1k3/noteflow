@@ -56,6 +56,7 @@ const Index = () => {
   const [loadingModels, setLoadingModels] = useState(false);
   const [currentDateTime, setCurrentDateTime] = useState(new Date());
   const [upcomingAlert, setUpcomingAlert] = useState<CalendarEvent | null>(null);
+  const [rssDisplayOffset, setRssDisplayOffset] = useState(0);
   const [calendarAuthStatus, setCalendarAuthStatus] = useState<{
     isAuthenticated: boolean;
     isExpired: boolean;
@@ -108,6 +109,19 @@ const Index = () => {
     const timer = setInterval(checkUpcomingEvents, 60000); // Check every minute
     return () => clearInterval(timer);
   }, [calendarEvents]);
+
+  // RSS articles rotation every 20 seconds
+  useEffect(() => {
+    if (rssArticles.length > 3) {
+      const timer = setInterval(() => {
+        setRssDisplayOffset(prev => {
+          const maxOffset = Math.max(0, rssArticles.length - 3);
+          return (prev + 3) % (maxOffset + 3);
+        });
+      }, 20000); // Rotate every 20 seconds
+      return () => clearInterval(timer);
+    }
+  }, [rssArticles.length]);
 
   useEffect(() => {
     const userFromAuth = AuthService.getUser();
@@ -728,7 +742,12 @@ const Index = () => {
                         >
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex-1 min-w-0">
-                              <h4 className="font-medium line-clamp-2 mb-1 text-sm">{event.title}</h4>
+                              <div className="flex items-center gap-2 mb-1">
+                                {isToday && (
+                                  <div className="h-2 w-2 rounded-full bg-blue-500 flex-shrink-0 animate-pulse" />
+                                )}
+                                <h4 className="font-medium line-clamp-2 text-sm">{event.title}</h4>
+                              </div>
                               <p className="text-xs text-muted-foreground">
                                 {isToday ? "Aujourd'hui" : startDate.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })} à {startDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
                               </p>
@@ -1171,79 +1190,78 @@ const Index = () => {
           <div className="space-y-6 h-fit sticky top-24">
           {/* Todos Box */}
           <Card className="shadow-lg">
-            <CardHeader className="pb-4">
+            <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-xl flex items-center gap-2">
-                  <CheckSquare className="h-6 w-6" />
+                  <CheckSquare className="h-5 w-5" />
                   Tâches
                 </CardTitle>
-                <Button size="lg" variant="outline" onClick={() => setAddTodoModal(true)} className="gap-2">
-                  <Plus className="h-5 w-5" />
-                  Ajouter
+                <Button size="sm" variant="outline" onClick={() => setAddTodoModal(true)}>
+                  <Plus className="h-4 w-4" />
                 </Button>
               </div>
             </CardHeader>
             <CardContent>
               <Tabs defaultValue="active" className="w-full">
-                <TabsList className="grid grid-cols-2 w-full">
-                  <TabsTrigger value="active">Actives ({todos.filter(t => !t.completed).length})</TabsTrigger>
-                  <TabsTrigger value="completed">Complétées ({todos.filter(t => t.completed).length})</TabsTrigger>
+                <TabsList className="grid grid-cols-2 w-full mb-3">
+                  <TabsTrigger value="active" className="text-xs">Actives ({todos.filter(t => !t.completed).length})</TabsTrigger>
+                  <TabsTrigger value="completed" className="text-xs">Complétées ({todos.filter(t => t.completed).length})</TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="active" className="mt-4">
-                  <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                <TabsContent value="active" className="mt-0">
+                  <div className="space-y-1.5 max-h-[350px] overflow-y-auto">
                     {todos.filter(t => !t.completed).length > 0 ? (
                       todos.filter(t => !t.completed).map(todo => (
-                        <div key={todo.id} className="flex items-center gap-3 p-3 border rounded-lg hover:bg-accent/50 transition-colors group">
+                        <div key={todo.id} className="flex items-center gap-2 p-2 border rounded hover:bg-accent/50 transition-colors group">
                           <Checkbox
                             checked={false}
                             onCheckedChange={() => todo.id && handleToggleTodo(todo.id)}
-                            className="h-5 w-5"
+                            className="h-4 w-4"
                           />
-                          <span className="text-base flex-1">
+                          <span className="text-sm flex-1 leading-snug">
                             {todo.text}
                           </span>
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="opacity-0 group-hover:opacity-100 transition-opacity"
+                            className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
                             onClick={() => todo.id && handleDeleteTodo(todo.id)}
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </div>
                       ))
                     ) : (
-                      <p className="text-center text-muted-foreground py-8">Aucune tâche active</p>
+                      <p className="text-center text-muted-foreground text-sm py-6">Aucune tâche active</p>
                     )}
                   </div>
                 </TabsContent>
 
-                <TabsContent value="completed" className="mt-4">
-                  <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                <TabsContent value="completed" className="mt-0">
+                  <div className="space-y-1.5 max-h-[350px] overflow-y-auto">
                     {todos.filter(t => t.completed).length > 0 ? (
                       todos.filter(t => t.completed).map(todo => (
-                        <div key={todo.id} className="flex items-center gap-3 p-3 border rounded-lg hover:bg-accent/50 transition-colors group">
+                        <div key={todo.id} className="flex items-center gap-2 p-2 border rounded hover:bg-accent/50 transition-colors group">
                           <Checkbox
                             checked={true}
                             onCheckedChange={() => todo.id && handleToggleTodo(todo.id)}
-                            className="h-5 w-5"
+                            className="h-4 w-4"
                           />
-                          <span className="text-base flex-1 line-through text-muted-foreground">
+                          <span className="text-sm flex-1 line-through text-muted-foreground leading-snug">
                             {todo.text}
                           </span>
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="opacity-0 group-hover:opacity-100 transition-opacity"
+                            className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
                             onClick={() => todo.id && handleDeleteTodo(todo.id)}
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </div>
                       ))
                     ) : (
-                      <p className="text-center text-muted-foreground py-8">Aucune tâche complétée</p>
+                      <p className="text-center text-muted-foreground text-sm py-6">Aucune tâche complétée</p>
                     )}
                   </div>
                 </TabsContent>
@@ -1253,58 +1271,70 @@ const Index = () => {
 
           {/* RSS Box */}
           <Card className="shadow-lg">
-            <CardHeader className="pb-4">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-xl flex items-center gap-2">
-                  <Rss className="h-6 w-6" />
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between gap-2">
+                <CardTitle className="text-xl flex items-center gap-2 flex-shrink-0">
+                  <Rss className="h-5 w-5" />
                   Flux RSS
                 </CardTitle>
-                <div className="flex gap-2">
-                  <Button size="lg" variant="outline" onClick={handleRefreshRss} className="gap-2">
-                    <RefreshCw className="h-5 w-5" />
-                    Actualiser
+                <div className="flex gap-1.5 flex-shrink-0">
+                  <Button size="sm" variant="outline" onClick={handleRefreshRss}>
+                    <RefreshCw className="h-4 w-4" />
                   </Button>
-                  <Button size="lg" variant="outline" onClick={() => setAddRssFeedModal(true)} className="gap-2">
-                    <Plus className="h-5 w-5" />
-                    Ajouter
+                  <Button size="sm" variant="outline" onClick={() => setAddRssFeedModal(true)}>
+                    <Plus className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3 max-h-[480px] overflow-y-auto">
+              <div className="space-y-2">
                 {rssArticles.length > 0 ? (
-                  rssArticles.map(article => (
+                  rssArticles.slice(rssDisplayOffset, rssDisplayOffset + 3).map(article => (
                     <div
                       key={article.id}
-                      className="p-3 border rounded-lg hover:bg-accent/50 transition-colors cursor-pointer"
+                      className="p-2.5 border rounded hover:bg-accent/50 transition-colors cursor-pointer"
                       onClick={() => article.link && window.open(article.link, '_blank')}
                     >
-                      <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start justify-between gap-2">
                         <div className="flex-1 min-w-0">
-                          <h4 className="font-medium line-clamp-2 mb-1">{article.title}</h4>
+                          <h4 className="font-medium text-sm line-clamp-2 mb-1">{article.title}</h4>
                           {article.description && (
-                            <p className="text-sm text-muted-foreground line-clamp-2">
+                            <p className="text-xs text-muted-foreground line-clamp-2">
                               {article.description.replace(/<[^>]*>/g, '')}
                             </p>
                           )}
                         </div>
-                        <ExternalLink className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-1" />
+                        <ExternalLink className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0 mt-0.5" />
                       </div>
                     </div>
                   ))
                 ) : (
-                  <p className="text-center text-muted-foreground py-8">
+                  <p className="text-center text-muted-foreground text-sm py-6">
                     Aucun article
                     <br />
                     <Button
                       variant="link"
-                      className="mt-2"
+                      className="mt-2 text-xs"
                       onClick={() => setAddRssFeedModal(true)}
                     >
                       Ajouter un flux RSS
                     </Button>
                   </p>
+                )}
+                {rssArticles.length > 3 && (
+                  <div className="flex justify-center pt-2">
+                    <div className="flex gap-1">
+                      {Array.from({ length: Math.ceil(rssArticles.length / 3) }).map((_, i) => (
+                        <div
+                          key={i}
+                          className={`h-1.5 w-1.5 rounded-full transition-colors ${
+                            i === Math.floor(rssDisplayOffset / 3) ? 'bg-primary' : 'bg-muted'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  </div>
                 )}
               </div>
             </CardContent>
