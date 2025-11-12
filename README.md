@@ -83,6 +83,24 @@ docker-compose up -d --build
 http://localhost:2222
 ```
 
+### Développement local
+
+Pour développer localement sans Docker :
+
+```bash
+# Installer les dépendances
+npm install
+
+# Lancer le serveur de développement (frontend)
+npm run dev
+
+# Lancer le serveur backend
+npm run server:dev
+
+# Vérifier les types TypeScript (optionnel)
+npm run typecheck
+```
+
 ### Identifiants par défaut
 ```
 Username: admin
@@ -102,6 +120,9 @@ docker-compose down
 
 # Rebuild
 docker-compose build
+
+# Rebuild et redémarrer (après modifications)
+docker-compose up -d --build
 
 # Logs
 docker-compose logs -f
@@ -207,6 +228,23 @@ DELETE /api/todos/:id
 - SQL prepared statements
 
 ## 🔧 Dépannage
+
+### Erreur "npm run build failed: exit code 2" lors du Docker build
+
+Cette erreur survient lorsque la compilation TypeScript échoue pendant la construction de l'image Docker.
+
+**Solution** :
+Le build a été modifié pour utiliser directement Vite (qui gère TypeScript de manière plus permissive). Si vous rencontrez encore ce problème :
+```bash
+# Reconstruire l'image Docker
+docker-compose build --no-cache
+docker-compose up -d
+```
+
+Pour vérifier les erreurs TypeScript en développement :
+```bash
+npm run typecheck
+```
 
 ### Erreur "network nginx_default declared as external, but could not be found"
 
