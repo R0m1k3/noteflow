@@ -35,8 +35,10 @@ RUN apk add --no-cache sqlite
 # Copier les fichiers de dépendances
 COPY package*.json ./
 
-# Installer uniquement les dépendances de production pour le serveur
-RUN npm ci --only=production
+# Installer les dépendances backend
+# Note: On installe toutes les dépendances car package.json contient aussi les deps frontend
+# mais seules les deps backend sont utilisées en runtime (express, sqlite3, bcrypt, etc.)
+RUN npm ci
 
 # Copier le code du serveur
 COPY server.js ./
