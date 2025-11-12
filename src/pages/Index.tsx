@@ -79,6 +79,7 @@ const Index = () => {
   const [addNoteTodoModal, setAddNoteTodoModal] = useState(false);
   const [addTagModal, setAddTagModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [addEventModal, setAddEventModal] = useState(false);
 
   // Debounce timer for auto-save
   const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -712,17 +713,22 @@ const Index = () => {
                     <CalendarIcon className="h-6 w-6" />
                     Rendez-vous
                   </CardTitle>
-                  <Button size="sm" variant="outline" onClick={async () => {
-                    try {
-                      const result = await CalendarService.sync();
-                      showSuccess(`${result.syncedCount} événements synchronisés`);
-                      await loadCalendarEvents();
-                    } catch (error) {
-                      showError("Erreur lors de la synchronisation");
-                    }
-                  }} className="gap-1">
-                    <RefreshCw className="h-4 w-4" />
-                  </Button>
+                  <div className="flex gap-1.5">
+                    <Button size="sm" variant="outline" onClick={() => setAddEventModal(true)}>
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={async () => {
+                      try {
+                        const result = await CalendarService.sync();
+                        showSuccess(`${result.syncedCount} événements synchronisés`);
+                        await loadCalendarEvents();
+                      } catch (error) {
+                        showError("Erreur lors de la synchronisation");
+                      }
+                    }}>
+                      <RefreshCw className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
@@ -1932,6 +1938,178 @@ const Index = () => {
         onConfirm={confirmAddTag}
         confirmText="Ajouter"
       />
+
+      {/* Add Event Modal */}
+      <Dialog open={addEventModal} onOpenChange={setAddEventModal}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Ajouter un rendez-vous</DialogTitle>
+            <DialogDescription>
+              Créer un événement dans votre Google Calendar
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.currentTarget);
+
+            try {
+              const eventData = {
+                title: formData.get('title') as string,
+                description: formData.get('description') as string || undefined,
+                startDateTime: new Date(formData.get('startDateTime') as string).toISOString(),
+                endDateTime: new Date(formData.get('endDateTime') as string).toISOString(),
+                location: formData.get('location') as string || undefined,
+                attendees: (formData.get('attendees') as string || '').split(',').map(e => e.trim()).filter(e => e),
+                reminders: formData.get('reminderMinutes') ? [
+                  { method: 'popup', minutes: parseInt(formData.get('reminderMinutes') as string) }
+                ] : undefined,
+                recurrence: formData.get('recurrence') ? [formData.get('recurrence') as string] : undefined,
+                visibility: formData.get('visibility') as string || 'default',
+                colorId: formData.get('colorId') as string || undefined
+              };
+
+              await CalendarService.createEvent(eventData);
+              showSuccess('Événement créé avec succès');
+              setAddEventModal(false);
+              await loadCalendarEvents();
+            } catch (error: any) {
+              showError(error.response?.data?.error || 'Erreur lors de la création de l\'événement');
+            }
+          }} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="title">Titre *</Label>
+              <Input id="title" name="title" required placeholder="Réunion d'équipe" />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="description">Description</Label>
+              <textarea
+                id="description"
+                name="description"
+                className="w-full min-h-[80px] px-3 py-2 border border-input rounded-md bg-background"
+                placeholder="Détails de l'événement..."
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="startDateTime">Début *</Label>
+                <Input
+                  id="startDateTime"
+                  name="startDateTime"
+                  type="datetime-local"
+                  required
+                  defaultValue={new Date(Date.now() + 60*60*1000).toISOString().slice(0, 16)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="endDateTime">Fin *</Label>
+                <Input
+                  id="endDateTime"
+                  name="endDateTime"
+                  type="datetime-local"
+                  required
+                  defaultValue={new Date(Date.now() + 2*60*60*1000).toISOString().slice(0, 16)}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="location">Lieu</Label>
+              <Input id="location" name="location" placeholder="Salle de réunion A" />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="attendees">Participants (emails séparés par des virgules)</Label>
+              <Input
+                id="attendees"
+                name="attendees"
+                type="text"
+                placeholder="email1@example.com, email2@example.com"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="reminderMinutes">Rappel (minutes avant)</Label>
+              <Select name="reminderMinutes" defaultValue="30">
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionner un rappel" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="0">Aucun</SelectItem>
+                  <SelectItem value="10">10 minutes</SelectItem>
+                  <SelectItem value="30">30 minutes</SelectItem>
+                  <SelectItem value="60">1 heure</SelectItem>
+                  <SelectItem value="1440">1 jour</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="recurrence">Récurrence</Label>
+              <Select name="recurrence" defaultValue="">
+                <SelectTrigger>
+                  <SelectValue placeholder="Pas de récurrence" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Pas de récurrence</SelectItem>
+                  <SelectItem value="RRULE:FREQ=DAILY">Tous les jours</SelectItem>
+                  <SelectItem value="RRULE:FREQ=WEEKLY">Toutes les semaines</SelectItem>
+                  <SelectItem value="RRULE:FREQ=MONTHLY">Tous les mois</SelectItem>
+                  <SelectItem value="RRULE:FREQ=YEARLY">Tous les ans</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="visibility">Visibilité</Label>
+              <Select name="visibility" defaultValue="default">
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionner la visibilité" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="default">Par défaut</SelectItem>
+                  <SelectItem value="public">Public</SelectItem>
+                  <SelectItem value="private">Privé</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="colorId">Couleur</Label>
+              <Select name="colorId" defaultValue="">
+                <SelectTrigger>
+                  <SelectValue placeholder="Couleur par défaut" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Par défaut</SelectItem>
+                  <SelectItem value="1">Lavande</SelectItem>
+                  <SelectItem value="2">Sauge</SelectItem>
+                  <SelectItem value="3">Raisin</SelectItem>
+                  <SelectItem value="4">Flamant rose</SelectItem>
+                  <SelectItem value="5">Banane</SelectItem>
+                  <SelectItem value="6">Mandarine</SelectItem>
+                  <SelectItem value="7">Paon</SelectItem>
+                  <SelectItem value="8">Graphite</SelectItem>
+                  <SelectItem value="9">Myrtille</SelectItem>
+                  <SelectItem value="10">Basilic</SelectItem>
+                  <SelectItem value="11">Tomate</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-4">
+              <Button type="button" variant="outline" onClick={() => setAddEventModal(false)}>
+                Annuler
+              </Button>
+              <Button type="submit">
+                Créer l'événement
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <div className="fixed bottom-4 right-4">
         <MadeWithDyad />

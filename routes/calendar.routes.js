@@ -6,8 +6,8 @@ const { getAll, getOne, runQuery } = require('../config/database');
 const { authenticateToken, requireAdmin } = require('../middleware/auth');
 const logger = require('../config/logger');
 
-// Scopes Google Calendar requis
-const SCOPES = ['https://www.googleapis.com/auth/calendar.readonly'];
+// Scopes Google Calendar requis (lecture ET écriture)
+const SCOPES = ['https://www.googleapis.com/auth/calendar'];
 
 /**
  * Types d'authentification supportés
@@ -493,6 +493,116 @@ router.post('/disconnect', authenticateToken, async (req, res) => {
   } catch (error) {
     logger.error('Erreur lors de la déconnexion:', error);
     res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+/**
+ * POST /api/calendar/events
+ * Créer un événement dans Google Calendar
+ */
+router.post('/events', authenticateToken, async (req, res) => {
+  try {
+    const {
+      title,
+      description,
+      startDateTime,
+      endDateTime,
+      location,
+      attendees,
+      reminders,
+      recurrence,
+      visibility,
+      colorId
+    } = req.body;
+
+    // Validation
+    if (!title || !startDateTime || !endDateTime) {
+      return res.status(400).json({ error: 'Titre, date de début et date de fin requis' });
+    }
+
+    const calendar = await getCalendarClient(req.user.id);
+
+    // Préparer l'événement
+    const event = {
+      summary: title,
+      location: location || undefined,
+      description: description || undefined,
+      start: {
+        dateTime: startDateTime,
+        timeZone: 'Europe/Paris',
+      },
+      end: {
+        dateTime: endDateTime,
+        timeZone: 'Europe/Paris',
+      },
+      attendees: attendees && attendees.length > 0 ?
+        attendees.map(email => ({ email })) : undefined,
+      reminders: reminders ? {
+        useDefault: false,
+        overrides: reminders
+      } : undefined,
+      recurrence: recurrence || undefined,
+      visibility: visibility || 'default',
+      colorId: colorId || undefined
+    };
+
+    // Récupérer le Calendar ID depuis les settings
+    const calendarIdSetting = await getOne("SELECT value FROM settings WHERE key = 'google_calendar_id'");
+    const calendarId = calendarIdSetting?.value || 'primary';
+
+    // Créer l'événement dans Google Calendar
+    const response = await calendar.events.insert({
+      calendarId: calendarId,
+      resource: event,
+      sendUpdates: attendees && attendees.length > 0 ? 'all' : 'none'
+    });
+
+    logger.info(`Événement créé: ${response.data.id} pour l'utilisateur ${req.user.username}`);
+
+    // Synchroniser après création pour mettre à jour la base locale
+    try {
+      const events = await calendar.events.list({
+        calendarId: calendarId,
+        timeMin: new Date().toISOString(),
+        maxResults: 10,
+        singleEvents: true,
+        orderBy: 'startTime'
+      });
+
+      if (events.data.items && events.data.items.length > 0) {
+        for (const item of events.data.items) {
+          await runQuery(`
+            INSERT OR REPLACE INTO calendar_events
+            (google_event_id, user_id, title, description, start_time, end_time, location, html_link, synced_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+          `, [
+            item.id,
+            req.user.id,
+            item.summary || 'Sans titre',
+            item.description || null,
+            item.start.dateTime || item.start.date,
+            item.end.dateTime || item.end.date,
+            item.location || null,
+            item.htmlLink || null
+          ]);
+        }
+      }
+    } catch (syncError) {
+      logger.warn('Erreur lors de la synchronisation post-création:', syncError);
+    }
+
+    res.json({
+      message: 'Événement créé avec succès',
+      eventId: response.data.id,
+      htmlLink: response.data.htmlLink
+    });
+
+  } catch (error) {
+    logger.error('Erreur lors de la création de l\'événement:', error);
+    res.status(500).json({
+      error: 'Erreur lors de la création de l\'événement',
+      details: error.message
+    });
   }
 });
 
