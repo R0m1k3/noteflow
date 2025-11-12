@@ -47,16 +47,22 @@ Application web moderne de gestion de notes et de tâches, Dockerisée, avec aut
 
 ### Prérequis
 - Docker et Docker Compose installés
+- Réseau Docker `nginx_default` (voir section ci-dessous)
 
 ### Installation
 
-1. **Cloner le repository**
+1. **Créer le réseau Docker externe**
+```bash
+docker network create nginx_default
+```
+
+2. **Cloner le repository**
 ```bash
 git clone <repository-url>
 cd noteflow
 ```
 
-2. **Configurer les variables d'environnement**
+3. **Configurer les variables d'environnement**
 ```bash
 cp .env.example .env
 ```
@@ -73,12 +79,12 @@ NODE_ENV=production
 node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"
 ```
 
-3. **Builder et démarrer l'application**
+4. **Builder et démarrer l'application**
 ```bash
 docker-compose up -d --build
 ```
 
-4. **Accéder à l'application**
+5. **Accéder à l'application**
 ```
 http://localhost:2222
 ```
@@ -146,15 +152,24 @@ docker-compose down -v
 
 ## 🌐 Réseau Docker
 
-L'application crée automatiquement un réseau Docker `nginx_default`. Si vous utilisez déjà ce réseau avec d'autres services (ex: Nginx), ils pourront communiquer automatiquement.
+L'application utilise un réseau Docker externe `nginx_default` qui doit être créé avant le déploiement.
 
-### Utilisation avec Nginx existant
-
-Si vous avez déjà un container Nginx dans le réseau `nginx_default`, vous pouvez y connecter votre Nginx :
+### Créer le réseau (première fois uniquement)
 
 ```bash
-# Connecter un container Nginx existant au réseau
-docker network connect nginx_default <nginx-container-name>
+docker network create nginx_default
+```
+
+### Utilisation avec Nginx ou autres services
+
+Tous les services connectés au réseau `nginx_default` peuvent communiquer entre eux :
+
+```bash
+# Connecter d'autres containers au réseau
+docker network connect nginx_default <container-name>
+
+# Lister les containers connectés au réseau
+docker network inspect nginx_default
 ```
 
 ## ⚙️ Configuration Nginx
@@ -251,9 +266,29 @@ npm run typecheck
 Cette erreur survient lors du déploiement si le réseau Docker externe n'existe pas.
 
 **Solution** :
-Le réseau est maintenant créé automatiquement par Docker Compose. Si vous rencontrez encore ce problème :
+Créez le réseau Docker externe avant de démarrer l'application :
 ```bash
+docker network create nginx_default
+docker-compose up -d --build
+```
+
+### Erreur "network nginx_default has incorrect label"
+
+Cette erreur survient si le réseau existe déjà avec une configuration incompatible (par exemple créé par un autre docker-compose).
+
+**Solution** :
+Supprimez le réseau existant et recréez-le correctement :
+```bash
+# Arrêter tous les containers qui utilisent le réseau
 docker-compose down
+
+# Supprimer le réseau existant
+docker network rm nginx_default
+
+# Recréer le réseau
+docker network create nginx_default
+
+# Redémarrer l'application
 docker-compose up -d --build
 ```
 
