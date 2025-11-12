@@ -65,8 +65,10 @@ const authLimiter = rateLimit({
 app.use('/api/auth', authLimiter);
 
 // Servir les fichiers statiques
-app.use(express.static(path.join(__dirname, 'public')));
+// Servir les uploads depuis public/uploads
 app.use('/uploads', express.static(uploadsDir));
+// Servir l'application React depuis dist/
+app.use(express.static(path.join(__dirname, 'dist')));
 
 // Healthcheck endpoint pour Docker
 app.get('/health', (req, res) => {
@@ -94,7 +96,7 @@ app.get('*', (req, res) => {
   if (req.path.startsWith('/api/')) {
     return res.status(404).json({ error: 'Endpoint non trouvé' });
   }
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
 // Gestionnaire d'erreurs global

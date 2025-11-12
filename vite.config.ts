@@ -8,6 +8,10 @@ export default defineConfig(() => ({
     host: "::",
     port: 2222,
   },
+  build: {
+    outDir: "dist",
+    emptyOutDir: true,
+  },
   plugins: [dyadComponentTagger(), react()],
   resolve: {
     alias: {

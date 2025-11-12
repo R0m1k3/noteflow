@@ -1,4 +1,29 @@
 # Image de base Node.js 20 Alpine pour optimiser la taille
+FROM node:20-alpine AS builder
+
+# Définir le répertoire de travail
+WORKDIR /app
+
+# Copier les fichiers de dépendances
+COPY package*.json ./
+COPY tsconfig*.json ./
+COPY vite.config.ts ./
+COPY components.json ./
+COPY postcss.config.js ./
+COPY tailwind.config.* ./
+COPY eslint.config.js ./
+
+# Installer TOUTES les dépendances (dev + prod)
+RUN npm ci
+
+# Copier le code source
+COPY index.html ./
+COPY src ./src
+
+# Construire l'application React
+RUN npm run build
+
+# ========== Image de production ==========
 FROM node:20-alpine
 
 # Définir le répertoire de travail
@@ -10,11 +35,19 @@ RUN apk add --no-cache sqlite
 # Copier les fichiers de dépendances
 COPY package*.json ./
 
-# Installer les dépendances de production uniquement
+# Installer uniquement les dépendances de production pour le serveur
 RUN npm ci --only=production
 
-# Copier le code source
-COPY . .
+# Copier le code du serveur
+COPY server.js ./
+COPY config ./config
+COPY routes ./routes
+COPY middleware ./middleware
+COPY services ./services
+COPY migrations ./migrations
+
+# Copier le build de l'application React depuis le builder
+COPY --from=builder /app/dist ./dist
 
 # Créer les dossiers nécessaires et définir les permissions
 RUN mkdir -p /app/data /app/public/uploads && \
