@@ -5,6 +5,9 @@ export interface Settings {
   ai_model?: string;
   rss_refresh_interval?: number;
   theme?: 'light' | 'dark' | 'auto';
+  google_client_id?: string;
+  google_client_secret?: string;
+  // Legacy fields (kept for backward compatibility)
   google_calendar_api_key?: string;
   google_calendar_id?: string;
 }

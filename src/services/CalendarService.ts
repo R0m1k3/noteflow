@@ -38,6 +38,40 @@ class CalendarService {
   }
 
   /**
+   * Obtenir l'URL d'authentification OAuth Google
+   */
+  async getAuthUrl(): Promise<string> {
+    const response = await axios.get(`${this.baseURL}/auth-url`, this.getAuthHeader());
+    return response.data.authUrl;
+  }
+
+  /**
+   * Vérifier le statut d'authentification Google
+   */
+  async getAuthStatus(): Promise<{ isAuthenticated: boolean; isExpired: boolean; needsReauth: boolean }> {
+    try {
+      const response = await axios.get(`${this.baseURL}/auth-status`, this.getAuthHeader());
+      return response.data;
+    } catch (error) {
+      console.error("Erreur lors de la vérification du statut OAuth:", error);
+      return { isAuthenticated: false, isExpired: false, needsReauth: true };
+    }
+  }
+
+  /**
+   * Déconnecter Google Calendar
+   */
+  async disconnect(): Promise<boolean> {
+    try {
+      await axios.post(`${this.baseURL}/disconnect`, {}, this.getAuthHeader());
+      return true;
+    } catch (error) {
+      console.error("Erreur lors de la déconnexion:", error);
+      return false;
+    }
+  }
+
+  /**
    * Synchroniser avec Google Calendar
    */
   async sync(): Promise<{ syncedCount: number; events: number }> {

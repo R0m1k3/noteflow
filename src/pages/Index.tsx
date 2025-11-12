@@ -54,6 +54,11 @@ const Index = () => {
   const [noteTags, setNoteTags] = useState<Tag[]>([]);
   const [openRouterModels, setOpenRouterModels] = useState<OpenRouterModel[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
+  const [calendarAuthStatus, setCalendarAuthStatus] = useState({
+    isAuthenticated: false,
+    isExpired: false,
+    needsReauth: true
+  });
   const navigate = useNavigate();
 
   // Modal states
@@ -188,6 +193,75 @@ const Index = () => {
       loadOpenRouterModels();
     }
   }, [showAdmin, adminTab, settings.openrouter_api_key]);
+
+  useEffect(() => {
+    if (showAdmin && adminTab === 'calendar') {
+      checkCalendarAuthStatus();
+    }
+  }, [showAdmin, adminTab]);
+
+  const checkCalendarAuthStatus = async () => {
+    try {
+      const status = await CalendarService.getAuthStatus();
+      setCalendarAuthStatus(status);
+    } catch (error) {
+      console.error('Erreur lors de la vérification du statut OAuth:', error);
+    }
+  };
+
+  const handleGoogleConnect = async () => {
+    try {
+      const authUrl = await CalendarService.getAuthUrl();
+
+      // Ouvrir une popup pour l'authentification OAuth
+      const width = 600;
+      const height = 700;
+      const left = window.screen.width / 2 - width / 2;
+      const top = window.screen.height / 2 - height / 2;
+
+      const popup = window.open(
+        authUrl,
+        'GoogleAuth',
+        `width=${width},height=${height},top=${top},left=${left}`
+      );
+
+      // Écouter le message de la popup
+      const handleMessage = (event: MessageEvent) => {
+        if (event.data.type === 'google-auth-success') {
+          showSuccess('Authentification Google réussie');
+          checkCalendarAuthStatus();
+          window.removeEventListener('message', handleMessage);
+        } else if (event.data.type === 'google-auth-error') {
+          showError(`Erreur d'authentification: ${event.data.error}`);
+          window.removeEventListener('message', handleMessage);
+        }
+      };
+
+      window.addEventListener('message', handleMessage);
+
+      // Fermer le listener si la popup est fermée manuellement
+      const checkPopup = setInterval(() => {
+        if (popup && popup.closed) {
+          clearInterval(checkPopup);
+          window.removeEventListener('message', handleMessage);
+        }
+      }, 1000);
+    } catch (error) {
+      showError('Erreur lors de la génération de l\'URL d\'authentification');
+    }
+  };
+
+  const handleGoogleDisconnect = async () => {
+    try {
+      const success = await CalendarService.disconnect();
+      if (success) {
+        showSuccess('Déconnecté de Google Calendar');
+        checkCalendarAuthStatus();
+      }
+    } catch (error) {
+      showError('Erreur lors de la déconnexion');
+    }
+  };
 
   const handleLogout = () => {
     AuthService.logout();
@@ -1271,64 +1345,106 @@ const Index = () => {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <CalendarIcon className="h-5 w-5" />
-                    Configuration Google Calendar
+                    Configuration Google Calendar OAuth 2.0
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="calendar-api-key">Clé API Google Calendar</Label>
+                    <Label htmlFor="google-client-id">Client ID Google</Label>
                     <Input
-                      id="calendar-api-key"
-                      type="password"
-                      placeholder="AIza..."
-                      value={settings.google_calendar_api_key || ''}
-                      onChange={(e) => setSettings({ ...settings, google_calendar_api_key: e.target.value })}
+                      id="google-client-id"
+                      type="text"
+                      placeholder="123456789-abcdef.apps.googleusercontent.com"
+                      value={settings.google_client_id || ''}
+                      onChange={(e) => setSettings({ ...settings, google_client_id: e.target.value })}
                     />
-                    <p className="text-sm text-muted-foreground">
-                      Créez une clé API sur{' '}
-                      <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                        Google Cloud Console
-                      </a>
-                      {' '}et activez l'API Google Calendar
-                    </p>
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="calendar-id">ID du calendrier</Label>
+                    <Label htmlFor="google-client-secret">Client Secret Google</Label>
                     <Input
-                      id="calendar-id"
-                      placeholder="votre-email@gmail.com ou id-calendrier"
-                      value={settings.google_calendar_id || ''}
-                      onChange={(e) => setSettings({ ...settings, google_calendar_id: e.target.value })}
+                      id="google-client-secret"
+                      type="password"
+                      placeholder="GOCSPX-..."
+                      value={settings.google_client_secret || ''}
+                      onChange={(e) => setSettings({ ...settings, google_client_secret: e.target.value })}
                     />
                     <p className="text-sm text-muted-foreground">
-                      Trouvez l'ID du calendrier dans les paramètres de votre calendrier Google.<br />
-                      Pour votre calendrier principal, utilisez votre adresse email.
+                      Créez un projet OAuth 2.0 sur{' '}
+                      <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                        Google Cloud Console
+                      </a>
+                      {' '}et activez l'API Google Calendar.
+                      <br />
+                      <strong>URI de redirection autorisée:</strong> {window.location.origin}/api/calendar/oauth-callback
                     </p>
                   </div>
 
                   <div className="flex gap-2">
                     <Button onClick={handleSaveSettings} className="flex items-center gap-2">
-                      <CalendarIcon className="h-4 w-4" />
+                      <Key className="h-4 w-4" />
                       Enregistrer
                     </Button>
-                    <Button
-                      variant="outline"
-                      onClick={async () => {
-                        try {
-                          const result = await CalendarService.sync();
-                          showSuccess(`${result.syncedCount} événements synchronisés`);
-                          await loadCalendarEvents();
-                        } catch (error) {
-                          showError("Erreur lors de la synchronisation. Vérifiez votre configuration.");
-                        }
-                      }}
-                      className="flex items-center gap-2"
-                    >
-                      <RefreshCw className="h-4 w-4" />
-                      Tester la synchronisation
-                    </Button>
                   </div>
+
+                  {settings.google_client_id && settings.google_client_secret && (
+                    <>
+                      <div className="border-t pt-4">
+                        <h3 className="font-semibold mb-2">Statut de connexion</h3>
+                        {calendarAuthStatus.isAuthenticated && !calendarAuthStatus.isExpired ? (
+                          <div className="flex items-center gap-2 text-green-600">
+                            <div className="h-2 w-2 rounded-full bg-green-600"></div>
+                            <span>Connecté à Google Calendar</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 text-yellow-600">
+                            <div className="h-2 w-2 rounded-full bg-yellow-600"></div>
+                            <span>Non connecté</span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex gap-2">
+                        {calendarAuthStatus.needsReauth ? (
+                          <Button onClick={handleGoogleConnect} className="flex items-center gap-2">
+                            <CalendarIcon className="h-4 w-4" />
+                            Se connecter avec Google
+                          </Button>
+                        ) : (
+                          <>
+                            <Button
+                              onClick={async () => {
+                                try {
+                                  const result = await CalendarService.sync();
+                                  showSuccess(`${result.syncedCount} événements synchronisés`);
+                                  await loadCalendarEvents();
+                                } catch (error: any) {
+                                  if (error.response?.data?.needsReauth) {
+                                    showError("Session expirée. Veuillez vous reconnecter.");
+                                    checkCalendarAuthStatus();
+                                  } else {
+                                    showError("Erreur lors de la synchronisation.");
+                                  }
+                                }
+                              }}
+                              className="flex items-center gap-2"
+                            >
+                              <RefreshCw className="h-4 w-4" />
+                              Synchroniser
+                            </Button>
+                            <Button
+                              variant="outline"
+                              onClick={handleGoogleDisconnect}
+                              className="flex items-center gap-2"
+                            >
+                              <X className="h-4 w-4" />
+                              Déconnecter
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
