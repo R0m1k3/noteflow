@@ -223,7 +223,7 @@ const Index = () => {
   };
 
   const loadOpenRouterModels = async () => {
-    if (user?.is_admin && settings.openrouter_api_key) {
+    if (settings.openrouter_api_key) {
       setLoadingModels(true);
       try {
         const models = await OpenRouterService.getModels();
@@ -527,6 +527,13 @@ const Index = () => {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages]);
+
+  // Load models when chatbox opens
+  useEffect(() => {
+    if (chatOpen && openRouterModels.length === 0) {
+      loadOpenRouterModels();
+    }
+  }, [chatOpen]);
 
   // Set default model when models are loaded
   useEffect(() => {
@@ -2329,9 +2336,11 @@ const Index = () => {
                 value={selectedModel}
                 onChange={(e) => setSelectedModel(e.target.value)}
                 className="w-full text-xs px-2 py-1.5 border border-input rounded-md bg-background"
-                disabled={chatLoading}
+                disabled={chatLoading || loadingModels}
               >
-                {openRouterModels.length === 0 ? (
+                {loadingModels ? (
+                  <option value="">Chargement des modèles...</option>
+                ) : openRouterModels.length === 0 ? (
                   <option value="">Aucun modèle disponible</option>
                 ) : (
                   openRouterModels.map(model => (
