@@ -1375,9 +1375,21 @@ const Index = () => {
                         Google Cloud Console
                       </a>
                       {' '}et activez l'API Google Calendar.
-                      <br />
-                      <strong>URI de redirection autorisée:</strong> {window.location.origin}/api/calendar/oauth-callback
                     </p>
+                    <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                      <p className="text-sm font-semibold text-yellow-900 dark:text-yellow-200 mb-1">
+                        ⚠️ IMPORTANT : URI de redirection autorisée
+                      </p>
+                      <p className="text-xs text-yellow-800 dark:text-yellow-300 mb-2">
+                        Ajoutez cette URL exacte dans la console Google Cloud (OAuth 2.0 Client IDs → URIs de redirection autorisées) :
+                      </p>
+                      <code className="block p-2 bg-white dark:bg-gray-800 border border-yellow-300 dark:border-yellow-700 rounded text-xs font-mono break-all">
+                        {window.location.origin}/api/calendar/oauth-callback
+                      </code>
+                      <p className="text-xs text-yellow-800 dark:text-yellow-300 mt-2">
+                        💡 Si vous utilisez un domaine différent, créez un fichier .env avec APP_URL=https://votre-domaine.com
+                      </p>
+                    </div>
                   </div>
 
                   <div className="flex gap-2">

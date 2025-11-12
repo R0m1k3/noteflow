@@ -14,8 +14,9 @@ const SCOPES = ['https://www.googleapis.com/auth/calendar.readonly'];
 
 /**
  * Créer un client OAuth2
+ * @param {string} [customRedirectUri] - URI de redirection personnalisée (optionnel)
  */
-async function getOAuth2Client() {
+async function getOAuth2Client(customRedirectUri = null) {
   const clientId = await getOne("SELECT value FROM settings WHERE key = 'google_client_id'");
   const clientSecret = await getOne("SELECT value FROM settings WHERE key = 'google_client_secret'");
 
@@ -23,7 +24,9 @@ async function getOAuth2Client() {
     throw new Error('Client ID et Client Secret non configurés');
   }
 
-  const redirectUri = `${process.env.APP_URL || 'http://localhost:2222'}/api/calendar/oauth-callback`;
+  // Utiliser l'URI personnalisée si fournie, sinon utiliser APP_URL ou localhost
+  const redirectUri = customRedirectUri ||
+    `${process.env.APP_URL || 'http://localhost:2222'}/api/calendar/oauth-callback`;
 
   return new google.auth.OAuth2(
     clientId.value,
@@ -38,12 +41,14 @@ async function getOAuth2Client() {
  */
 router.get('/auth-url', requireAdmin, async (req, res) => {
   try {
-    const oauth2Client = await getOAuth2Client();
+    // Permettre de passer une URL de redirection personnalisée via query param
+    const customRedirectUri = req.query.redirect_uri;
+    const oauth2Client = await getOAuth2Client(customRedirectUri);
 
     const authUrl = oauth2Client.generateAuthUrl({
       access_type: 'offline',
       scope: SCOPES,
-      prompt: 'consent', // Force le prompt pour obtenir refresh_token
+      prompt: 'select_account consent', // Force le choix du compte ET le prompt pour obtenir refresh_token
       state: req.user.id.toString() // Pour identifier l'utilisateur au retour
     });
 
