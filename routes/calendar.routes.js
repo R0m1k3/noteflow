@@ -114,6 +114,21 @@ async function getCalendarClient(userId = null) {
 }
 
 /**
+ * GET /api/calendar/force-oauth2 (TEMPORAIRE - DEBUG)
+ * Forcer le type d'authentification à OAuth2
+ */
+router.get('/force-oauth2', requireAdmin, async (req, res) => {
+  try {
+    await runQuery("INSERT OR REPLACE INTO settings (key, value) VALUES ('google_auth_type', 'oauth2')", []);
+    const check = await getOne("SELECT value FROM settings WHERE key = 'google_auth_type'");
+    res.json({ success: true, auth_type: check?.value });
+  } catch (error) {
+    logger.error('Erreur:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * GET /api/calendar/auth-url
  * Générer l'URL d'authentification OAuth
  */
