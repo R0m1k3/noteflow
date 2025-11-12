@@ -5,7 +5,8 @@
   "main": "server.js",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "vite build",
+    "typecheck": "tsc -b",
     "preview": "vite preview",
     "start": "node server.js",
     "server:dev": "nodemon server.js",
