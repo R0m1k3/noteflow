@@ -179,6 +179,23 @@ function initDatabase() {
           )
         `);
 
+        // Table google_oauth_tokens (tokens OAuth pour Google Calendar)
+        db.run(`
+          CREATE TABLE IF NOT EXISTS google_oauth_tokens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            access_token TEXT NOT NULL,
+            refresh_token TEXT,
+            token_type TEXT DEFAULT 'Bearer',
+            expiry_date INTEGER,
+            scope TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            UNIQUE(user_id)
+          )
+        `);
+
         // Créer les index pour la performance
         db.run('CREATE INDEX IF NOT EXISTS idx_notes_user ON notes(user_id)');
         db.run('CREATE INDEX IF NOT EXISTS idx_note_todos ON note_todos(note_id)');

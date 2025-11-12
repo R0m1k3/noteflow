@@ -1,13 +1,216 @@
-// Routes pour Google Calendar
+// Routes pour Google Calendar avec OAuth 2.0
 const express = require('express');
 const router = express.Router();
 const { google } = require('googleapis');
 const { getAll, getOne, runQuery } = require('../config/database');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken, requireAdmin } = require('../middleware/auth');
 const logger = require('../config/logger');
 
 // Toutes les routes nécessitent authentification
 router.use(authenticateToken);
+
+// Scopes Google Calendar requis
+const SCOPES = ['https://www.googleapis.com/auth/calendar.readonly'];
+
+/**
+ * Créer un client OAuth2
+ */
+async function getOAuth2Client() {
+  const clientId = await getOne("SELECT value FROM settings WHERE key = 'google_client_id'");
+  const clientSecret = await getOne("SELECT value FROM settings WHERE key = 'google_client_secret'");
+
+  if (!clientId || !clientId.value || !clientSecret || !clientSecret.value) {
+    throw new Error('Client ID et Client Secret non configurés');
+  }
+
+  const redirectUri = `${process.env.APP_URL || 'http://localhost:2222'}/api/calendar/oauth-callback`;
+
+  return new google.auth.OAuth2(
+    clientId.value,
+    clientSecret.value,
+    redirectUri
+  );
+}
+
+/**
+ * GET /api/calendar/auth-url
+ * Générer l'URL d'authentification OAuth
+ */
+router.get('/auth-url', requireAdmin, async (req, res) => {
+  try {
+    const oauth2Client = await getOAuth2Client();
+
+    const authUrl = oauth2Client.generateAuthUrl({
+      access_type: 'offline',
+      scope: SCOPES,
+      prompt: 'consent', // Force le prompt pour obtenir refresh_token
+      state: req.user.id.toString() // Pour identifier l'utilisateur au retour
+    });
+
+    res.json({ authUrl });
+  } catch (error) {
+    logger.error('Erreur lors de la génération de l\'URL OAuth:', error);
+    res.status(500).json({
+      error: 'Erreur lors de la génération de l\'URL',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * GET /api/calendar/oauth-callback
+ * Callback OAuth pour récupérer les tokens
+ */
+router.get('/oauth-callback', async (req, res) => {
+  try {
+    const { code, state } = req.query;
+
+    if (!code) {
+      return res.status(400).send('Code d\'autorisation manquant');
+    }
+
+    const userId = parseInt(state);
+    if (!userId) {
+      return res.status(400).send('État utilisateur invalide');
+    }
+
+    const oauth2Client = await getOAuth2Client();
+
+    // Échanger le code contre des tokens
+    const { tokens } = await oauth2Client.getToken(code);
+
+    // Sauvegarder les tokens dans la base de données
+    const existing = await getOne('SELECT id FROM google_oauth_tokens WHERE user_id = ?', [userId]);
+
+    if (existing) {
+      await runQuery(`
+        UPDATE google_oauth_tokens
+        SET access_token = ?, refresh_token = COALESCE(?, refresh_token),
+            token_type = ?, expiry_date = ?, scope = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE user_id = ?
+      `, [
+        tokens.access_token,
+        tokens.refresh_token,
+        tokens.token_type || 'Bearer',
+        tokens.expiry_date || null,
+        tokens.scope || SCOPES.join(' '),
+        userId
+      ]);
+    } else {
+      await runQuery(`
+        INSERT INTO google_oauth_tokens
+        (user_id, access_token, refresh_token, token_type, expiry_date, scope)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `, [
+        userId,
+        tokens.access_token,
+        tokens.refresh_token || null,
+        tokens.token_type || 'Bearer',
+        tokens.expiry_date || null,
+        tokens.scope || SCOPES.join(' ')
+      ]);
+    }
+
+    logger.info(`Tokens OAuth sauvegardés pour l'utilisateur ${userId}`);
+
+    // Rediriger vers l'application avec un message de succès
+    res.send(`
+      <html>
+        <body>
+          <script>
+            window.opener.postMessage({ type: 'google-auth-success' }, '*');
+            window.close();
+          </script>
+          <h1>Authentification réussie!</h1>
+          <p>Vous pouvez fermer cette fenêtre et retourner à l'application.</p>
+        </body>
+      </html>
+    `);
+  } catch (error) {
+    logger.error('Erreur lors du callback OAuth:', error);
+    res.status(500).send(`
+      <html>
+        <body>
+          <h1>Erreur d'authentification</h1>
+          <p>${error.message}</p>
+          <script>
+            window.opener.postMessage({ type: 'google-auth-error', error: '${error.message}' }, '*');
+          </script>
+        </body>
+      </html>
+    `);
+  }
+});
+
+/**
+ * GET /api/calendar/auth-status
+ * Vérifier si l'utilisateur est authentifié avec Google
+ */
+router.get('/auth-status', async (req, res) => {
+  try {
+    const tokens = await getOne(
+      'SELECT access_token, expiry_date FROM google_oauth_tokens WHERE user_id = ?',
+      [req.user.id]
+    );
+
+    const isAuthenticated = !!tokens;
+    const isExpired = tokens && tokens.expiry_date && tokens.expiry_date < Date.now();
+
+    res.json({
+      isAuthenticated,
+      isExpired,
+      needsReauth: !isAuthenticated || isExpired
+    });
+  } catch (error) {
+    logger.error('Erreur lors de la vérification du statut OAuth:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+/**
+ * Récupérer et rafraîchir les tokens OAuth si nécessaire
+ */
+async function getValidTokens(userId) {
+  const tokenData = await getOne(
+    'SELECT * FROM google_oauth_tokens WHERE user_id = ?',
+    [userId]
+  );
+
+  if (!tokenData) {
+    throw new Error('Tokens OAuth non trouvés. Veuillez vous authentifier.');
+  }
+
+  const oauth2Client = await getOAuth2Client();
+  oauth2Client.setCredentials({
+    access_token: tokenData.access_token,
+    refresh_token: tokenData.refresh_token,
+    token_type: tokenData.token_type,
+    expiry_date: tokenData.expiry_date,
+    scope: tokenData.scope
+  });
+
+  // Rafraîchir le token si expiré
+  if (tokenData.expiry_date && tokenData.expiry_date < Date.now()) {
+    try {
+      const { credentials } = await oauth2Client.refreshAccessToken();
+
+      // Mettre à jour les tokens dans la base de données
+      await runQuery(`
+        UPDATE google_oauth_tokens
+        SET access_token = ?, expiry_date = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE user_id = ?
+      `, [credentials.access_token, credentials.expiry_date, userId]);
+
+      oauth2Client.setCredentials(credentials);
+      logger.info(`Token OAuth rafraîchi pour l'utilisateur ${userId}`);
+    } catch (error) {
+      logger.error('Erreur lors du rafraîchissement du token:', error);
+      throw new Error('Erreur lors du rafraîchissement du token. Veuillez vous reconnecter.');
+    }
+  }
+
+  return oauth2Client;
+}
 
 /**
  * GET /api/calendar/events
@@ -38,24 +241,15 @@ router.get('/events', async (req, res) => {
 
 /**
  * POST /api/calendar/sync
- * Synchroniser avec Google Calendar
+ * Synchroniser avec Google Calendar via OAuth
  */
 router.post('/sync', async (req, res) => {
   try {
-    // Récupérer les paramètres Google Calendar depuis settings
-    const apiKey = await getOne("SELECT value FROM settings WHERE key = 'google_calendar_api_key'");
-    const calendarId = await getOne("SELECT value FROM settings WHERE key = 'google_calendar_id'");
+    // Obtenir un client OAuth valide
+    const oauth2Client = await getValidTokens(req.user.id);
 
-    if (!apiKey || !apiKey.value) {
-      return res.status(400).json({ error: 'Clé API Google Calendar non configurée' });
-    }
-
-    if (!calendarId || !calendarId.value) {
-      return res.status(400).json({ error: 'ID du calendrier non configuré' });
-    }
-
-    // Créer un client Google Calendar
-    const calendar = google.calendar({ version: 'v3', auth: apiKey.value });
+    // Créer un client Google Calendar avec OAuth
+    const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
 
     // Récupérer les événements des 30 prochains jours
     const now = new Date();
@@ -63,7 +257,7 @@ router.post('/sync', async (req, res) => {
     futureDate.setDate(futureDate.getDate() + 30);
 
     const response = await calendar.events.list({
-      calendarId: calendarId.value,
+      calendarId: 'primary', // Calendrier principal de l'utilisateur
       timeMin: now.toISOString(),
       timeMax: futureDate.toISOString(),
       maxResults: 50,
@@ -130,10 +324,35 @@ router.post('/sync', async (req, res) => {
     });
   } catch (error) {
     logger.error('Erreur lors de la synchronisation avec Google Calendar:', error);
+
+    // Si l'erreur est liée à l'authentification, renvoyer un statut 401
+    if (error.message.includes('authentifier') || error.message.includes('reconnecter')) {
+      return res.status(401).json({
+        error: error.message,
+        needsReauth: true
+      });
+    }
+
     res.status(500).json({
       error: 'Erreur lors de la synchronisation',
       details: error.message
     });
+  }
+});
+
+/**
+ * POST /api/calendar/disconnect
+ * Déconnecter Google Calendar (supprimer les tokens)
+ */
+router.post('/disconnect', async (req, res) => {
+  try {
+    await runQuery('DELETE FROM google_oauth_tokens WHERE user_id = ?', [req.user.id]);
+    logger.info(`Tokens OAuth supprimés pour l'utilisateur ${req.user.username}`);
+
+    res.json({ message: 'Déconnecté avec succès' });
+  } catch (error) {
+    logger.error('Erreur lors de la déconnexion:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
