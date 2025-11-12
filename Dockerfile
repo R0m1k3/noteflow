@@ -22,6 +22,7 @@ RUN npm ci
 # Copier le code source
 COPY index.html ./
 COPY src ./src
+COPY public ./public
 
 # Construire l'application React
 RUN npm run build
