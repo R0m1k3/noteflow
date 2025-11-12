@@ -34,7 +34,10 @@ Application web moderne de gestion de notes et de tâches, Dockerisée, avec aut
 - **Backend** : Node.js 20 + Express
 - **Base de données** : SQLite3
 - **Authentification** : JWT + bcrypt
-- **Frontend** : HTML5/CSS3/JavaScript vanilla
+- **Frontend** : React 19 + TypeScript + Vite
+- **UI Components** : shadcn/ui + Tailwind CSS
+- **Routing** : React Router v7
+- **State Management** : TanStack Query (React Query)
 - **Sécurité** : Helmet.js, rate limiting, validation des entrées
 - **Logging** : Winston
 - **Upload** : Multer
