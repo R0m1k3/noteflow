@@ -115,6 +115,30 @@ router.put('/:id',
 );
 
 /**
+ * PATCH /api/todos/:id/toggle
+ * Basculer l'état completed d'un todo
+ */
+router.patch('/:id/toggle', async (req, res) => {
+  try {
+    // Vérifier que le todo appartient à l'utilisateur
+    const todo = await getOne('SELECT id, completed FROM global_todos WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+    if (!todo) {
+      return res.status(404).json({ error: 'Todo non trouvé' });
+    }
+
+    const newCompleted = todo.completed ? 0 : 1;
+    await runQuery('UPDATE global_todos SET completed = ? WHERE id = ?', [newCompleted, req.params.id]);
+
+    logger.info(`Todo global ${newCompleted ? 'complété' : 'réouvert'} (ID: ${req.params.id}) par ${req.user.username}`);
+
+    res.json({ message: 'Todo modifié avec succès', completed: newCompleted === 1 });
+  } catch (error) {
+    logger.error('Erreur lors du toggle du todo:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+/**
  * DELETE /api/todos/:id
  * Supprimer un todo global
  */

@@ -755,105 +755,145 @@ const Index = () => {
 
           {/* Right Sidebar - Todos & RSS */}
           <div className="space-y-6">
-            {/* Todos Box */}
-            <Card>
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <CheckSquare className="h-5 w-5" />
-                    Tâches
-                  </CardTitle>
-                  <Button size="sm" variant="ghost" onClick={handleAddTodo}>
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2 max-h-[300px] overflow-y-auto">
-                  {todos.length > 0 ? (
-                    todos.map(todo => (
-                      <div key={todo.id} className="flex items-center gap-2 p-2 border rounded-md hover:bg-accent/50 transition-colors group">
-                        <Checkbox
-                          checked={todo.completed}
-                          onCheckedChange={() => todo.id && handleToggleTodo(todo.id)}
-                        />
-                        <span className={`text-sm flex-1 ${todo.completed ? 'line-through text-muted-foreground' : ''}`}>
-                          {todo.text}
-                        </span>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                          onClick={() => todo.id && handleDeleteTodo(todo.id)}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-sm text-center text-muted-foreground py-4">Aucune tâche</p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* RSS Box */}
-            <Card>
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <Rss className="h-5 w-5" />
-                    Flux RSS
-                  </CardTitle>
-                  <div className="flex gap-1">
-                    <Button size="sm" variant="ghost" onClick={handleRefreshRss}>
-                      <RefreshCw className="h-4 w-4" />
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={handleAddRssFeed}>
-                      <Plus className="h-4 w-4" />
+            {/* Boxes côte à côte */}
+            <div className="grid grid-cols-2 gap-4">
+              {/* Todos Box */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <CheckSquare className="h-4 w-4" />
+                      Tâches
+                    </CardTitle>
+                    <Button size="sm" variant="ghost" onClick={handleAddTodo} className="h-7 w-7 p-0">
+                      <Plus className="h-3 w-3" />
                     </Button>
                   </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3 max-h-[400px] overflow-y-auto">
-                  {rssArticles.length > 0 ? (
-                    rssArticles.map(article => (
-                      <div
-                        key={article.id}
-                        className="p-2 border rounded-md hover:bg-accent/50 transition-colors cursor-pointer"
-                        onClick={() => article.link && window.open(article.link, '_blank')}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1 min-w-0">
-                            <h4 className="text-sm font-medium line-clamp-2 mb-1">{article.title}</h4>
-                            {article.description && (
-                              <p className="text-xs text-muted-foreground line-clamp-2">
-                                {article.description.replace(/<[^>]*>/g, '')}
-                              </p>
-                            )}
-                          </div>
-                          <ExternalLink className="h-3 w-3 text-muted-foreground flex-shrink-0 mt-1" />
-                        </div>
+                </CardHeader>
+                <CardContent className="pb-3">
+                  <Tabs defaultValue="active" className="w-full">
+                    <TabsList className="grid grid-cols-2 w-full h-8">
+                      <TabsTrigger value="active" className="text-xs">Actives</TabsTrigger>
+                      <TabsTrigger value="completed" className="text-xs">Complétées</TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="active" className="mt-2">
+                      <div className="space-y-2 max-h-[250px] overflow-y-auto">
+                        {todos.filter(t => !t.completed).length > 0 ? (
+                          todos.filter(t => !t.completed).map(todo => (
+                            <div key={todo.id} className="flex items-center gap-2 p-2 border rounded-md hover:bg-accent/50 transition-colors group">
+                              <Checkbox
+                                checked={false}
+                                onCheckedChange={() => todo.id && handleToggleTodo(todo.id)}
+                              />
+                              <span className="text-xs flex-1">
+                                {todo.text}
+                              </span>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={() => todo.id && handleDeleteTodo(todo.id)}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-xs text-center text-muted-foreground py-4">Aucune tâche active</p>
+                        )}
                       </div>
-                    ))
-                  ) : (
-                    <p className="text-sm text-center text-muted-foreground py-4">
-                      Aucun article
-                      <br />
-                      <Button
-                        variant="link"
-                        size="sm"
-                        className="mt-2"
-                        onClick={handleAddRssFeed}
-                      >
-                        Ajouter un flux RSS
+                    </TabsContent>
+
+                    <TabsContent value="completed" className="mt-2">
+                      <div className="space-y-2 max-h-[250px] overflow-y-auto">
+                        {todos.filter(t => t.completed).length > 0 ? (
+                          todos.filter(t => t.completed).map(todo => (
+                            <div key={todo.id} className="flex items-center gap-2 p-2 border rounded-md hover:bg-accent/50 transition-colors group">
+                              <Checkbox
+                                checked={true}
+                                onCheckedChange={() => todo.id && handleToggleTodo(todo.id)}
+                              />
+                              <span className="text-xs flex-1 line-through text-muted-foreground">
+                                {todo.text}
+                              </span>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={() => todo.id && handleDeleteTodo(todo.id)}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-xs text-center text-muted-foreground py-4">Aucune tâche complétée</p>
+                        )}
+                      </div>
+                    </TabsContent>
+                  </Tabs>
+                </CardContent>
+              </Card>
+
+              {/* RSS Box */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Rss className="h-4 w-4" />
+                      Flux RSS
+                    </CardTitle>
+                    <div className="flex gap-1">
+                      <Button size="sm" variant="ghost" onClick={handleRefreshRss} className="h-7 w-7 p-0">
+                        <RefreshCw className="h-3 w-3" />
                       </Button>
-                    </p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+                      <Button size="sm" variant="ghost" onClick={handleAddRssFeed} className="h-7 w-7 p-0">
+                        <Plus className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="pb-3">
+                  <div className="space-y-2 max-h-[330px] overflow-y-auto">
+                    {rssArticles.length > 0 ? (
+                      rssArticles.map(article => (
+                        <div
+                          key={article.id}
+                          className="p-2 border rounded-md hover:bg-accent/50 transition-colors cursor-pointer"
+                          onClick={() => article.link && window.open(article.link, '_blank')}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <h4 className="text-xs font-medium line-clamp-2 mb-1">{article.title}</h4>
+                              {article.description && (
+                                <p className="text-xs text-muted-foreground line-clamp-2">
+                                  {article.description.replace(/<[^>]*>/g, '')}
+                                </p>
+                              )}
+                            </div>
+                            <ExternalLink className="h-3 w-3 text-muted-foreground flex-shrink-0 mt-1" />
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-xs text-center text-muted-foreground py-4">
+                        Aucun article
+                        <br />
+                        <Button
+                          variant="link"
+                          size="sm"
+                          className="mt-2 text-xs"
+                          onClick={handleAddRssFeed}
+                        >
+                          Ajouter un flux RSS
+                        </Button>
+                      </p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </div>
         </div>
       </div>
