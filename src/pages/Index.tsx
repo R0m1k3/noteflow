@@ -1002,14 +1002,7 @@ const Index = () => {
               /* Open Note Editor */
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <Button
-                    variant="ghost"
-                    onClick={handleCloseNote}
-                    className="gap-2"
-                  >
-                    <X className="h-4 w-4" />
-                    Retour aux notes
-                  </Button>
+                  <div></div>
 
                   <div className="flex items-center gap-2">
                     <Button
@@ -1305,6 +1298,16 @@ const Index = () => {
                     </div>
                   </CardContent>
                 </Card>
+
+                {/* Save button */}
+                <div className="flex justify-end mt-6">
+                  <Button
+                    onClick={handleCloseNote}
+                    className="gap-2"
+                  >
+                    Enregistrer
+                  </Button>
+                </div>
               </div>
             )}
           </div>
