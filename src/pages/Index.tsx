@@ -619,34 +619,33 @@ const Index = () => {
         )}
 
         <div className="max-w-[1920px] mx-auto px-8">
-          <div className="flex h-16 items-center justify-between">
-            <div className="flex items-center gap-6">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                  <FileText className="h-5 w-5 text-primary" />
-                </div>
-                <span className="text-2xl font-semibold">NoteFlow</span>
+          <div className="grid grid-cols-3 h-16 items-center">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                <FileText className="h-5 w-5 text-primary" />
               </div>
-              <div className="text-sm text-muted-foreground">
-                <div className="font-medium">
-                  {currentDateTime.toLocaleDateString('fr-FR', {
-                    weekday: 'long',
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric'
-                  })}
-                </div>
-                <div className="text-lg font-mono">
-                  {currentDateTime.toLocaleTimeString('fr-FR', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit'
-                  })}
-                </div>
+              <span className="text-2xl font-semibold">NoteFlow</span>
+            </div>
+
+            <div className="flex flex-col items-center text-center text-sm text-muted-foreground">
+              <div className="font-medium">
+                {currentDateTime.toLocaleDateString('fr-FR', {
+                  weekday: 'long',
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric'
+                })}
+              </div>
+              <div className="text-lg font-mono">
+                {currentDateTime.toLocaleTimeString('fr-FR', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  second: '2-digit'
+                })}
               </div>
             </div>
 
-            <div className="flex items-center gap-6">
+            <div className="flex items-center gap-6 justify-end">
               <Button onClick={handleCreateNote} size="lg" className="gap-2">
                 <PlusCircle className="h-5 w-5" />
                 Nouvelle Note
