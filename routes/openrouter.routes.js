@@ -137,4 +137,55 @@ router.post('/refresh-models', authenticateToken, requireAdmin, async (req, res)
   }
 });
 
+/**
+ * POST /api/openrouter/chat
+ * Envoyer un message au modèle IA
+ */
+router.post('/chat', authenticateToken, async (req, res) => {
+  try {
+    const { model, messages } = req.body;
+
+    if (!model || !messages || !Array.isArray(messages)) {
+      return res.status(400).json({ error: 'Modèle et messages requis' });
+    }
+
+    // Récupérer la clé API
+    const setting = await getOne('SELECT value FROM settings WHERE key = ?', ['openrouter_api_key']);
+
+    if (!setting || !setting.value) {
+      return res.status(400).json({ error: 'Clé API OpenRouter non configurée' });
+    }
+
+    // Appeler l'API OpenRouter
+    const fetch = (await import('node-fetch')).default;
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${setting.value}`,
+        'HTTP-Referer': process.env.APP_URL || 'http://localhost:5000',
+        'X-Title': 'NoteFlow',
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: model,
+        messages: messages
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      logger.error(`Erreur API OpenRouter chat: ${response.status}`, errorData);
+      return res.status(response.status).json({
+        error: errorData.error?.message || 'Erreur lors de la communication avec l\'IA'
+      });
+    }
+
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    logger.error('Erreur lors du chat OpenRouter:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
 module.exports = router;

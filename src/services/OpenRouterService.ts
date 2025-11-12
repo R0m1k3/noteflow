@@ -54,6 +54,33 @@ class OpenRouterService {
       throw error;
     }
   }
+
+  /**
+   * Send chat message to AI model
+   */
+  async sendMessage(model: string, messages: Array<{ role: string; content: string }>): Promise<string> {
+    try {
+      const response = await fetch('/api/openrouter/chat', {
+        method: 'POST',
+        headers: {
+          ...AuthService.getHeaders(),
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ model, messages })
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Erreur inconnue' }));
+        throw new Error(error.error || 'Erreur lors de la communication avec l\'IA');
+      }
+
+      const data = await response.json();
+      return data.choices?.[0]?.message?.content || 'Pas de réponse';
+    } catch (error: any) {
+      console.error('Erreur lors de l\'envoi du message:', error);
+      throw error;
+    }
+  }
 }
 
 export default new OpenRouterService();
