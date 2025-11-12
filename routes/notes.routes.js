@@ -49,16 +49,16 @@ router.get('/', async (req, res) => {
 
     const notes = await getAll(`
       SELECT
-        n.id, n.title, n.content, n.image_filename, n.archived,
+        n.id, n.title, n.content, n.image_filename, n.archived, n.priority,
         n.created_at, n.updated_at,
         (SELECT COUNT(*) FROM note_todos WHERE note_id = n.id) as todos_count,
         (SELECT COUNT(*) FROM note_todos WHERE note_id = n.id AND completed = 1) as todos_completed
       FROM notes n
       WHERE n.user_id = ? AND n.archived = ?
-      ORDER BY n.updated_at DESC
+      ORDER BY n.priority DESC, n.updated_at DESC
     `, [req.user.id, archivedFilter]);
 
-    // Charger les todos, images et fichiers pour chaque note
+    // Charger les todos, images, fichiers et tags pour chaque note
     for (const note of notes) {
       const todos = await getAll(`
         SELECT id, text, completed, position
@@ -84,6 +84,15 @@ router.get('/', async (req, res) => {
       `, [note.id]);
       note.files = files || [];
       note.files_count = files?.length || 0;
+
+      const tags = await getAll(`
+        SELECT t.id, t.name
+        FROM tags t
+        INNER JOIN note_tags nt ON t.id = nt.tag_id
+        WHERE nt.note_id = ?
+        ORDER BY t.name ASC
+      `, [note.id]);
+      note.tags = tags || [];
     }
 
     res.json(notes || []);
@@ -891,6 +900,30 @@ router.delete('/:noteId/tags/:tagId', async (req, res) => {
     res.json({ message: 'Tag supprimé' });
   } catch (error) {
     logger.error('Erreur lors de la suppression du tag:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+/**
+ * PATCH /api/notes/:id/priority
+ * Modifier la priorité d'une note
+ */
+router.patch('/:id/priority', async (req, res) => {
+  try {
+    const { priority } = req.body;
+
+    // Vérifier que la note appartient à l'utilisateur
+    const note = await getOne('SELECT id FROM notes WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+    if (!note) {
+      return res.status(404).json({ error: 'Note non trouvée' });
+    }
+
+    await runQuery('UPDATE notes SET priority = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [priority ? 1 : 0, req.params.id]);
+
+    logger.info(`Priorité de la note ${req.params.id} modifiée: ${priority}`);
+    res.json({ message: 'Priorité modifiée avec succès', priority });
+  } catch (error) {
+    logger.error('Erreur lors de la modification de la priorité:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });

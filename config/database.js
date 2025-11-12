@@ -242,6 +242,7 @@ function initDatabase() {
 
           const hasImageFilename = columns.some(col => col.name === 'image_filename');
           const hasArchived = columns.some(col => col.name === 'archived');
+          const hasPriority = columns.some(col => col.name === 'priority');
 
           if (!hasImageFilename) {
             logger.info('Migration: Ajout de la colonne image_filename...');
@@ -261,6 +262,25 @@ function initDatabase() {
                 logger.error('Erreur lors de l\'ajout de la colonne archived:', err);
               } else {
                 logger.info('✓ Colonne archived ajoutée avec succès');
+              }
+            });
+          }
+
+          if (!hasPriority) {
+            logger.info('Migration: Ajout de la colonne priority...');
+            db.run('ALTER TABLE notes ADD COLUMN priority INTEGER DEFAULT 0', (err) => {
+              if (err) {
+                logger.error('Erreur lors de l\'ajout de la colonne priority:', err);
+              } else {
+                logger.info('✓ Colonne priority ajoutée avec succès');
+                // Créer l'index pour la performance
+                db.run('CREATE INDEX IF NOT EXISTS idx_notes_priority ON notes(priority DESC, updated_at DESC)', (indexErr) => {
+                  if (indexErr) {
+                    logger.error('Erreur lors de la création de l\'index priority:', indexErr);
+                  } else {
+                    logger.info('✓ Index priority créé avec succès');
+                  }
+                });
               }
             });
           }
