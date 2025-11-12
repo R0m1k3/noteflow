@@ -80,6 +80,15 @@ const Index = () => {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [addEventModal, setAddEventModal] = useState(false);
 
+  // Pagination states
+  const [notesPage, setNotesPage] = useState(0);
+  const [todosActivePage, setTodosActivePage] = useState(0);
+  const [todosCompletedPage, setTodosCompletedPage] = useState(0);
+
+  const NOTES_PER_PAGE = 5;
+  const TODOS_PER_PAGE = 10;
+  const RSS_MAX_ARTICLES = 8;
+
   // Debounce timer for auto-save
   const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -593,6 +602,37 @@ const Index = () => {
      (note.content && note.content.toLowerCase().includes(searchQuery.toLowerCase())))
   );
 
+  // Pagination for notes
+  const totalNotesPages = Math.ceil(filteredNotes.length / NOTES_PER_PAGE);
+  const paginatedNotes = filteredNotes.slice(
+    notesPage * NOTES_PER_PAGE,
+    (notesPage + 1) * NOTES_PER_PAGE
+  );
+
+  // Reset page when changing filters or search
+  useEffect(() => {
+    setNotesPage(0);
+  }, [showArchived, searchQuery]);
+
+  useEffect(() => {
+    setTodosActivePage(0);
+    setTodosCompletedPage(0);
+  }, [todos.length]);
+
+  // Pagination for todos
+  const activeTodos = todos.filter(t => !t.completed);
+  const completedTodos = todos.filter(t => t.completed);
+  const totalActiveTodosPages = Math.ceil(activeTodos.length / TODOS_PER_PAGE);
+  const totalCompletedTodosPages = Math.ceil(completedTodos.length / TODOS_PER_PAGE);
+  const paginatedActiveTodos = activeTodos.slice(
+    todosActivePage * TODOS_PER_PAGE,
+    (todosActivePage + 1) * TODOS_PER_PAGE
+  );
+  const paginatedCompletedTodos = completedTodos.slice(
+    todosCompletedPage * TODOS_PER_PAGE,
+    (todosCompletedPage + 1) * TODOS_PER_PAGE
+  );
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Top Navigation */}
@@ -815,7 +855,7 @@ const Index = () => {
                 {/* Notes Grid - 1 column for better visibility */}
                 <div className="grid grid-cols-1 gap-4">
                   {filteredNotes.length > 0 ? (
-                    filteredNotes.map(note => (
+                    paginatedNotes.map(note => (
                       <Card
                         key={note.id}
                         className="cursor-pointer hover:shadow-md transition-all group"
@@ -875,6 +915,31 @@ const Index = () => {
                     </div>
                   )}
                 </div>
+
+                {/* Pagination pour les notes */}
+                {totalNotesPages > 1 && (
+                  <div className="flex items-center justify-center gap-2 mt-6">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setNotesPage(p => Math.max(0, p - 1))}
+                      disabled={notesPage === 0}
+                    >
+                      Précédent
+                    </Button>
+                    <span className="text-sm text-muted-foreground">
+                      Page {notesPage + 1} sur {totalNotesPages}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setNotesPage(p => Math.min(totalNotesPages - 1, p + 1))}
+                      disabled={notesPage >= totalNotesPages - 1}
+                    >
+                      Suivant
+                    </Button>
+                  </div>
+                )}
               </>
             ) : (
               /* Open Note Editor */
@@ -1202,9 +1267,9 @@ const Index = () => {
                 </TabsList>
 
                 <TabsContent value="active" className="mt-0">
-                  <div className="space-y-1.5 max-h-[calc(100vh-300px)] overflow-y-auto">
-                    {todos.filter(t => !t.completed).length > 0 ? (
-                      todos.filter(t => !t.completed).map(todo => (
+                  <div className="space-y-1.5 max-h-[calc(100vh-400px)] overflow-y-auto">
+                    {activeTodos.length > 0 ? (
+                      paginatedActiveTodos.map(todo => (
                         <div key={todo.id} className="flex items-center gap-2 p-2 border rounded hover:bg-accent/50 transition-colors group">
                           <Checkbox
                             checked={false}
@@ -1228,12 +1293,35 @@ const Index = () => {
                       <p className="text-center text-muted-foreground text-sm py-6">Aucune tâche active</p>
                     )}
                   </div>
+                  {totalActiveTodosPages > 1 && (
+                    <div className="flex items-center justify-center gap-2 mt-3 pt-3 border-t">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setTodosActivePage(p => Math.max(0, p - 1))}
+                        disabled={todosActivePage === 0}
+                      >
+                        ‹
+                      </Button>
+                      <span className="text-xs text-muted-foreground">
+                        {todosActivePage + 1}/{totalActiveTodosPages}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setTodosActivePage(p => Math.min(totalActiveTodosPages - 1, p + 1))}
+                        disabled={todosActivePage >= totalActiveTodosPages - 1}
+                      >
+                        ›
+                      </Button>
+                    </div>
+                  )}
                 </TabsContent>
 
                 <TabsContent value="completed" className="mt-0">
-                  <div className="space-y-1.5 max-h-[calc(100vh-300px)] overflow-y-auto">
-                    {todos.filter(t => t.completed).length > 0 ? (
-                      todos.filter(t => t.completed).map(todo => (
+                  <div className="space-y-1.5 max-h-[calc(100vh-400px)] overflow-y-auto">
+                    {completedTodos.length > 0 ? (
+                      paginatedCompletedTodos.map(todo => (
                         <div key={todo.id} className="flex items-center gap-2 p-2 border rounded hover:bg-accent/50 transition-colors group">
                           <Checkbox
                             checked={true}
@@ -1257,6 +1345,29 @@ const Index = () => {
                       <p className="text-center text-muted-foreground text-sm py-6">Aucune tâche complétée</p>
                     )}
                   </div>
+                  {totalCompletedTodosPages > 1 && (
+                    <div className="flex items-center justify-center gap-2 mt-3 pt-3 border-t">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setTodosCompletedPage(p => Math.max(0, p - 1))}
+                        disabled={todosCompletedPage === 0}
+                      >
+                        ‹
+                      </Button>
+                      <span className="text-xs text-muted-foreground">
+                        {todosCompletedPage + 1}/{totalCompletedTodosPages}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setTodosCompletedPage(p => Math.min(totalCompletedTodosPages - 1, p + 1))}
+                        disabled={todosCompletedPage >= totalCompletedTodosPages - 1}
+                      >
+                        ›
+                      </Button>
+                    </div>
+                  )}
                 </TabsContent>
               </Tabs>
             </CardContent>
@@ -1281,9 +1392,9 @@ const Index = () => {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="space-y-2 max-h-[calc(100vh-300px)] overflow-y-auto">
+              <div className="space-y-2 max-h-[calc(100vh-400px)] overflow-y-auto">
                 {rssArticles.length > 0 ? (
-                  rssArticles.map(article => (
+                  rssArticles.slice(0, RSS_MAX_ARTICLES).map(article => (
                     <div
                       key={article.id}
                       className="p-2.5 border rounded hover:bg-accent/50 transition-colors cursor-pointer"
