@@ -13,7 +13,7 @@ import { RichTextEditor } from "@/components/RichTextEditor";
 import { MadeWithDyad } from "@/components/made-with-dyad";
 import {
   PlusCircle, Search, User, LogOut, Settings, ChevronDown, Plus, Archive, Trash2,
-  Image, CheckSquare, FileText, Rss, ExternalLink, RefreshCw, Key, Zap, Paperclip, X, Edit
+  Image as ImageIcon, CheckSquare, FileText, Rss, ExternalLink, RefreshCw, Key, Zap, Paperclip, X, Edit
 } from "lucide-react";
 import AuthService from "@/services/AuthService";
 import AdminService from "@/services/AdminService";
@@ -35,8 +35,7 @@ const Index = () => {
   const [showAdmin, setShowAdmin] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [notes, setNotes] = useState<Note[]>([]);
-  const [currentNote, setCurrentNote] = useState<Note | null>(null);
-  const [showNoteDialog, setShowNoteDialog] = useState(false);
+  const [openNote, setOpenNote] = useState<Note | null>(null);
   const [users, setUsers] = useState<UserType[]>([]);
   const [todos, setTodos] = useState<Todo[]>([]);
   const [rssFeeds, setRssFeeds] = useState<RssFeed[]>([]);
@@ -144,8 +143,7 @@ const Index = () => {
       const newNote = await NotesService.createNote("Nouvelle note");
       if (newNote) {
         setNotes([newNote, ...notes]);
-        setCurrentNote(newNote);
-        setShowNoteDialog(true);
+        setOpenNote(newNote);
       }
     } catch (error) {
       showError("Erreur lors de la création de la note");
@@ -153,26 +151,29 @@ const Index = () => {
   };
 
   const handleOpenNote = (note: Note) => {
-    setCurrentNote(note);
-    setShowNoteDialog(true);
+    setOpenNote(note);
+  };
+
+  const handleCloseNote = () => {
+    setOpenNote(null);
   };
 
   const handleUpdateNote = async (updatedFields: Partial<Note>) => {
-    if (!currentNote) return;
+    if (!openNote) return;
 
     try {
       const updatedNote = {
-        ...currentNote,
+        ...openNote,
         ...updatedFields,
-        todos: currentNote.todos || [],
-        images: currentNote.images || [],
-        files: currentNote.files || []
+        todos: openNote.todos || [],
+        images: openNote.images || [],
+        files: openNote.files || []
       };
 
       const success = await NotesService.updateNote(updatedNote);
 
       if (success) {
-        setCurrentNote(updatedNote);
+        setOpenNote(updatedNote);
         setNotes(notes.map(note => note.id === updatedNote.id ? updatedNote : note));
       }
     } catch (error) {
@@ -181,17 +182,16 @@ const Index = () => {
   };
 
   const handleDeleteNote = async () => {
-    if (!currentNote?.id) return;
+    if (!openNote?.id) return;
 
     if (window.confirm("Êtes-vous sûr de vouloir supprimer cette note ?")) {
       try {
-        const success = await NotesService.deleteNote(currentNote.id);
+        const success = await NotesService.deleteNote(openNote.id);
 
         if (success) {
-          const updatedNotes = notes.filter(note => note.id !== currentNote.id);
+          const updatedNotes = notes.filter(note => note.id !== openNote.id);
           setNotes(updatedNotes);
-          setShowNoteDialog(false);
-          setCurrentNote(null);
+          setOpenNote(null);
           showSuccess("Note supprimée");
         }
       } catch (error) {
@@ -327,12 +327,12 @@ const Index = () => {
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0] && currentNote?.id) {
+    if (e.target.files && e.target.files[0] && openNote?.id) {
       const formData = new FormData();
       formData.append('file', e.target.files[0]);
 
       try {
-        const response = await fetch(`/api/notes/${currentNote.id}/files`, {
+        const response = await fetch(`/api/notes/${openNote.id}/files`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -342,7 +342,7 @@ const Index = () => {
 
         if (response.ok) {
           const file = await response.json();
-          const updatedFiles = [...(currentNote.files || []), file];
+          const updatedFiles = [...(openNote.files || []), file];
           handleUpdateNote({ files: updatedFiles });
           showSuccess("Fichier ajouté");
         }
@@ -416,8 +416,348 @@ const Index = () => {
 
       {/* Main Content */}
       <div className="max-w-[1920px] mx-auto px-8 py-8">
-        {/* Todos & RSS Boxes - Large side by side */}
-        <div className="grid grid-cols-2 gap-6 mb-8">
+        {/* Two Column Layout: Notes Left | Boxes Right */}
+        <div className="grid grid-cols-[2fr,1fr] gap-8">
+          {/* Left Column: Notes or Open Note */}
+          <div className="space-y-6">
+            {!openNote ? (
+              <>
+                {/* Notes Grid Header */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <h2 className="text-2xl font-semibold">Mes Notes</h2>
+                    <div className="flex gap-2">
+                      <Button
+                        variant={!showArchived ? "default" : "outline"}
+                        onClick={() => setShowArchived(false)}
+                      >
+                        Actives ({notes.filter(n => !n.archived).length})
+                      </Button>
+                      <Button
+                        variant={showArchived ? "default" : "outline"}
+                        onClick={() => setShowArchived(true)}
+                      >
+                        Archivées ({notes.filter(n => n.archived).length})
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="relative w-96">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                    <Input
+                      type="search"
+                      placeholder="Rechercher dans les notes..."
+                      className="pl-10 h-12 text-base"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                {/* Notes Grid - 2 columns */}
+                <div className="grid grid-cols-2 gap-6">
+                  {filteredNotes.length > 0 ? (
+                    filteredNotes.map(note => (
+                      <Card
+                        key={note.id}
+                        className="cursor-pointer hover:shadow-xl transition-all hover:scale-105 group"
+                        onClick={() => handleOpenNote(note)}
+                      >
+                        <CardContent className="p-6">
+                          <h3 className="font-semibold text-lg mb-3 line-clamp-2 min-h-[56px]">
+                            {note.title || "Sans titre"}
+                          </h3>
+                          <p className="text-sm text-muted-foreground line-clamp-4 mb-4 min-h-[80px]">
+                            {note.content ? note.content.replace(/<[^>]*>/g, '') : "Note vide"}
+                          </p>
+                          <div className="flex gap-2 flex-wrap">
+                            {note.todos && note.todos.length > 0 && (
+                              <Badge variant="secondary">
+                                <CheckSquare className="h-3 w-3 mr-1" />
+                                {note.todos.length}
+                              </Badge>
+                            )}
+                            {note.images && note.images.length > 0 && (
+                              <Badge variant="secondary">
+                                <ImageIcon className="h-3 w-3 mr-1" />
+                                {note.images.length}
+                              </Badge>
+                            )}
+                            {note.files && note.files.length > 0 && (
+                              <Badge variant="secondary">
+                                <Paperclip className="h-3 w-3 mr-1" />
+                                {note.files.length}
+                              </Badge>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))
+                  ) : (
+                    <div className="col-span-2 text-center py-16">
+                      <FileText className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
+                      <p className="text-muted-foreground text-lg mb-4">
+                        {searchQuery ? "Aucune note trouvée" : "Aucune note"}
+                      </p>
+                      {!searchQuery && (
+                        <Button onClick={handleCreateNote} size="lg">
+                          <Plus className="h-5 w-5 mr-2" />
+                          Créer votre première note
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              /* Open Note Editor */
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <Button
+                    variant="ghost"
+                    onClick={handleCloseNote}
+                    className="gap-2"
+                  >
+                    <X className="h-4 w-4" />
+                    Retour aux notes
+                  </Button>
+
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => openNote && handleUpdateNote({ archived: !openNote.archived })}
+                      title={openNote?.archived ? "Désarchiver" : "Archiver"}
+                    >
+                      <Archive className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={handleDeleteNote}
+                      title="Supprimer"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                <Input
+                  type="text"
+                  placeholder="Titre de la note"
+                  className="text-2xl font-semibold border-none shadow-none h-auto px-0 focus-visible:ring-0"
+                  value={openNote?.title || ""}
+                  onChange={(e) => handleUpdateNote({ title: e.target.value })}
+                />
+
+                <Tabs defaultValue="content" className="mt-4">
+                  <TabsList className="grid grid-cols-4 w-full max-w-md">
+                    <TabsTrigger value="content">Contenu</TabsTrigger>
+                    <TabsTrigger value="todos">
+                      Tâches
+                      {openNote.todos && openNote.todos.length > 0 && (
+                        <Badge variant="secondary" className="ml-2">{openNote.todos.length}</Badge>
+                      )}
+                    </TabsTrigger>
+                    <TabsTrigger value="images">
+                      Images
+                      {openNote.images && openNote.images.length > 0 && (
+                        <Badge variant="secondary" className="ml-2">{openNote.images.length}</Badge>
+                      )}
+                    </TabsTrigger>
+                    <TabsTrigger value="files">
+                      Fichiers
+                      {openNote.files && openNote.files.length > 0 && (
+                        <Badge variant="secondary" className="ml-2">{openNote.files.length}</Badge>
+                      )}
+                    </TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="content" className="mt-4">
+                    <RichTextEditor
+                      content={openNote.content || ""}
+                      onChange={(content) => handleUpdateNote({ content })}
+                    />
+                  </TabsContent>
+
+                  <TabsContent value="todos" className="mt-4 space-y-4">
+                    <Button
+                      onClick={async () => {
+                        const text = prompt("Nouvelle tâche:");
+                        if (text) {
+                          const updatedTodos = [...(openNote.todos || []), { text, completed: false }];
+                          await handleUpdateNote({ todos: updatedTodos });
+                        }
+                      }}
+                      className="w-full"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Ajouter une tâche
+                    </Button>
+
+                    <div className="space-y-2">
+                      {openNote.todos && openNote.todos.length > 0 ? (
+                        openNote.todos.map((todo, index) => (
+                          <div key={index} className="flex items-center gap-3 p-3 border rounded-lg">
+                            <Checkbox
+                              checked={todo.completed}
+                              onCheckedChange={async () => {
+                                const updatedTodos = [...(openNote.todos || [])];
+                                updatedTodos[index] = { ...todo, completed: !todo.completed };
+                                await handleUpdateNote({ todos: updatedTodos });
+                              }}
+                            />
+                            <span className={todo.completed ? "line-through text-muted-foreground flex-1" : "flex-1"}>
+                              {todo.text}
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={async () => {
+                                const updatedTodos = [...(openNote.todos || [])];
+                                updatedTodos.splice(index, 1);
+                                await handleUpdateNote({ todos: updatedTodos });
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-center text-muted-foreground py-8">Aucune tâche</p>
+                      )}
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="images" className="mt-4 space-y-4">
+                    <div>
+                      <Input
+                        type="file"
+                        accept="image/*"
+                        onChange={async (e) => {
+                          if (e.target.files && e.target.files[0] && openNote.id) {
+                            try {
+                              const image = await NotesService.uploadImage(openNote.id, e.target.files[0]);
+                              if (image) {
+                                const updatedImages = [...(openNote.images || []), image];
+                                await handleUpdateNote({ images: updatedImages });
+                              }
+                            } catch (error) {
+                              showError("Erreur lors de l'upload de l'image");
+                            }
+                          }
+                        }}
+                        className="cursor-pointer"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-4">
+                      {openNote.images && openNote.images.length > 0 ? (
+                        openNote.images.map((image, index) => (
+                          <div key={index} className="relative group">
+                            <img
+                              src={`/uploads/images/${image.filename}`}
+                              alt={image.original_name}
+                              className="w-full h-32 object-cover rounded-lg"
+                            />
+                            <Button
+                              variant="destructive"
+                              size="icon"
+                              className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                              onClick={async () => {
+                                if (image.id && openNote.id) {
+                                  try {
+                                    const success = await NotesService.deleteImage(openNote.id, image.id);
+                                    if (success) {
+                                      const updatedImages = (openNote.images || []).filter((_, i) => i !== index);
+                                      await handleUpdateNote({ images: updatedImages });
+                                    }
+                                  } catch (error) {
+                                    showError("Erreur lors de la suppression");
+                                  }
+                                }
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="col-span-3 text-center text-muted-foreground py-8">Aucune image</p>
+                      )}
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="files" className="mt-4 space-y-4">
+                    <div>
+                      <Input
+                        type="file"
+                        onChange={handleFileUpload}
+                        className="cursor-pointer"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      {openNote.files && openNote.files.length > 0 ? (
+                        openNote.files.map((file: any, index: number) => (
+                          <div key={index} className="flex items-center gap-3 p-3 border rounded-lg group">
+                            <Paperclip className="h-5 w-5 text-muted-foreground" />
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium truncate">{file.original_name || file.filename}</p>
+                              {file.size && (
+                                <p className="text-sm text-muted-foreground">
+                                  {(file.size / 1024).toFixed(2)} KB
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                onClick={() => window.open(`/uploads/files/${file.filename}`, '_blank')}
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="destructive"
+                                size="icon"
+                                onClick={async () => {
+                                  if (file.id && openNote.id) {
+                                    try {
+                                      const response = await fetch(`/api/notes/${openNote.id}/files/${file.id}`, {
+                                        method: 'DELETE',
+                                        headers: {
+                                          'Authorization': `Bearer ${AuthService.getToken()}`
+                                        }
+                                      });
+
+                                      if (response.ok) {
+                                        const updatedFiles = (openNote.files || []).filter((_, i) => i !== index);
+                                        await handleUpdateNote({ files: updatedFiles });
+                                      }
+                                    } catch (error) {
+                                      showError("Erreur lors de la suppression");
+                                    }
+                                  }
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-center text-muted-foreground py-8">Aucun fichier</p>
+                      )}
+                    </div>
+                  </TabsContent>
+                </Tabs>
+              </div>
+            )}
+          </div>
+
+          {/* Right Column: Todos & RSS Boxes stacked */}
+          <div className="space-y-6">
           {/* Todos Box */}
           <Card className="shadow-lg">
             <CardHeader className="pb-4">
@@ -559,375 +899,10 @@ const Index = () => {
             </CardContent>
           </Card>
         </div>
-
-        {/* Notes Section */}
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <h2 className="text-2xl font-semibold">Mes Notes</h2>
-              <div className="flex gap-2">
-                <Button
-                  variant={!showArchived ? "default" : "outline"}
-                  onClick={() => setShowArchived(false)}
-                >
-                  Actives ({notes.filter(n => !n.archived).length})
-                </Button>
-                <Button
-                  variant={showArchived ? "default" : "outline"}
-                  onClick={() => setShowArchived(true)}
-                >
-                  Archivées ({notes.filter(n => n.archived).length})
-                </Button>
-              </div>
-            </div>
-
-            <div className="relative w-96">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-              <Input
-                type="search"
-                placeholder="Rechercher dans les notes..."
-                className="pl-10 h-12 text-base"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-          </div>
-
-          {/* Notes Grid */}
-          <div className="grid grid-cols-4 gap-6">
-            {filteredNotes.length > 0 ? (
-              filteredNotes.map(note => (
-                <Card
-                  key={note.id}
-                  className="cursor-pointer hover:shadow-xl transition-all hover:scale-105 group"
-                  onClick={() => handleOpenNote(note)}
-                >
-                  <CardContent className="p-6">
-                    <h3 className="font-semibold text-lg mb-3 line-clamp-2 min-h-[56px]">
-                      {note.title || "Sans titre"}
-                    </h3>
-                    <p className="text-sm text-muted-foreground line-clamp-4 mb-4 min-h-[80px]">
-                      {note.content ? note.content.replace(/<[^>]*>/g, '') : "Note vide"}
-                    </p>
-                    <div className="flex gap-2 flex-wrap">
-                      {note.todos && note.todos.length > 0 && (
-                        <Badge variant="secondary">
-                          <CheckSquare className="h-3 w-3 mr-1" />
-                          {note.todos.length}
-                        </Badge>
-                      )}
-                      {note.images && note.images.length > 0 && (
-                        <Badge variant="secondary">
-                          <Image className="h-3 w-3 mr-1" />
-                          {note.images.length}
-                        </Badge>
-                      )}
-                      {note.files && note.files.length > 0 && (
-                        <Badge variant="secondary">
-                          <Paperclip className="h-3 w-3 mr-1" />
-                          {note.files.length}
-                        </Badge>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
-            ) : (
-              <div className="col-span-4 text-center py-16">
-                <FileText className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
-                <p className="text-muted-foreground text-lg mb-4">
-                  {searchQuery ? "Aucune note trouvée" : "Aucune note"}
-                </p>
-                {!searchQuery && (
-                  <Button onClick={handleCreateNote} size="lg">
-                    <Plus className="h-5 w-5 mr-2" />
-                    Créer votre première note
-                  </Button>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
       </div>
+    </div>
 
-      {/* Note Editor Dialog - Full Screen */}
-      <Dialog open={showNoteDialog} onOpenChange={setShowNoteDialog}>
-        <DialogContent className="max-w-[95vw] max-h-[95vh] overflow-y-auto">
-          <DialogHeader>
-            <div className="flex items-center justify-between pr-8">
-              <Input
-                type="text"
-                placeholder="Titre de la note"
-                className="text-2xl font-semibold border-none shadow-none h-auto px-0 focus-visible:ring-0"
-                value={currentNote?.title || ""}
-                onChange={(e) => handleUpdateNote({ title: e.target.value })}
-              />
-
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => currentNote && handleUpdateNote({ archived: !currentNote.archived })}
-                  title={currentNote?.archived ? "Désarchiver" : "Archiver"}
-                >
-                  <Archive className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={handleDeleteNote}
-                  title="Supprimer"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          </DialogHeader>
-
-          {currentNote && (
-            <Tabs defaultValue="content" className="mt-4">
-              <TabsList className="grid grid-cols-4 w-full max-w-md">
-                <TabsTrigger value="content">Contenu</TabsTrigger>
-                <TabsTrigger value="todos">
-                  Tâches
-                  {currentNote.todos && currentNote.todos.length > 0 && (
-                    <Badge variant="secondary" className="ml-2">{currentNote.todos.length}</Badge>
-                  )}
-                </TabsTrigger>
-                <TabsTrigger value="images">
-                  Images
-                  {currentNote.images && currentNote.images.length > 0 && (
-                    <Badge variant="secondary" className="ml-2">{currentNote.images.length}</Badge>
-                  )}
-                </TabsTrigger>
-                <TabsTrigger value="files">
-                  Fichiers
-                  {currentNote.files && currentNote.files.length > 0 && (
-                    <Badge variant="secondary" className="ml-2">{currentNote.files.length}</Badge>
-                  )}
-                </TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="content" className="mt-6">
-                <RichTextEditor
-                  content={currentNote.content || ""}
-                  onChange={(content) => handleUpdateNote({ content })}
-                  placeholder="Commencez à écrire votre note..."
-                />
-              </TabsContent>
-
-              <TabsContent value="todos" className="mt-6">
-                <Card>
-                  <CardContent className="p-6 space-y-4">
-                    <Button
-                      variant="outline"
-                      className="w-full"
-                      onClick={() => {
-                        const text = prompt("Nouvelle tâche:");
-                        if (text) {
-                          const updatedTodos = [...(currentNote.todos || []), { text, completed: false }];
-                          handleUpdateNote({ todos: updatedTodos });
-                        }
-                      }}
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      Ajouter une tâche
-                    </Button>
-
-                    <div className="space-y-2">
-                      {currentNote.todos && currentNote.todos.length > 0 ? (
-                        currentNote.todos.map((todo, index) => (
-                          <div key={index} className="flex items-center gap-2 p-3 border rounded-md">
-                            <Checkbox
-                              checked={todo.completed}
-                              onCheckedChange={() => {
-                                const updatedTodos = [...(currentNote.todos || [])];
-                                updatedTodos[index].completed = !updatedTodos[index].completed;
-                                handleUpdateNote({ todos: updatedTodos });
-                              }}
-                            />
-                            <span className={todo.completed ? "line-through text-muted-foreground flex-1" : "flex-1"}>
-                              {todo.text}
-                            </span>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => {
-                                const updatedTodos = [...(currentNote.todos || [])];
-                                updatedTodos.splice(index, 1);
-                                handleUpdateNote({ todos: updatedTodos });
-                              }}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        ))
-                      ) : (
-                        <p className="text-center text-muted-foreground py-8">Aucune tâche dans cette note</p>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-
-              <TabsContent value="images" className="mt-6">
-                <Card>
-                  <CardContent className="p-6 space-y-4">
-                    <label htmlFor="image-upload">
-                      <Button
-                        variant="outline"
-                        className="w-full"
-                        type="button"
-                        onClick={() => document.getElementById('image-upload')?.click()}
-                      >
-                        <Image className="h-4 w-4 mr-2" />
-                        Ajouter une image
-                      </Button>
-                      <input
-                        id="image-upload"
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={async (e) => {
-                          if (e.target.files && e.target.files[0] && currentNote.id) {
-                            try {
-                              const image = await NotesService.uploadImage(currentNote.id, e.target.files[0]);
-                              if (image) {
-                                const updatedImages = [...(currentNote.images || []), image];
-                                handleUpdateNote({ images: updatedImages });
-                                showSuccess("Image ajoutée");
-                              }
-                            } catch (error) {
-                              showError("Erreur lors de l'upload");
-                            } finally {
-                              e.target.value = '';
-                            }
-                          }
-                        }}
-                      />
-                    </label>
-
-                    <div className="grid grid-cols-4 gap-4">
-                      {currentNote.images && currentNote.images.length > 0 ? (
-                        currentNote.images.map((image, index) => (
-                          <div key={index} className="relative aspect-square rounded-md overflow-hidden border group">
-                            <img
-                              src={`/uploads/${image.filename}`}
-                              alt={`Image ${index + 1}`}
-                              className="w-full h-full object-cover"
-                            />
-                            <Button
-                              variant="destructive"
-                              size="icon"
-                              className="absolute top-2 right-2 h-8 w-8 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                              onClick={async () => {
-                                if (image.id && currentNote.id) {
-                                  try {
-                                    const success = await NotesService.deleteImage(currentNote.id, image.id);
-                                    if (success) {
-                                      const updatedImages = (currentNote.images || []).filter((_, i) => i !== index);
-                                      handleUpdateNote({ images: updatedImages });
-                                      showSuccess("Image supprimée");
-                                    }
-                                  } catch (error) {
-                                    showError("Erreur lors de la suppression");
-                                  }
-                                }
-                              }}
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        ))
-                      ) : (
-                        <p className="col-span-4 text-center text-muted-foreground py-8">Aucune image</p>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-
-              <TabsContent value="files" className="mt-6">
-                <Card>
-                  <CardContent className="p-6 space-y-4">
-                    <label htmlFor="file-upload">
-                      <Button
-                        variant="outline"
-                        className="w-full"
-                        type="button"
-                        onClick={() => document.getElementById('file-upload')?.click()}
-                      >
-                        <Paperclip className="h-4 w-4 mr-2" />
-                        Ajouter un fichier
-                      </Button>
-                      <input
-                        id="file-upload"
-                        type="file"
-                        className="hidden"
-                        onChange={handleFileUpload}
-                      />
-                    </label>
-
-                    <div className="space-y-2">
-                      {currentNote.files && currentNote.files.length > 0 ? (
-                        currentNote.files.map((file: any, index: number) => (
-                          <div key={index} className="flex items-center justify-between p-3 border rounded-md hover:bg-accent/50 transition-colors group">
-                            <div className="flex items-center gap-3 flex-1">
-                              <Paperclip className="h-5 w-5 text-muted-foreground" />
-                              <span className="truncate">{file.filename || file.original_name}</span>
-                              <Badge variant="secondary">
-                                {file.size ? `${(file.size / 1024).toFixed(1)} KB` : ''}
-                              </Badge>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => window.open(`/uploads/${file.filename}`, '_blank')}
-                              >
-                                <ExternalLink className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="opacity-0 group-hover:opacity-100 transition-opacity"
-                                onClick={async () => {
-                                  if (file.id && currentNote.id) {
-                                    try {
-                                      const response = await fetch(`/api/notes/${currentNote.id}/files/${file.id}`, {
-                                        method: 'DELETE',
-                                        headers: {
-                                          'Authorization': `Bearer ${localStorage.getItem('token')}`
-                                        }
-                                      });
-                                      if (response.ok) {
-                                        const updatedFiles = (currentNote.files || []).filter((_, i) => i !== index);
-                                        handleUpdateNote({ files: updatedFiles });
-                                        showSuccess("Fichier supprimé");
-                                      }
-                                    } catch (error) {
-                                      showError("Erreur lors de la suppression");
-                                    }
-                                  }
-                                }}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <p className="text-center text-muted-foreground py-8">Aucun fichier attaché</p>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-            </Tabs>
-          )}
-        </DialogContent>
-      </Dialog>
-
+      {/* Admin Modal */}
       {/* Admin Modal */}
       <Dialog open={showAdmin} onOpenChange={setShowAdmin}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">

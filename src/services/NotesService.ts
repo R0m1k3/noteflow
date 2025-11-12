@@ -11,6 +11,7 @@ interface Todo {
 interface Image {
   id?: number;
   filename: string;
+  original_name?: string;
 }
 
 interface NoteFile {
