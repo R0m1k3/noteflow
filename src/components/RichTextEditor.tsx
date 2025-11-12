@@ -158,12 +158,15 @@ export function RichTextEditor({ content, onChange, placeholder }: RichTextEdito
             contentEditable
             onInput={updateContent}
             onKeyDown={handleKeyDown}
+            dir="ltr"
             className="min-h-[400px] outline-none prose prose-sm max-w-none dark:prose-invert"
             dangerouslySetInnerHTML={{ __html: content }}
             data-placeholder={placeholder || 'Commencez à écrire...'}
             style={{
               fontSize: '16px',
-              lineHeight: '1.6'
+              lineHeight: '1.6',
+              direction: 'ltr',
+              textAlign: 'left'
             }}
           />
         </CardContent>

@@ -86,6 +86,7 @@ app.use('/api/notes', require('./routes/notes.routes'));
 app.use('/api/todos', require('./routes/todos.routes'));
 app.use('/api/settings', require('./routes/settings.routes'));
 app.use('/api/rss', require('./routes/rss.routes'));
+app.use('/api/calendar', require('./routes/calendar.routes'));
 
 // Route de recherche
 app.get('/api/search', require('./routes/notes.routes').searchNotes);

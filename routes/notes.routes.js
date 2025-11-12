@@ -58,7 +58,7 @@ router.get('/', async (req, res) => {
       ORDER BY n.updated_at DESC
     `, [req.user.id, archivedFilter]);
 
-    // Charger les todos et fichiers pour chaque note
+    // Charger les todos, images et fichiers pour chaque note
     for (const note of notes) {
       const todos = await getAll(`
         SELECT id, text, completed, position
@@ -67,6 +67,14 @@ router.get('/', async (req, res) => {
         ORDER BY position ASC, id ASC
       `, [note.id]);
       note.todos = todos || [];
+
+      const images = await getAll(`
+        SELECT id, filename, original_name, created_at
+        FROM note_images
+        WHERE note_id = ?
+        ORDER BY created_at DESC
+      `, [note.id]);
+      note.images = images || [];
 
       const files = await getAll(`
         SELECT id, filename, original_name, file_size, mime_type, created_at
@@ -110,6 +118,26 @@ router.get('/:id', async (req, res) => {
     `, [req.params.id]);
 
     note.todos = todos;
+
+    // Récupérer les images de la note
+    const images = await getAll(`
+      SELECT id, filename, original_name, created_at
+      FROM note_images
+      WHERE note_id = ?
+      ORDER BY created_at DESC
+    `, [req.params.id]);
+
+    note.images = images || [];
+
+    // Récupérer les fichiers de la note
+    const files = await getAll(`
+      SELECT id, filename, original_name, file_size, mime_type, created_at
+      FROM note_files
+      WHERE note_id = ?
+      ORDER BY created_at DESC
+    `, [req.params.id]);
+
+    note.files = files || [];
 
     res.json(note);
   } catch (error) {
@@ -486,6 +514,148 @@ const searchNotes = async (req, res) => {
     res.status(500).json({ error: 'Erreur serveur' });
   }
 };
+
+// ==================== IMAGE ATTACHMENTS ====================
+
+// Configuration multer pour les images multiples
+const imageStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const imagesDir = path.join(__dirname, '../public/uploads/images');
+    // Créer le dossier s'il n'existe pas
+    if (!fs.existsSync(imagesDir)) {
+      fs.mkdirSync(imagesDir, { recursive: true });
+    }
+    cb(null, imagesDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueName = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}${path.extname(file.originalname)}`;
+    cb(null, uniqueName);
+  }
+});
+
+const imageUpload = multer({
+  storage: imageStorage,
+  limits: { fileSize: parseInt(process.env.MAX_FILE_SIZE) || 5 * 1024 * 1024 }, // 5MB
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Type de fichier non autorisé. Utilisez JPEG, PNG, WebP ou GIF.'));
+    }
+  }
+});
+
+/**
+ * POST /api/notes/:id/images
+ * Ajouter une image à une note
+ */
+router.post('/:id/images', imageUpload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'Aucune image fournie' });
+    }
+
+    // Vérifier que la note appartient à l'utilisateur
+    const note = await getOne('SELECT id FROM notes WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+    if (!note) {
+      // Supprimer le fichier uploadé
+      fs.unlinkSync(req.file.path);
+      return res.status(404).json({ error: 'Note non trouvée' });
+    }
+
+    // Enregistrer l'image dans la base de données
+    const result = await runQuery(`
+      INSERT INTO note_images (note_id, filename, original_name)
+      VALUES (?, ?, ?)
+    `, [req.params.id, req.file.filename, req.file.originalname]);
+
+    // Mettre à jour la date de modification de la note
+    await runQuery('UPDATE notes SET updated_at = CURRENT_TIMESTAMP WHERE id = ?', [req.params.id]);
+
+    logger.info(`Image ajoutée à la note ${req.params.id}: ${req.file.filename}`);
+
+    res.json({
+      message: 'Image ajoutée avec succès',
+      image: {
+        id: result.id,
+        filename: req.file.filename,
+        original_name: req.file.originalname
+      }
+    });
+  } catch (error) {
+    logger.error('Erreur lors de l\'ajout de l\'image:', error);
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+/**
+ * GET /api/notes/:id/images
+ * Liste les images d'une note
+ */
+router.get('/:id/images', async (req, res) => {
+  try {
+    // Vérifier que la note appartient à l'utilisateur
+    const note = await getOne('SELECT id FROM notes WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+    if (!note) {
+      return res.status(404).json({ error: 'Note non trouvée' });
+    }
+
+    const images = await getAll(`
+      SELECT id, filename, original_name, created_at
+      FROM note_images
+      WHERE note_id = ?
+      ORDER BY created_at DESC
+    `, [req.params.id]);
+
+    res.json(images);
+  } catch (error) {
+    logger.error('Erreur lors de la récupération des images:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+/**
+ * DELETE /api/notes/:noteId/images/:imageId
+ * Supprimer une image d'une note
+ */
+router.delete('/:noteId/images/:imageId', async (req, res) => {
+  try {
+    // Vérifier que l'image appartient à une note de l'utilisateur
+    const image = await getOne(`
+      SELECT ni.id, ni.filename, ni.note_id
+      FROM note_images ni
+      JOIN notes n ON ni.note_id = n.id
+      WHERE ni.id = ? AND ni.note_id = ? AND n.user_id = ?
+    `, [req.params.imageId, req.params.noteId, req.user.id]);
+
+    if (!image) {
+      return res.status(404).json({ error: 'Image non trouvée' });
+    }
+
+    // Supprimer le fichier physique
+    const imagePath = path.join(__dirname, '../public/uploads/images', image.filename);
+    if (fs.existsSync(imagePath)) {
+      fs.unlinkSync(imagePath);
+    }
+
+    // Supprimer l'entrée de la base de données
+    await runQuery('DELETE FROM note_images WHERE id = ?', [req.params.imageId]);
+
+    // Mettre à jour la date de modification de la note
+    await runQuery('UPDATE notes SET updated_at = CURRENT_TIMESTAMP WHERE id = ?', [req.params.noteId]);
+
+    logger.info(`Image ${image.filename} supprimée de la note ${req.params.noteId}`);
+
+    res.json({ message: 'Image supprimée avec succès' });
+  } catch (error) {
+    logger.error('Erreur lors de la suppression de l\'image:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
 
 // ==================== FILE ATTACHMENTS ====================
 

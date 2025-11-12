@@ -74,6 +74,18 @@ function initDatabase() {
           )
         `);
 
+        // Table note_images (images attachées aux notes)
+        db.run(`
+          CREATE TABLE IF NOT EXISTS note_images (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            note_id INTEGER NOT NULL,
+            filename TEXT NOT NULL,
+            original_name TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE
+          )
+        `);
+
         // Table note_files (fichiers attachés aux notes)
         db.run(`
           CREATE TABLE IF NOT EXISTS note_files (
@@ -137,14 +149,35 @@ function initDatabase() {
           )
         `);
 
+        // Table calendar_events (événements Google Calendar)
+        db.run(`
+          CREATE TABLE IF NOT EXISTS calendar_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            google_event_id TEXT UNIQUE NOT NULL,
+            user_id INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            description TEXT,
+            start_time DATETIME NOT NULL,
+            end_time DATETIME NOT NULL,
+            location TEXT,
+            color_id TEXT,
+            html_link TEXT,
+            synced_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+          )
+        `);
+
         // Créer les index pour la performance
         db.run('CREATE INDEX IF NOT EXISTS idx_notes_user ON notes(user_id)');
         db.run('CREATE INDEX IF NOT EXISTS idx_note_todos ON note_todos(note_id)');
         db.run('CREATE INDEX IF NOT EXISTS idx_global_todos_user ON global_todos(user_id)');
+        db.run('CREATE INDEX IF NOT EXISTS idx_note_images ON note_images(note_id)');
         db.run('CREATE INDEX IF NOT EXISTS idx_note_files ON note_files(note_id)');
         db.run('CREATE INDEX IF NOT EXISTS idx_settings_key ON settings(key)');
         db.run('CREATE INDEX IF NOT EXISTS idx_rss_articles_feed ON rss_articles(feed_id)');
         db.run('CREATE INDEX IF NOT EXISTS idx_rss_articles_date ON rss_articles(pub_date)');
+        db.run('CREATE INDEX IF NOT EXISTS idx_calendar_events_user ON calendar_events(user_id)');
+        db.run('CREATE INDEX IF NOT EXISTS idx_calendar_events_start ON calendar_events(start_time)');
 
         logger.info('✓ Tables de base de données créées avec succès');
 
