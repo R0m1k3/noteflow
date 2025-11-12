@@ -11,10 +11,9 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RichTextEditor } from "@/components/RichTextEditor";
-import { MadeWithDyad } from "@/components/made-with-dyad";
 import {
   PlusCircle, Search, User, LogOut, Settings, ChevronDown, Plus, Archive, Trash2,
-  Image as ImageIcon, CheckSquare, FileText, Rss, ExternalLink, RefreshCw, Key, Zap, Paperclip, X, Edit, Calendar as CalendarIcon, Tag as TagIcon
+  Image as ImageIcon, CheckSquare, FileText, Rss, ExternalLink, RefreshCw, Key, Zap, Paperclip, X, Edit, Calendar as CalendarIcon, Tag as TagIcon, MessageSquare, Send
 } from "lucide-react";
 import AuthService from "@/services/AuthService";
 import AdminService from "@/services/AdminService";
@@ -91,8 +90,16 @@ const Index = () => {
   const RSS_MAX_ARTICLES = 14;
   const RSS_PER_PAGE = 7;
 
+  // Chatbox states
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatMessages, setChatMessages] = useState<Array<{ role: string; content: string }>>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<string>("");
+
   // Debounce timer for auto-save
   const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
   // Update current date/time every second
   useEffect(() => {
@@ -490,6 +497,43 @@ const Index = () => {
       showError("Erreur lors de l'actualisation");
     }
   };
+
+  const handleSendMessage = async () => {
+    if (!chatInput.trim() || !selectedModel || chatLoading) return;
+
+    const userMessage = { role: 'user', content: chatInput };
+    const newMessages = [...chatMessages, userMessage];
+
+    setChatMessages(newMessages);
+    setChatInput("");
+    setChatLoading(true);
+
+    try {
+      const response = await OpenRouterService.sendMessage(selectedModel, newMessages);
+      setChatMessages([...newMessages, { role: 'assistant', content: response }]);
+    } catch (error: any) {
+      showError(error.message || 'Erreur lors de l\'envoi du message');
+      setChatMessages([...newMessages, { role: 'assistant', content: 'Erreur: ' + error.message }]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  const handleClearChat = () => {
+    setChatMessages([]);
+  };
+
+  // Scroll to bottom when new message arrives
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessages]);
+
+  // Set default model when models are loaded
+  useEffect(() => {
+    if (openRouterModels.length > 0 && !selectedModel) {
+      setSelectedModel(openRouterModels[0].id);
+    }
+  }, [openRouterModels, selectedModel]);
 
   const confirmAddUser = async (username: string, password: string, isAdmin: boolean) => {
     try {
@@ -2235,9 +2279,123 @@ const Index = () => {
         </DialogContent>
       </Dialog>
 
-      <div className="fixed bottom-4 right-4">
-        <MadeWithDyad />
-      </div>
+      {/* AI Chatbox */}
+      {!chatOpen ? (
+        <Button
+          className="fixed bottom-4 right-4 h-14 w-14 rounded-full shadow-lg"
+          onClick={() => setChatOpen(true)}
+        >
+          <MessageSquare className="h-6 w-6" />
+        </Button>
+      ) : (
+        <Card className="fixed bottom-4 right-4 w-96 h-[600px] shadow-2xl flex flex-col">
+          <CardHeader className="pb-3 border-b">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <MessageSquare className="h-5 w-5" />
+                Assistant IA
+              </CardTitle>
+              <div className="flex gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleClearChat}
+                  disabled={chatMessages.length === 0}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setChatOpen(false)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            <div className="mt-2">
+              <select
+                value={selectedModel}
+                onChange={(e) => setSelectedModel(e.target.value)}
+                className="w-full text-xs px-2 py-1.5 border border-input rounded-md bg-background"
+                disabled={chatLoading}
+              >
+                {openRouterModels.length === 0 ? (
+                  <option value="">Aucun modèle disponible</option>
+                ) : (
+                  openRouterModels.map(model => (
+                    <option key={model.id} value={model.id}>
+                      {model.name}
+                    </option>
+                  ))
+                )}
+              </select>
+            </div>
+          </CardHeader>
+
+          <CardContent className="flex-1 overflow-y-auto p-4 space-y-3">
+            {chatMessages.length === 0 ? (
+              <div className="text-center text-muted-foreground text-sm py-8">
+                Commencez une conversation avec l'IA
+              </div>
+            ) : (
+              chatMessages.map((msg, idx) => (
+                <div
+                  key={idx}
+                  className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div
+                    className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${
+                      msg.role === 'user'
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-muted'
+                    }`}
+                  >
+                    {msg.content}
+                  </div>
+                </div>
+              ))
+            )}
+            {chatLoading && (
+              <div className="flex justify-start">
+                <div className="bg-muted rounded-lg px-3 py-2 text-sm">
+                  <div className="flex gap-1">
+                    <span className="animate-bounce">●</span>
+                    <span className="animate-bounce delay-100">●</span>
+                    <span className="animate-bounce delay-200">●</span>
+                  </div>
+                </div>
+              </div>
+            )}
+            <div ref={chatEndRef} />
+          </CardContent>
+
+          <div className="border-t p-3">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSendMessage();
+              }}
+              className="flex gap-2"
+            >
+              <Input
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                placeholder="Posez une question..."
+                disabled={chatLoading || !selectedModel}
+                className="flex-1"
+              />
+              <Button
+                type="submit"
+                size="icon"
+                disabled={chatLoading || !chatInput.trim() || !selectedModel}
+              >
+                <Send className="h-4 w-4" />
+              </Button>
+            </form>
+          </div>
+        </Card>
+      )}
 
       {/* Image modal for fullscreen view */}
       {selectedImage && (
