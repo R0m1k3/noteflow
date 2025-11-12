@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -58,6 +58,9 @@ const Index = () => {
   const [deleteUserModal, setDeleteUserModal] = useState<{open: boolean, userId?: number}>({open: false});
   const [changePasswordModal, setChangePasswordModal] = useState<{open: boolean, userId?: number}>({open: false});
   const [addNoteTodoModal, setAddNoteTodoModal] = useState(false);
+
+  // Debounce timer for auto-save
+  const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     const userFromAuth = AuthService.getUser();
@@ -184,28 +187,62 @@ const Index = () => {
     setOpenNote(null);
   };
 
-  const handleUpdateNote = async (updatedFields: Partial<Note>) => {
+  // Update note with immediate local state update
+  const handleUpdateNote = useCallback(async (updatedFields: Partial<Note>) => {
     if (!openNote) return;
 
+    const updatedNote = {
+      ...openNote,
+      ...updatedFields,
+      todos: updatedFields.todos || openNote.todos || [],
+      images: updatedFields.images || openNote.images || [],
+      files: updatedFields.files || openNote.files || []
+    };
+
+    // Update local state immediately
+    setOpenNote(updatedNote);
+    setNotes(prev => prev.map(note => note.id === updatedNote.id ? updatedNote : note));
+
     try {
-      const updatedNote = {
-        ...openNote,
-        ...updatedFields,
-        todos: openNote.todos || [],
-        images: openNote.images || [],
-        files: openNote.files || []
-      };
-
       const success = await NotesService.updateNote(updatedNote);
-
-      if (success) {
-        setOpenNote(updatedNote);
-        setNotes(notes.map(note => note.id === updatedNote.id ? updatedNote : note));
+      if (!success) {
+        showError("Erreur lors de la sauvegarde");
       }
     } catch (error) {
       showError("Erreur lors de la mise à jour de la note");
     }
-  };
+  }, [openNote, setOpenNote, setNotes]);
+
+  // Debounced content update for typing
+  const handleContentChange = useCallback((content: string) => {
+    if (!openNote) return;
+
+    // Update local state immediately for responsiveness
+    const updatedNote = { ...openNote, content };
+    setOpenNote(updatedNote);
+
+    // Debounce the API call
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+    }
+
+    saveTimerRef.current = setTimeout(async () => {
+      try {
+        await NotesService.updateNote(updatedNote);
+      } catch (error) {
+        showError("Erreur lors de la sauvegarde automatique");
+      }
+    }, 1000); // Save after 1 second of inactivity
+  }, [openNote]);
+
+  // Clean up timer on unmount
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+      }
+    };
+  }, []);
 
   const confirmDeleteNote = async () => {
     if (!openNote?.id) return;
@@ -352,9 +389,11 @@ const Index = () => {
         });
 
         if (response.ok) {
-          const file = await response.json();
-          const updatedFiles = [...(openNote.files || []), file];
-          handleUpdateNote({ files: updatedFiles });
+          const result = await response.json();
+          const newFile = result.file || result;
+          const updatedFiles = [...(openNote.files || []), newFile];
+          setOpenNote({ ...openNote, files: updatedFiles });
+          await handleUpdateNote({ files: updatedFiles });
           showSuccess("Fichier ajouté");
         }
       } catch (error) {
@@ -587,7 +626,7 @@ const Index = () => {
                   <TabsContent value="content" className="mt-4">
                     <RichTextEditor
                       content={openNote.content || ""}
-                      onChange={(content) => handleUpdateNote({ content })}
+                      onChange={handleContentChange}
                     />
                   </TabsContent>
 
@@ -645,11 +684,14 @@ const Index = () => {
                               const image = await NotesService.uploadImage(openNote.id, e.target.files[0]);
                               if (image) {
                                 const updatedImages = [...(openNote.images || []), image];
+                                setOpenNote({ ...openNote, images: updatedImages });
                                 await handleUpdateNote({ images: updatedImages });
+                                showSuccess("Image ajoutée");
                               }
                             } catch (error) {
                               showError("Erreur lors de l'upload de l'image");
                             }
+                            e.target.value = '';
                           }
                         }}
                         className="cursor-pointer"
