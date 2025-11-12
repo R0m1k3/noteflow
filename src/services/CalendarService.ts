@@ -91,6 +91,25 @@ class CalendarService {
       return false;
     }
   }
+
+  /**
+   * Créer un événement dans Google Calendar
+   */
+  async createEvent(eventData: {
+    title: string;
+    description?: string;
+    startDateTime: string;
+    endDateTime: string;
+    location?: string;
+    attendees?: string[];
+    reminders?: Array<{ method: string; minutes: number }>;
+    recurrence?: string[];
+    visibility?: string;
+    colorId?: string;
+  }): Promise<{ eventId: string; htmlLink: string }> {
+    const response = await axios.post(`${this.baseURL}/events`, eventData, this.getAuthHeader());
+    return response.data;
+  }
 }
 
 export default new CalendarService();
