@@ -31,4 +31,6 @@ volumes:
 
 networks:
   nginx_default:
-    external: true
+    external: false
+    name: nginx_default
+    driver: bridge

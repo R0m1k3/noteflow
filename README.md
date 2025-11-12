@@ -47,7 +47,6 @@ Application web moderne de gestion de notes et de tâches, Dockerisée, avec aut
 
 ### Prérequis
 - Docker et Docker Compose installés
-- Réseau Docker `nginx_default` (ou adapter dans docker-compose.yml)
 
 ### Installation
 
@@ -124,6 +123,19 @@ docker volume inspect noteflow_notes_data
 docker-compose down -v
 ```
 
+## 🌐 Réseau Docker
+
+L'application crée automatiquement un réseau Docker `nginx_default`. Si vous utilisez déjà ce réseau avec d'autres services (ex: Nginx), ils pourront communiquer automatiquement.
+
+### Utilisation avec Nginx existant
+
+Si vous avez déjà un container Nginx dans le réseau `nginx_default`, vous pouvez y connecter votre Nginx :
+
+```bash
+# Connecter un container Nginx existant au réseau
+docker network connect nginx_default <nginx-container-name>
+```
+
 ## ⚙️ Configuration Nginx
 
 ```nginx
@@ -195,6 +207,17 @@ DELETE /api/todos/:id
 - SQL prepared statements
 
 ## 🔧 Dépannage
+
+### Erreur "network nginx_default declared as external, but could not be found"
+
+Cette erreur survient lors du déploiement si le réseau Docker externe n'existe pas.
+
+**Solution** :
+Le réseau est maintenant créé automatiquement par Docker Compose. Si vous rencontrez encore ce problème :
+```bash
+docker-compose down
+docker-compose up -d --build
+```
 
 ### Erreur "no such column: n.image_filename"
 
