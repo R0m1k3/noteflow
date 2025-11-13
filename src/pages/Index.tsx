@@ -187,8 +187,8 @@ const Index = () => {
     try {
       const articles = await RssService.getArticles(100);
       if (Array.isArray(articles)) {
-        // Inverser pour afficher les anciens articles en premier
-        setRssArticles([...articles].reverse());
+        // Les articles arrivent triés par date DESC (récent en premier) depuis le backend
+        setRssArticles(articles);
       }
     } catch (error) {
       console.error("Erreur lors du chargement des articles RSS:", error);
