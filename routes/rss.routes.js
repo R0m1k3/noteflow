@@ -156,6 +156,15 @@ let articlesCacheTime = 0;
 const ARTICLES_CACHE_DURATION = 30000; // 30 secondes
 
 /**
+ * Fonction pour invalider le cache (appelée par le scheduler)
+ */
+function invalidateCache() {
+  articlesCache = null;
+  articlesCacheTime = 0;
+  logger.debug('Cache des articles RSS invalidé');
+}
+
+/**
  * GET /api/rss/articles
  * Récupérer les articles RSS (avec cache et paramètre limit)
  */
@@ -387,3 +396,4 @@ router.get('/models', requireAdmin, async (req, res) => {
 });
 
 module.exports = router;
+module.exports.invalidateCache = invalidateCache;
