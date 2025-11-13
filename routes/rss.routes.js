@@ -166,35 +166,58 @@ function invalidateCache() {
 
 /**
  * GET /api/rss/articles
- * Récupérer les articles RSS (avec cache et paramètre limit)
+ * Récupérer les articles RSS (avec cache et paramètres limit et hours)
+ * @query limit - Nombre d'articles à récupérer (défaut: 50)
+ * @query hours - Récupérer uniquement les articles des X dernières heures (défaut: tous)
  */
 router.get('/articles', async (req, res) => {
   try {
-    const limit = parseInt(req.query.limit) || 5;
+    const limit = parseInt(req.query.limit) || 50; // Augmenté de 5 à 50
+    const hours = parseInt(req.query.hours) || null;
 
-    // Utiliser le cache si disponible et récent
-    const now = Date.now();
-    if (articlesCache && (now - articlesCacheTime) < ARTICLES_CACHE_DURATION) {
-      logger.debug('Articles RSS servis depuis le cache');
-      return res.json(articlesCache.slice(0, limit));
-    }
-
-    const articles = await getAll(`
+    // Construire la requête SQL avec filtre temporel optionnel
+    let query = `
       SELECT
         a.id, a.title, a.link, a.description, a.pub_date, a.content,
         COALESCE(f.title, f.url) as feed_title, f.url as feed_url
       FROM rss_articles a
       LEFT JOIN rss_feeds f ON a.feed_id = f.id
       WHERE a.pub_date IS NOT NULL
+    `;
+
+    const params = [];
+
+    // Ajouter un filtre temporel si spécifié
+    if (hours) {
+      query += ` AND datetime(a.pub_date) >= datetime('now', '-${hours} hours')`;
+      logger.debug(`Filtre appliqué: articles des ${hours} dernières heures`);
+    }
+
+    query += `
       ORDER BY a.pub_date DESC
       LIMIT ?
-    `, [limit]);
+    `;
+    params.push(limit);
 
-    // Mettre en cache
-    articlesCache = articles || [];
-    articlesCacheTime = now;
+    // Ne pas utiliser le cache si un filtre temporel est appliqué
+    if (!hours) {
+      // Utiliser le cache si disponible et récent
+      const now = Date.now();
+      if (articlesCache && (now - articlesCacheTime) < ARTICLES_CACHE_DURATION) {
+        logger.debug('Articles RSS servis depuis le cache');
+        return res.json(articlesCache.slice(0, limit));
+      }
+    }
 
-    logger.info(`Articles RSS récupérés: ${articles?.length || 0}`);
+    const articles = await getAll(query, params);
+
+    // Mettre en cache uniquement si pas de filtre temporel
+    if (!hours) {
+      articlesCache = articles || [];
+      articlesCacheTime = Date.now();
+    }
+
+    logger.info(`Articles RSS récupérés: ${articles?.length || 0} (limit: ${limit}${hours ? `, ${hours}h` : ''})`);
     res.json(articles || []);
   } catch (error) {
     logger.error('Erreur lors de la récupération des articles RSS:', error);

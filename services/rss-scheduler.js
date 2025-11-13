@@ -106,8 +106,8 @@ async function fetchAllFeeds() {
           [parsedFeed.title || feed.url, parsedFeed.description || '', feed.id]
         );
 
-        // Ajouter les articles (limiter à 20 par flux pour ne pas surcharger)
-        const items = parsedFeed.items.slice(0, 20);
+        // Ajouter les articles (limiter à 100 par flux pour capturer plus d'articles)
+        const items = parsedFeed.items.slice(0, 100);
         let feedArticles = 0;
 
         for (const item of items) {
