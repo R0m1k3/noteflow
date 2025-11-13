@@ -28,36 +28,17 @@ async function getAuthType() {
 
 /**
  * Créer un client OAuth2
- * @param {string} [customRedirectUri] - URI de redirection personnalisée (optionnel)
- * @param {Object} [req] - Objet requête Express pour détecter l'URL
  */
-async function getOAuth2Client(customRedirectUri = null, req = null) {
+async function getOAuth2Client() {
   const clientId = await getOne("SELECT value FROM settings WHERE key = 'google_client_id'");
   const clientSecret = await getOne("SELECT value FROM settings WHERE key = 'google_client_secret'");
-  const appUrl = await getOne("SELECT value FROM settings WHERE key = 'app_url'");
 
   if (!clientId || !clientId.value || !clientSecret || !clientSecret.value) {
     throw new Error('Client ID et Client Secret non configurés');
   }
 
-  // Détecter l'URL depuis la requête si possible
-  let detectedUrl = null;
-  if (req) {
-    const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
-    const host = req.headers['x-forwarded-host'] || req.headers.host;
-    if (host) {
-      detectedUrl = `${protocol}://${host}`;
-    }
-  }
-
-  // Utiliser l'URI personnalisée si fournie, sinon l'URL configurée, sinon l'URL détectée
-  const redirectUri = customRedirectUri ||
-    (appUrl?.value ? `${appUrl.value}/api/calendar/oauth-callback` : null) ||
-    (detectedUrl ? `${detectedUrl}/api/calendar/oauth-callback` : null);
-
-  if (!redirectUri) {
-    throw new Error('URL du site non configurée. Veuillez configurer l\'URL dans les paramètres (Paramètres > Google Calendar > URL du site).');
-  }
+  // URL hardcodée pour note.ffnancy.fr
+  const redirectUri = 'https://note.ffnancy.fr/api/calendar/oauth-callback';
 
   return new google.auth.OAuth2(
     clientId.value,
@@ -107,9 +88,8 @@ async function getApiKeyClient() {
 /**
  * Créer un client Google Calendar selon la méthode d'authentification
  * @param {number} userId - ID de l'utilisateur (pour OAuth2)
- * @param {Object} [req] - Objet requête Express pour détecter l'URL
  */
-async function getCalendarClient(userId = null, req = null) {
+async function getCalendarClient(userId = null) {
   const authType = await getAuthType();
 
   if (authType === AUTH_TYPES.SERVICE_ACCOUNT) {
@@ -123,7 +103,7 @@ async function getCalendarClient(userId = null, req = null) {
     if (!userId) {
       throw new Error('User ID requis pour OAuth2');
     }
-    const oauth2Client = await getValidTokens(userId, req);
+    const oauth2Client = await getValidTokens(userId);
     return google.calendar({ version: 'v3', auth: oauth2Client });
   }
 }
@@ -150,9 +130,7 @@ router.get('/force-oauth2', async (req, res) => {
  */
 router.get('/auth-url', authenticateToken, async (req, res) => {
   try {
-    // Permettre de passer une URL de redirection personnalisée via query param
-    const customRedirectUri = req.query.redirect_uri;
-    const oauth2Client = await getOAuth2Client(customRedirectUri, req);
+    const oauth2Client = await getOAuth2Client();
 
     const authUrl = oauth2Client.generateAuthUrl({
       access_type: 'offline',
@@ -188,7 +166,7 @@ router.get('/oauth-callback', async (req, res) => {
       return res.status(400).send('État utilisateur invalide');
     }
 
-    const oauth2Client = await getOAuth2Client(null, req);
+    const oauth2Client = await getOAuth2Client();
 
     // Échanger le code contre des tokens
     const { tokens } = await oauth2Client.getToken(code);
@@ -311,10 +289,8 @@ router.get('/auth-status', authenticateToken, async (req, res) => {
 
 /**
  * Récupérer et rafraîchir les tokens OAuth si nécessaire
- * @param {number} userId - ID de l'utilisateur
- * @param {Object} [req] - Objet requête Express pour détecter l'URL
  */
-async function getValidTokens(userId, req = null) {
+async function getValidTokens(userId) {
   const tokenData = await getOne(
     'SELECT * FROM google_oauth_tokens WHERE user_id = ?',
     [userId]
@@ -324,7 +300,7 @@ async function getValidTokens(userId, req = null) {
     throw new Error('Tokens OAuth non trouvés. Veuillez vous authentifier.');
   }
 
-  const oauth2Client = await getOAuth2Client(null, req);
+  const oauth2Client = await getOAuth2Client();
   oauth2Client.setCredentials({
     access_token: tokenData.access_token,
     refresh_token: tokenData.refresh_token,
@@ -409,7 +385,7 @@ router.post('/sync', authenticateToken, async (req, res) => {
     }
 
     // Créer un client Google Calendar selon la méthode d'authentification
-    const calendar = await getCalendarClient(req.user.id, req);
+    const calendar = await getCalendarClient(req.user.id);
 
     // Récupérer les événements des 30 prochains jours
     const now = new Date();
@@ -543,7 +519,7 @@ router.post('/events', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Titre, date de début et date de fin requis' });
     }
 
-    const calendar = await getCalendarClient(req.user.id, req);
+    const calendar = await getCalendarClient(req.user.id);
 
     // Préparer l'événement
     const event = {
@@ -663,7 +639,7 @@ router.put('/events/:id', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Titre, date de début et date de fin requis' });
     }
 
-    const calendar = await getCalendarClient(req.user.id, req);
+    const calendar = await getCalendarClient(req.user.id);
 
     // Préparer l'événement mis à jour
     const event = {
