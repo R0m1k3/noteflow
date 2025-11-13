@@ -87,11 +87,13 @@ const Index = () => {
   const [todosActivePage, setTodosActivePage] = useState(0);
   const [todosCompletedPage, setTodosCompletedPage] = useState(0);
   const [rssPage, setRssPage] = useState(0);
+  const [calendarPage, setCalendarPage] = useState(0);
 
   const NOTES_PER_PAGE = 5;
-  const TODOS_PER_PAGE = 10;
+  const TODOS_PER_PAGE = 15;
   const RSS_MAX_ARTICLES = 14;
-  const RSS_PER_PAGE = 7;
+  const RSS_PER_PAGE = 8;
+  const CALENDAR_PER_PAGE = 10;
 
   // Chatbox states
   const [chatOpen, setChatOpen] = useState(false);
@@ -195,7 +197,7 @@ const Index = () => {
 
   const loadCalendarEvents = async () => {
     try {
-      const events = await CalendarService.getEvents(10); // Limité à 10 événements
+      const events = await CalendarService.getEvents(50); // Charger 50 événements pour pagination
       if (Array.isArray(events)) {
         setCalendarEvents(events);
       }
@@ -702,6 +704,10 @@ const Index = () => {
     setRssPage(0);
   }, [rssArticles.length]);
 
+  useEffect(() => {
+    setCalendarPage(0);
+  }, [calendarEvents.length]);
+
   // Pagination for todos
   const activeTodos = todos.filter(t => !t.completed);
   const completedTodos = todos.filter(t => t.completed);
@@ -721,6 +727,13 @@ const Index = () => {
   const paginatedRssArticles = rssArticles.slice(
     rssPage * RSS_PER_PAGE,
     (rssPage + 1) * RSS_PER_PAGE
+  );
+
+  // Pagination for Calendar
+  const totalCalendarPages = Math.ceil(calendarEvents.length / CALENDAR_PER_PAGE);
+  const paginatedCalendarEvents = calendarEvents.slice(
+    calendarPage * CALENDAR_PER_PAGE,
+    (calendarPage + 1) * CALENDAR_PER_PAGE
   );
 
   return (
@@ -851,7 +864,7 @@ const Index = () => {
               <CardContent>
                 <div className="space-y-3 max-h-[calc(100vh-250px)] overflow-y-auto">
                   {calendarEvents.length > 0 ? (
-                    calendarEvents.map(event => {
+                    paginatedCalendarEvents.map(event => {
                       const startDate = new Date(event.start_time);
                       const endDate = new Date(event.end_time);
                       const isToday = startDate.toDateString() === new Date().toDateString();
@@ -921,6 +934,29 @@ const Index = () => {
                     </p>
                   )}
                 </div>
+                {totalCalendarPages > 1 && (
+                  <div className="flex items-center justify-center gap-2 mt-3 pt-3 border-t">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setCalendarPage(p => Math.max(0, p - 1))}
+                      disabled={calendarPage === 0}
+                    >
+                      ‹
+                    </Button>
+                    <span className="text-xs text-muted-foreground">
+                      {calendarPage + 1}/{totalCalendarPages}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setCalendarPage(p => Math.min(totalCalendarPages - 1, p + 1))}
+                      disabled={calendarPage === totalCalendarPages - 1}
+                    >
+                      ›
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
