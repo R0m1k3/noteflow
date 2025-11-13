@@ -151,6 +151,17 @@ async function fetchAllFeeds() {
     const duration = ((Date.now() - startTime) / 1000).toFixed(2);
     logger.info(`✅ Mise à jour terminée: ${totalArticles} nouveaux articles, ${totalErrors} erreurs (${duration}s)`);
 
+    // Invalider le cache des articles dans les routes
+    try {
+      const rssRoutes = require('../routes/rss.routes');
+      if (rssRoutes && rssRoutes.invalidateCache) {
+        rssRoutes.invalidateCache();
+        logger.debug('Cache des articles RSS invalidé');
+      }
+    } catch (err) {
+      // Ignore si la fonction n'existe pas encore
+    }
+
   } catch (error) {
     logger.error('Erreur lors de la mise à jour automatique des flux RSS:', error);
   } finally {
@@ -159,10 +170,10 @@ async function fetchAllFeeds() {
 }
 
 /**
- * Démarrer le scheduler (toutes les 5 minutes)
+ * Démarrer le scheduler (toutes les 2 minutes pour mises à jour fréquentes)
  */
 function startScheduler() {
-  logger.info('📰 Scheduler RSS démarré (mise à jour toutes les 5 minutes)');
+  logger.info('📰 Scheduler RSS démarré (mise à jour toutes les 2 minutes)');
 
   // Initialiser les flux par défaut si nécessaire, puis première exécution
   setTimeout(async () => {
@@ -172,12 +183,12 @@ function startScheduler() {
     });
   }, 5000); // Attendre 5 secondes après le démarrage du serveur
 
-  // Ensuite toutes les 5 minutes
+  // Ensuite toutes les 2 minutes (réduit de 5 minutes pour mises à jour plus fréquentes)
   setInterval(() => {
     fetchAllFeeds().catch(err => {
       logger.error('Erreur lors de la mise à jour RSS:', err);
     });
-  }, 5 * 60 * 1000); // 5 minutes
+  }, 2 * 60 * 1000); // 2 minutes
 }
 
 /**
