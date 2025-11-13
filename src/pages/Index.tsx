@@ -10,10 +10,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { RichTextEditor } from "@/components/RichTextEditor";
 import {
   PlusCircle, Search, User, LogOut, Settings, ChevronDown, Plus, Archive, Trash2,
-  Image as ImageIcon, CheckSquare, FileText, Rss, ExternalLink, RefreshCw, Key, Zap, Paperclip, X, Edit, Calendar as CalendarIcon, Tag as TagIcon, MessageSquare, Send
+  Image as ImageIcon, CheckSquare, FileText, Rss, ExternalLink, RefreshCw, Key, Zap, Paperclip, X, Edit, Calendar as CalendarIcon, Tag as TagIcon, MessageSquare, Send, Check, ChevronsUpDown
 } from "lucide-react";
 import AuthService from "@/services/AuthService";
 import AdminService from "@/services/AdminService";
@@ -98,6 +100,7 @@ const Index = () => {
   const [chatLoading, setChatLoading] = useState(false);
   const [selectedModel, setSelectedModel] = useState<string>("");
   const [defaultModel, setDefaultModel] = useState<string>("");
+  const [modelSelectorOpen, setModelSelectorOpen] = useState(false);
 
   // Debounce timer for auto-save
   const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -2376,29 +2379,73 @@ const Index = () => {
               </div>
             </div>
             <div className="mt-3 flex gap-2">
-              <select
-                value={selectedModel}
-                onChange={(e) => setSelectedModel(e.target.value)}
-                className="flex-1 text-xs px-2 py-1.5 border border-input rounded-md bg-background"
-                disabled={chatLoading || loadingModels}
-              >
-                {loadingModels ? (
-                  <option value="">Chargement des modèles...</option>
-                ) : openRouterModels.length === 0 ? (
-                  <option value="">Aucun modèle disponible</option>
-                ) : (
-                  openRouterModels.map(model => (
-                    <option key={model.id} value={model.id}>
-                      {model.name}
-                    </option>
-                  ))
-                )}
-              </select>
+              <Popover open={modelSelectorOpen} onOpenChange={setModelSelectorOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={modelSelectorOpen}
+                    className="flex-1 justify-between text-xs h-9"
+                    disabled={chatLoading || loadingModels}
+                  >
+                    <span className="truncate">
+                      {loadingModels ? (
+                        "Chargement des modèles..."
+                      ) : openRouterModels.length === 0 ? (
+                        "Aucun modèle disponible"
+                      ) : selectedModel ? (
+                        <>
+                          {openRouterModels.find(m => m.id === selectedModel)?.name || "Sélectionner un modèle"}
+                          {defaultModel === selectedModel && (
+                            <span className="ml-1 text-yellow-500">★</span>
+                          )}
+                        </>
+                      ) : (
+                        "Sélectionner un modèle"
+                      )}
+                    </span>
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[320px] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Rechercher un modèle..." className="h-9" />
+                    <CommandList>
+                      <CommandEmpty>Aucun modèle trouvé.</CommandEmpty>
+                      <CommandGroup>
+                        {openRouterModels.map((model) => (
+                          <CommandItem
+                            key={model.id}
+                            value={model.name}
+                            onSelect={() => {
+                              setSelectedModel(model.id);
+                              setModelSelectorOpen(false);
+                            }}
+                            className="text-xs"
+                          >
+                            <Check
+                              className={`mr-2 h-4 w-4 ${
+                                selectedModel === model.id ? "opacity-100" : "opacity-0"
+                              }`}
+                            />
+                            <div className="flex-1 truncate">
+                              {model.name}
+                            </div>
+                            {defaultModel === model.id && (
+                              <span className="ml-1 text-yellow-500 text-sm">★</span>
+                            )}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
               {selectedModel && (
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8"
+                  className="h-9 w-9"
                   onClick={() => handleSetDefaultModel(selectedModel)}
                   disabled={loadingModels}
                   title="Définir comme modèle par défaut"
