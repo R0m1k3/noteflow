@@ -61,7 +61,7 @@ class RssService {
     }
   }
 
-  async getArticles(limit: number = 20): Promise<RssArticle[]> {
+  async getArticles(limit: number = 50): Promise<RssArticle[]> {
     try {
       const response = await axios.get(`${this.baseURL}/articles?limit=${limit}`, this.getAuthHeader());
       return response.data;

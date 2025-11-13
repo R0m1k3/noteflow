@@ -183,7 +183,7 @@ const Index = () => {
 
   const loadRssArticles = async () => {
     try {
-      const articles = await RssService.getArticles(14);
+      const articles = await RssService.getArticles(100);
       if (Array.isArray(articles)) {
         setRssArticles(articles);
       }
