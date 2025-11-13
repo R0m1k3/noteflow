@@ -114,10 +114,23 @@ async function fetchAllFeeds() {
           try {
             if (!item.link) continue; // Skip articles sans lien
 
-            // Vérifier si l'article existe déjà
-            const existing = await getOne('SELECT id FROM rss_articles WHERE link = ?', [item.link]);
+            // Normaliser la date pour la comparaison
+            const pubDate = item.pubDate || item.isoDate || new Date().toISOString();
 
-            if (!existing) {
+            // Vérifier si l'article existe déjà par lien OU par titre+date
+            // Permet de gérer les liens qui changent (tracking) et les vrais doublons
+            const existingByLink = await getOne(
+              'SELECT id FROM rss_articles WHERE link = ?',
+              [item.link]
+            );
+
+            const existingByTitleDate = await getOne(
+              'SELECT id FROM rss_articles WHERE feed_id = ? AND title = ? AND DATE(pub_date) = DATE(?)',
+              [feed.id, item.title, pubDate]
+            );
+
+            // Ajouter seulement si n'existe ni par lien ni par titre+date
+            if (!existingByLink && !existingByTitleDate) {
               await runQuery(
                 'INSERT INTO rss_articles (feed_id, title, link, description, pub_date, content) VALUES (?, ?, ?, ?, ?, ?)',
                 [
@@ -125,7 +138,7 @@ async function fetchAllFeeds() {
                   item.title || 'Sans titre',
                   item.link,
                   item.contentSnippet || item.description || '',
-                  item.pubDate || item.isoDate || new Date().toISOString(),
+                  pubDate,
                   item.content || item['content:encoded'] || ''
                 ]
               );
@@ -133,7 +146,7 @@ async function fetchAllFeeds() {
               totalArticles++;
             }
           } catch (articleError) {
-            // Ignorer les articles en double
+            // Ignorer les articles en double (contrainte UNIQUE sur link)
             if (!articleError.message.includes('UNIQUE')) {
               logger.debug(`Article ignoré: ${articleError.message}`);
             }
