@@ -194,7 +194,7 @@ router.get('/articles', async (req, res) => {
     }
 
     query += `
-      ORDER BY a.pub_date DESC
+      ORDER BY a.pub_date ASC
       LIMIT ?
     `;
     params.push(limit);
