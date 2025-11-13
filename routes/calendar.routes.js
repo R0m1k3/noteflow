@@ -50,14 +50,16 @@ async function getOAuth2Client(customRedirectUri = null, req = null) {
     }
   }
 
-  // Utiliser l'URI personnalisée si fournie, sinon l'URL configurée, sinon l'URL détectée
+  // URL par défaut en production (hardcodée pour assurer la compatibilité)
+  const defaultProductionUrl = 'https://note.ffnancy.fr';
+
+  // Priorité: URI personnalisée > URL configurée > URL détectée > URL par défaut
   const redirectUri = customRedirectUri ||
     (appUrl?.value ? `${appUrl.value}/api/calendar/oauth-callback` : null) ||
-    (detectedUrl ? `${detectedUrl}/api/calendar/oauth-callback` : null);
+    (detectedUrl ? `${detectedUrl}/api/calendar/oauth-callback` : null) ||
+    `${defaultProductionUrl}/api/calendar/oauth-callback`;
 
-  if (!redirectUri) {
-    throw new Error('URL du site non configurée. Veuillez configurer l\'URL dans les paramètres (Paramètres > Google Calendar > URL du site).');
-  }
+  logger.info(`OAuth redirect URI utilisée: ${redirectUri}`);
 
   return new google.auth.OAuth2(
     clientId.value,
