@@ -52,9 +52,9 @@ router.get('/', async (req, res) => {
         n.id, n.title, n.content, n.image_filename, n.archived, n.priority,
         n.created_at, n.updated_at,
         (SELECT COUNT(*) FROM note_todos WHERE note_id = n.id) as todos_count,
-        (SELECT COUNT(*) FROM note_todos WHERE note_id = n.id AND completed = 1) as todos_completed
+        (SELECT COUNT(*) FROM note_todos WHERE note_id = n.id AND completed = TRUE) as todos_completed
       FROM notes n
-      WHERE n.user_id = ? AND n.archived = ?
+      WHERE n.user_id = $1 AND n.archived = $2
       ORDER BY n.priority DESC, n.updated_at DESC
     `, [req.user.id, archivedFilter]);
 
@@ -63,7 +63,7 @@ router.get('/', async (req, res) => {
       const todos = await getAll(`
         SELECT id, text, completed, position
         FROM note_todos
-        WHERE note_id = ?
+        WHERE note_id = $1
         ORDER BY position ASC, id ASC
       `, [note.id]);
       note.todos = todos || [];
@@ -71,7 +71,7 @@ router.get('/', async (req, res) => {
       const images = await getAll(`
         SELECT id, filename, original_name, created_at
         FROM note_images
-        WHERE note_id = ?
+        WHERE note_id = $1
         ORDER BY created_at DESC
       `, [note.id]);
       note.images = images || [];
@@ -79,7 +79,7 @@ router.get('/', async (req, res) => {
       const files = await getAll(`
         SELECT id, filename, original_name, file_size, mime_type, created_at
         FROM note_files
-        WHERE note_id = ?
+        WHERE note_id = $1
         ORDER BY created_at DESC
       `, [note.id]);
       note.files = files || [];
@@ -88,7 +88,7 @@ router.get('/', async (req, res) => {
       const tags = await getAll(`
         SELECT id, tag as name
         FROM note_tags
-        WHERE note_id = ?
+        WHERE note_id = $1
         ORDER BY tag ASC
       `, [note.id]);
       note.tags = tags || [];
@@ -110,7 +110,7 @@ router.get('/:id', async (req, res) => {
     const note = await getOne(`
       SELECT id, title, content, image_filename, created_at, updated_at
       FROM notes
-      WHERE id = ? AND user_id = ?
+      WHERE id = $1 AND user_id = $2
     `, [req.params.id, req.user.id]);
 
     if (!note) {
@@ -121,7 +121,7 @@ router.get('/:id', async (req, res) => {
     const todos = await getAll(`
       SELECT id, text, completed, position
       FROM note_todos
-      WHERE note_id = ?
+      WHERE note_id = $1
       ORDER BY position, id
     `, [req.params.id]);
 
@@ -131,7 +131,7 @@ router.get('/:id', async (req, res) => {
     const images = await getAll(`
       SELECT id, filename, original_name, created_at
       FROM note_images
-      WHERE note_id = ?
+      WHERE note_id = $1
       ORDER BY created_at DESC
     `, [req.params.id]);
 
@@ -141,7 +141,7 @@ router.get('/:id', async (req, res) => {
     const files = await getAll(`
       SELECT id, filename, original_name, file_size, mime_type, created_at
       FROM note_files
-      WHERE note_id = ?
+      WHERE note_id = $1
       ORDER BY created_at DESC
     `, [req.params.id]);
 
@@ -174,7 +174,7 @@ router.post('/',
 
       const result = await runQuery(`
         INSERT INTO notes (user_id, title, content)
-        VALUES (?, ?, ?)
+        VALUES ($1, $2, $3)
       `, [req.user.id, title, content || '']);
 
       logger.info(`Note créée: ${title} (ID: ${result.id}) par ${req.user.username}`);
@@ -207,7 +207,7 @@ router.put('/:id',
       const { title, content } = req.body;
 
       // Vérifier que la note appartient à l'utilisateur
-      const note = await getOne('SELECT id FROM notes WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+      const note = await getOne('SELECT id FROM notes WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
       if (!note) {
         return res.status(404).json({ error: 'Note non trouvée' });
       }
@@ -248,13 +248,13 @@ router.put('/:id/archive', async (req, res) => {
     const { archived } = req.body;
 
     // Vérifier que la note appartient à l'utilisateur
-    const note = await getOne('SELECT id FROM notes WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+    const note = await getOne('SELECT id FROM notes WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
     if (!note) {
       return res.status(404).json({ error: 'Note non trouvée' });
     }
 
     await runQuery(
-      'UPDATE notes SET archived = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      'UPDATE notes SET archived = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
       [archived ? 1 : 0, req.params.id]
     );
 
@@ -273,7 +273,7 @@ router.put('/:id/archive', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     // Vérifier que la note appartient à l'utilisateur
-    const note = await getOne('SELECT id, image_filename FROM notes WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+    const note = await getOne('SELECT id, image_filename FROM notes WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
     if (!note) {
       return res.status(404).json({ error: 'Note non trouvée' });
     }
@@ -286,7 +286,7 @@ router.delete('/:id', async (req, res) => {
       }
     }
 
-    await runQuery('DELETE FROM notes WHERE id = ?', [req.params.id]);
+    await runQuery('DELETE FROM notes WHERE id = $1', [req.params.id]);
 
     logger.info(`Note supprimée (ID: ${req.params.id}) par ${req.user.username}`);
 
@@ -308,7 +308,7 @@ router.post('/:id/image', upload.single('image'), async (req, res) => {
     }
 
     // Vérifier que la note appartient à l'utilisateur
-    const note = await getOne('SELECT id, image_filename FROM notes WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+    const note = await getOne('SELECT id, image_filename FROM notes WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
     if (!note) {
       // Supprimer le fichier uploadé
       fs.unlinkSync(req.file.path);
@@ -324,7 +324,7 @@ router.post('/:id/image', upload.single('image'), async (req, res) => {
     }
 
     // Mettre à jour la note avec le nouveau fichier
-    await runQuery('UPDATE notes SET image_filename = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [req.file.filename, req.params.id]);
+    await runQuery('UPDATE notes SET image_filename = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [req.file.filename, req.params.id]);
 
     res.json({
       message: 'Image ajoutée avec succès',
@@ -346,7 +346,7 @@ router.post('/:id/image', upload.single('image'), async (req, res) => {
  */
 router.delete('/:id/image', async (req, res) => {
   try {
-    const note = await getOne('SELECT id, image_filename FROM notes WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+    const note = await getOne('SELECT id, image_filename FROM notes WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
     if (!note) {
       return res.status(404).json({ error: 'Note non trouvée' });
     }
@@ -361,7 +361,7 @@ router.delete('/:id/image', async (req, res) => {
       fs.unlinkSync(imagePath);
     }
 
-    await runQuery('UPDATE notes SET image_filename = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [req.params.id]);
+    await runQuery('UPDATE notes SET image_filename = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1', [req.params.id]);
 
     res.json({ message: 'Image supprimée avec succès' });
   } catch (error) {
@@ -384,7 +384,7 @@ router.post('/:id/todos',
       }
 
       // Vérifier que la note appartient à l'utilisateur
-      const note = await getOne('SELECT id FROM notes WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+      const note = await getOne('SELECT id FROM notes WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
       if (!note) {
         return res.status(404).json({ error: 'Note non trouvée' });
       }
@@ -393,10 +393,10 @@ router.post('/:id/todos',
 
       const result = await runQuery(`
         INSERT INTO note_todos (note_id, text, position)
-        VALUES (?, ?, (SELECT COALESCE(MAX(position), 0) + 1 FROM note_todos WHERE note_id = ?))
+        VALUES ($1, $2, (SELECT COALESCE(MAX(position), FALSE) + 1 FROM note_todos WHERE note_id = $3))
       `, [req.params.id, text, req.params.id]);
 
-      await runQuery('UPDATE notes SET updated_at = CURRENT_TIMESTAMP WHERE id = ?', [req.params.id]);
+      await runQuery('UPDATE notes SET updated_at = CURRENT_TIMESTAMP WHERE id = $1', [req.params.id]);
 
       res.status(201).json({
         id: result.id,
@@ -430,7 +430,7 @@ router.put('/todos/:todoId',
         SELECT nt.id, nt.note_id
         FROM note_todos nt
         JOIN notes n ON nt.note_id = n.id
-        WHERE nt.id = ? AND n.user_id = ?
+        WHERE nt.id = $1 AND n.user_id = $2
       `, [req.params.todoId, req.user.id]);
 
       if (!todo) {
@@ -456,7 +456,7 @@ router.put('/todos/:todoId',
       if (updates.length > 0) {
         params.push(req.params.todoId);
         await runQuery(`UPDATE note_todos SET ${updates.join(', ')} WHERE id = ?`, params);
-        await runQuery('UPDATE notes SET updated_at = CURRENT_TIMESTAMP WHERE id = ?', [todo.note_id]);
+        await runQuery('UPDATE notes SET updated_at = CURRENT_TIMESTAMP WHERE id = $1', [todo.note_id]);
       }
 
       res.json({ message: 'Todo modifié avec succès' });
@@ -478,15 +478,15 @@ router.delete('/todos/:todoId', async (req, res) => {
       SELECT nt.id, nt.note_id
       FROM note_todos nt
       JOIN notes n ON nt.note_id = n.id
-      WHERE nt.id = ? AND n.user_id = ?
+      WHERE nt.id = $1 AND n.user_id = $2
     `, [req.params.todoId, req.user.id]);
 
     if (!todo) {
       return res.status(404).json({ error: 'Todo non trouvé' });
     }
 
-    await runQuery('DELETE FROM note_todos WHERE id = ?', [req.params.todoId]);
-    await runQuery('UPDATE notes SET updated_at = CURRENT_TIMESTAMP WHERE id = ?', [todo.note_id]);
+    await runQuery('DELETE FROM note_todos WHERE id = $1', [req.params.todoId]);
+    await runQuery('UPDATE notes SET updated_at = CURRENT_TIMESTAMP WHERE id = $1', [todo.note_id]);
 
     res.json({ message: 'Todo supprimé avec succès' });
   } catch (error) {
@@ -511,7 +511,7 @@ const searchNotes = async (req, res) => {
     const notes = await getAll(`
       SELECT id, title, content, image_filename, created_at, updated_at
       FROM notes
-      WHERE user_id = ? AND (title LIKE ? OR content LIKE ?)
+      WHERE user_id = $1 AND (title LIKE $2 OR content LIKE $3)
       ORDER BY updated_at DESC
       LIMIT 50
     `, [req.user.id, searchTerm, searchTerm]);
@@ -565,7 +565,7 @@ router.post('/:id/images', imageUpload.single('image'), async (req, res) => {
     }
 
     // Vérifier que la note appartient à l'utilisateur
-    const note = await getOne('SELECT id FROM notes WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+    const note = await getOne('SELECT id FROM notes WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
     if (!note) {
       // Supprimer le fichier uploadé
       fs.unlinkSync(req.file.path);
@@ -575,11 +575,11 @@ router.post('/:id/images', imageUpload.single('image'), async (req, res) => {
     // Enregistrer l'image dans la base de données
     const result = await runQuery(`
       INSERT INTO note_images (note_id, filename, original_name)
-      VALUES (?, ?, ?)
+      VALUES ($1, $2, $3)
     `, [req.params.id, req.file.filename, req.file.originalname]);
 
     // Mettre à jour la date de modification de la note
-    await runQuery('UPDATE notes SET updated_at = CURRENT_TIMESTAMP WHERE id = ?', [req.params.id]);
+    await runQuery('UPDATE notes SET updated_at = CURRENT_TIMESTAMP WHERE id = $1', [req.params.id]);
 
     logger.info(`Image ajoutée à la note ${req.params.id}: ${req.file.filename}`);
 
@@ -607,7 +607,7 @@ router.post('/:id/images', imageUpload.single('image'), async (req, res) => {
 router.get('/:id/images', async (req, res) => {
   try {
     // Vérifier que la note appartient à l'utilisateur
-    const note = await getOne('SELECT id FROM notes WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+    const note = await getOne('SELECT id FROM notes WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
     if (!note) {
       return res.status(404).json({ error: 'Note non trouvée' });
     }
@@ -615,7 +615,7 @@ router.get('/:id/images', async (req, res) => {
     const images = await getAll(`
       SELECT id, filename, original_name, created_at
       FROM note_images
-      WHERE note_id = ?
+      WHERE note_id = $1
       ORDER BY created_at DESC
     `, [req.params.id]);
 
@@ -637,7 +637,7 @@ router.delete('/:noteId/images/:imageId', async (req, res) => {
       SELECT ni.id, ni.filename, ni.note_id
       FROM note_images ni
       JOIN notes n ON ni.note_id = n.id
-      WHERE ni.id = ? AND ni.note_id = ? AND n.user_id = ?
+      WHERE ni.id = $1 AND ni.note_id = $2 AND n.user_id = $3
     `, [req.params.imageId, req.params.noteId, req.user.id]);
 
     if (!image) {
@@ -651,10 +651,10 @@ router.delete('/:noteId/images/:imageId', async (req, res) => {
     }
 
     // Supprimer l'entrée de la base de données
-    await runQuery('DELETE FROM note_images WHERE id = ?', [req.params.imageId]);
+    await runQuery('DELETE FROM note_images WHERE id = $1', [req.params.imageId]);
 
     // Mettre à jour la date de modification de la note
-    await runQuery('UPDATE notes SET updated_at = CURRENT_TIMESTAMP WHERE id = ?', [req.params.noteId]);
+    await runQuery('UPDATE notes SET updated_at = CURRENT_TIMESTAMP WHERE id = $1', [req.params.noteId]);
 
     logger.info(`Image ${image.filename} supprimée de la note ${req.params.noteId}`);
 
@@ -699,7 +699,7 @@ router.post('/:id/files', fileUpload.single('file'), async (req, res) => {
     }
 
     // Vérifier que la note appartient à l'utilisateur
-    const note = await getOne('SELECT id FROM notes WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+    const note = await getOne('SELECT id FROM notes WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
     if (!note) {
       // Supprimer le fichier uploadé
       fs.unlinkSync(req.file.path);
@@ -709,11 +709,11 @@ router.post('/:id/files', fileUpload.single('file'), async (req, res) => {
     // Enregistrer le fichier dans la base de données
     const result = await runQuery(`
       INSERT INTO note_files (note_id, filename, original_name, file_size, mime_type)
-      VALUES (?, ?, ?, ?, ?)
+      VALUES ($1, $2, $3, $4, $5)
     `, [req.params.id, req.file.filename, req.file.originalname, req.file.size, req.file.mimetype]);
 
     // Mettre à jour la date de modification de la note
-    await runQuery('UPDATE notes SET updated_at = CURRENT_TIMESTAMP WHERE id = ?', [req.params.id]);
+    await runQuery('UPDATE notes SET updated_at = CURRENT_TIMESTAMP WHERE id = $1', [req.params.id]);
 
     logger.info(`Fichier ajouté à la note ${req.params.id}: ${req.file.originalname}`);
 
@@ -743,7 +743,7 @@ router.post('/:id/files', fileUpload.single('file'), async (req, res) => {
 router.get('/:id/files', async (req, res) => {
   try {
     // Vérifier que la note appartient à l'utilisateur
-    const note = await getOne('SELECT id FROM notes WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+    const note = await getOne('SELECT id FROM notes WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
     if (!note) {
       return res.status(404).json({ error: 'Note non trouvée' });
     }
@@ -751,7 +751,7 @@ router.get('/:id/files', async (req, res) => {
     const files = await getAll(`
       SELECT id, filename, original_name, file_size, mime_type, created_at
       FROM note_files
-      WHERE note_id = ?
+      WHERE note_id = $1
       ORDER BY created_at DESC
     `, [req.params.id]);
 
@@ -773,7 +773,7 @@ router.get('/files/:fileId/download', async (req, res) => {
       SELECT nf.id, nf.filename, nf.original_name, nf.mime_type
       FROM note_files nf
       JOIN notes n ON nf.note_id = n.id
-      WHERE nf.id = ? AND n.user_id = ?
+      WHERE nf.id = $1 AND n.user_id = $2
     `, [req.params.fileId, req.user.id]);
 
     if (!file) {
@@ -803,7 +803,7 @@ router.delete('/files/:fileId', async (req, res) => {
       SELECT nf.id, nf.note_id, nf.filename
       FROM note_files nf
       JOIN notes n ON nf.note_id = n.id
-      WHERE nf.id = ? AND n.user_id = ?
+      WHERE nf.id = $1 AND n.user_id = $2
     `, [req.params.fileId, req.user.id]);
 
     if (!file) {
@@ -817,10 +817,10 @@ router.delete('/files/:fileId', async (req, res) => {
     }
 
     // Supprimer de la base de données
-    await runQuery('DELETE FROM note_files WHERE id = ?', [req.params.fileId]);
+    await runQuery('DELETE FROM note_files WHERE id = $1', [req.params.fileId]);
 
     // Mettre à jour la date de modification de la note
-    await runQuery('UPDATE notes SET updated_at = CURRENT_TIMESTAMP WHERE id = ?', [file.note_id]);
+    await runQuery('UPDATE notes SET updated_at = CURRENT_TIMESTAMP WHERE id = $1', [file.note_id]);
 
     logger.info(`Fichier supprimé: ${file.filename}`);
 
@@ -839,12 +839,12 @@ router.delete('/files/:fileId', async (req, res) => {
  */
 router.get('/:id/tags', async (req, res) => {
   try {
-    const note = await getOne('SELECT id FROM notes WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+    const note = await getOne('SELECT id FROM notes WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
     if (!note) {
       return res.status(404).json({ error: 'Note non trouvée' });
     }
 
-    const tags = await getAll('SELECT id, tag FROM note_tags WHERE note_id = ? ORDER BY tag ASC', [req.params.id]);
+    const tags = await getAll('SELECT id, tag FROM note_tags WHERE note_id = $1 ORDER BY tag ASC', [req.params.id]);
     res.json(tags || []);
   } catch (error) {
     logger.error('Erreur lors de la récupération des tags:', error);
@@ -863,12 +863,12 @@ router.post('/:id/tags', async (req, res) => {
       return res.status(400).json({ error: 'Tag invalide' });
     }
 
-    const note = await getOne('SELECT id FROM notes WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+    const note = await getOne('SELECT id FROM notes WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
     if (!note) {
       return res.status(404).json({ error: 'Note non trouvée' });
     }
 
-    const result = await runQuery('INSERT INTO note_tags (note_id, tag) VALUES (?, ?)', [req.params.id, tag.trim().toLowerCase()]);
+    const result = await runQuery('INSERT INTO note_tags (note_id, tag) VALUES ($1, $2)', [req.params.id, tag.trim().toLowerCase()]);
     res.json({ id: result.id, tag: tag.trim().toLowerCase() });
   } catch (error) {
     if (error.message && error.message.includes('UNIQUE constraint')) {
@@ -888,14 +888,14 @@ router.delete('/:noteId/tags/:tagId', async (req, res) => {
     const tag = await getOne(`
       SELECT nt.id FROM note_tags nt
       JOIN notes n ON nt.note_id = n.id
-      WHERE nt.id = ? AND nt.note_id = ? AND n.user_id = ?
+      WHERE nt.id = $1 AND nt.note_id = $2 AND n.user_id = $3
     `, [req.params.tagId, req.params.noteId, req.user.id]);
 
     if (!tag) {
       return res.status(404).json({ error: 'Tag non trouvé' });
     }
 
-    await runQuery('DELETE FROM note_tags WHERE id = ?', [req.params.tagId]);
+    await runQuery('DELETE FROM note_tags WHERE id = $1', [req.params.tagId]);
     res.json({ message: 'Tag supprimé' });
   } catch (error) {
     logger.error('Erreur lors de la suppression du tag:', error);
@@ -912,12 +912,12 @@ router.patch('/:id/priority', async (req, res) => {
     const { priority } = req.body;
 
     // Vérifier que la note appartient à l'utilisateur
-    const note = await getOne('SELECT id FROM notes WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+    const note = await getOne('SELECT id FROM notes WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
     if (!note) {
       return res.status(404).json({ error: 'Note non trouvée' });
     }
 
-    await runQuery('UPDATE notes SET priority = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [priority ? 1 : 0, req.params.id]);
+    await runQuery('UPDATE notes SET priority = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [priority ? 1 : 0, req.params.id]);
 
     logger.info(`Priorité de la note ${req.params.id} modifiée: ${priority}`);
     res.json({ message: 'Priorité modifiée avec succès', priority });

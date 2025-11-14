@@ -19,7 +19,7 @@ router.get('/', async (req, res) => {
     const todos = await getAll(`
       SELECT id, text, completed, created_at
       FROM global_todos
-      WHERE user_id = ?
+      WHERE user_id = $1
       ORDER BY created_at DESC
     `, [req.user.id]);
 
@@ -47,7 +47,7 @@ router.post('/',
 
       const result = await runQuery(`
         INSERT INTO global_todos (user_id, text)
-        VALUES (?, ?)
+        VALUES ($1, $2)
       `, [req.user.id, text]);
 
       logger.info(`Todo global créé (ID: ${result.id}) par ${req.user.username}`);
@@ -84,7 +84,7 @@ router.put('/:id',
       const { text, completed } = req.body;
 
       // Vérifier que le todo appartient à l'utilisateur
-      const todo = await getOne('SELECT id FROM global_todos WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+      const todo = await getOne('SELECT id FROM global_todos WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
       if (!todo) {
         return res.status(404).json({ error: 'Todo non trouvé' });
       }
@@ -121,13 +121,13 @@ router.put('/:id',
 router.patch('/:id/toggle', async (req, res) => {
   try {
     // Vérifier que le todo appartient à l'utilisateur
-    const todo = await getOne('SELECT id, completed FROM global_todos WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+    const todo = await getOne('SELECT id, completed FROM global_todos WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
     if (!todo) {
       return res.status(404).json({ error: 'Todo non trouvé' });
     }
 
     const newCompleted = todo.completed ? 0 : 1;
-    await runQuery('UPDATE global_todos SET completed = ? WHERE id = ?', [newCompleted, req.params.id]);
+    await runQuery('UPDATE global_todos SET completed = $1 WHERE id = $2', [newCompleted, req.params.id]);
 
     logger.info(`Todo global ${newCompleted ? 'complété' : 'réouvert'} (ID: ${req.params.id}) par ${req.user.username}`);
 
@@ -145,12 +145,12 @@ router.patch('/:id/toggle', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     // Vérifier que le todo appartient à l'utilisateur
-    const todo = await getOne('SELECT id FROM global_todos WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+    const todo = await getOne('SELECT id FROM global_todos WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
     if (!todo) {
       return res.status(404).json({ error: 'Todo non trouvé' });
     }
 
-    await runQuery('DELETE FROM global_todos WHERE id = ?', [req.params.id]);
+    await runQuery('DELETE FROM global_todos WHERE id = $1', [req.params.id]);
 
     logger.info(`Todo global supprimé (ID: ${req.params.id}) par ${req.user.username}`);
 

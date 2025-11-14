@@ -38,7 +38,7 @@ router.post('/feeds', requireAdmin, async (req, res) => {
     }
 
     // Vérifier si existe déjà
-    const existing = await getOne('SELECT id FROM rss_feeds WHERE url = ?', [url]);
+    const existing = await getOne('SELECT id FROM rss_feeds WHERE url = $1', [url]);
     if (existing) {
       return res.status(409).json({ error: 'Ce flux existe déjà' });
     }
@@ -49,7 +49,7 @@ router.post('/feeds', requireAdmin, async (req, res) => {
 
       // Ajouter le flux
       const result = await runQuery(
-        'INSERT INTO rss_feeds (url, title, description, enabled) VALUES (?, ?, ?, 1)',
+        'INSERT INTO rss_feeds (url, title, description, enabled) VALUES ($1, $2, $3, TRUE)',
         [url, feed.title || url, feed.description || '']
       );
 
@@ -87,7 +87,7 @@ router.put('/feeds/:id', requireAdmin, async (req, res) => {
     const { enabled } = req.body;
 
     await runQuery(
-      'UPDATE rss_feeds SET enabled = ? WHERE id = ?',
+      'UPDATE rss_feeds SET enabled = $1 WHERE id = $2',
       [enabled ? 1 : 0, req.params.id]
     );
 
@@ -105,7 +105,7 @@ router.put('/feeds/:id', requireAdmin, async (req, res) => {
  */
 router.delete('/feeds/:id', requireAdmin, async (req, res) => {
   try {
-    await runQuery('DELETE FROM rss_feeds WHERE id = ?', [req.params.id]);
+    await runQuery('DELETE FROM rss_feeds WHERE id = $1', [req.params.id]);
     logger.info(`Flux supprimé: ${req.params.id}`);
     res.json({ message: 'Flux supprimé' });
   } catch (error) {
@@ -136,7 +136,7 @@ router.get('/articles', async (req, res) => {
       LEFT JOIN rss_feeds f ON a.feed_id = f.id
       WHERE a.pub_date IS NOT NULL
       ORDER BY a.pub_date DESC
-      LIMIT ?
+      LIMIT $1
     `, [limit]);
 
     logger.debug(`Articles récupérés: ${articles?.length || 0}`);
@@ -194,8 +194,8 @@ router.post('/fetch', requireAdmin, async (req, res) => {
  */
 router.post('/summarize', async (req, res) => {
   try {
-    const apiKey = await getOne('SELECT value FROM settings WHERE key = ?', ['openrouter_api_key']);
-    const model = await getOne('SELECT value FROM settings WHERE key = ?', ['openrouter_model']);
+    const apiKey = await getOne('SELECT value FROM settings WHERE key = $1', ['openrouter_api_key']);
+    const model = await getOne('SELECT value FROM settings WHERE key = $1', ['openrouter_model']);
 
     if (!apiKey || !apiKey.value) {
       return res.status(400).json({ error: 'Clé API OpenRouter non configurée' });

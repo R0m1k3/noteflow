@@ -48,7 +48,7 @@ router.post('/',
       const { username, password, is_admin } = req.body;
 
       // Vérifier si l'utilisateur existe déjà
-      const existingUser = await getOne('SELECT id FROM users WHERE username = ?', [username]);
+      const existingUser = await getOne('SELECT id FROM users WHERE username = $1', [username]);
       if (existingUser) {
         return res.status(400).json({ error: 'Ce nom d\'utilisateur existe déjà' });
       }
@@ -58,7 +58,7 @@ router.post('/',
 
       // Créer l'utilisateur
       const result = await runQuery(
-        'INSERT INTO users (username, password_hash, is_admin) VALUES (?, ?, ?)',
+        'INSERT INTO users (username, password_hash, is_admin) VALUES ($1, $2, $3)',
         [username, passwordHash, is_admin ? 1 : 0]
       );
 
@@ -96,7 +96,7 @@ router.put('/:id',
       const { password, is_admin } = req.body;
 
       // Vérifier que l'utilisateur existe
-      const user = await getOne('SELECT id, username FROM users WHERE id = ?', [userId]);
+      const user = await getOne('SELECT id, username FROM users WHERE id = $1', [userId]);
       if (!user) {
         return res.status(404).json({ error: 'Utilisateur non trouvé' });
       }
@@ -104,12 +104,12 @@ router.put('/:id',
       // Mettre à jour le mot de passe si fourni
       if (password) {
         const passwordHash = await bcrypt.hash(password, 12);
-        await runQuery('UPDATE users SET password_hash = ? WHERE id = ?', [passwordHash, userId]);
+        await runQuery('UPDATE users SET password_hash = $1 WHERE id = $2', [passwordHash, userId]);
       }
 
       // Mettre à jour le statut admin si fourni
       if (typeof is_admin !== 'undefined') {
-        await runQuery('UPDATE users SET is_admin = ? WHERE id = ?', [is_admin ? 1 : 0, userId]);
+        await runQuery('UPDATE users SET is_admin = $1 WHERE id = $2', [is_admin ? 1 : 0, userId]);
       }
 
       logger.info(`Utilisateur modifié: ${user.username} (ID: ${userId})`);
@@ -136,13 +136,13 @@ router.delete('/:id', async (req, res) => {
     }
 
     // Vérifier que l'utilisateur existe
-    const user = await getOne('SELECT id, username FROM users WHERE id = ?', [userId]);
+    const user = await getOne('SELECT id, username FROM users WHERE id = $1', [userId]);
     if (!user) {
       return res.status(404).json({ error: 'Utilisateur non trouvé' });
     }
 
     // Supprimer l'utilisateur (les notes et todos seront supprimés en cascade)
-    await runQuery('DELETE FROM users WHERE id = ?', [userId]);
+    await runQuery('DELETE FROM users WHERE id = $1', [userId]);
 
     logger.info(`Utilisateur supprimé: ${user.username} (ID: ${userId})`);
 

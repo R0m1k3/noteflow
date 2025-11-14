@@ -29,7 +29,7 @@ router.post('/login',
 
       // Rechercher l'utilisateur
       const user = await getOne(
-        'SELECT id, username, password_hash, is_admin FROM users WHERE username = ?',
+        'SELECT id, username, password_hash, is_admin FROM users WHERE username = $1',
         [username]
       );
 
@@ -81,7 +81,7 @@ router.post('/logout', authenticateToken, (req, res) => {
 router.get('/me', authenticateToken, async (req, res) => {
   try {
     const user = await getOne(
-      'SELECT id, username, is_admin, created_at FROM users WHERE id = ?',
+      'SELECT id, username, is_admin, created_at FROM users WHERE id = $1',
       [req.user.id]
     );
 
