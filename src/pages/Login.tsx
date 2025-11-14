@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
-import { MadeWithDyad } from "@/components/made-with-dyad";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import AuthService from "@/services/AuthService";
 import { useNavigate } from "react-router-dom";
 
@@ -89,15 +88,7 @@ const Login = () => {
               </Button>
             </form>
           </CardContent>
-          <CardFooter className="text-center text-sm text-muted-foreground">
-            <p className="w-full">
-              Par défaut: <span className="font-medium">admin / admin</span>
-            </p>
-          </CardFooter>
         </Card>
-      </div>
-      <div className="mt-8">
-        <MadeWithDyad />
       </div>
     </div>
   );
