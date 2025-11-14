@@ -150,6 +150,15 @@ const Index = () => {
     }
   }, [navigate]);
 
+  // Auto-refresh des articles RSS toutes les 2 minutes
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadRssArticles();
+    }, 2 * 60 * 1000); // 2 minutes (synchronisé avec le scheduler backend)
+
+    return () => clearInterval(interval);
+  }, []);
+
   const loadNotes = async () => {
     try {
       const fetchedNotes = await NotesService.getNotes();
