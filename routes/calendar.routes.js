@@ -2,7 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const { google } = require('googleapis');
-const { getAll, getOne, runQuery } = require('../config/database-loader');
+const { getAll, getOne, runQuery } = require('../config/database');
 const { authenticateToken, requireAdmin } = require('../middleware/auth');
 const logger = require('../config/logger');
 
