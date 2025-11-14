@@ -1,6 +1,6 @@
 // Service RSS NOUVEAU - Architecture simple et robuste
 const Parser = require('rss-parser');
-const { getAll, getOne, runQuery } = require('../config/database');
+const { getAll, getOne, runQuery } = require('../config/database-loader');
 const logger = require('../config/logger');
 
 const parser = new Parser({

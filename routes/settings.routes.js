@@ -1,7 +1,7 @@
 // Routes de gestion des paramètres
 const express = require('express');
 const router = express.Router();
-const { getAll, getOne, runQuery } = require('../config/database');
+const { getAll, getOne, runQuery } = require('../config/database-loader');
 const { authenticateToken, requireAdmin } = require('../middleware/auth');
 const logger = require('../config/logger');
 

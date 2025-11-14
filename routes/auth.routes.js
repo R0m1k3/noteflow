@@ -4,7 +4,7 @@ const router = express.Router();
 const bcrypt = require('bcrypt');
 const { body, validationResult } = require('express-validator');
 
-const { getOne } = require('../config/database');
+const { getOne } = require('../config/database-loader');
 const { generateToken, authenticateToken } = require('../middleware/auth');
 const logger = require('../config/logger');
 
