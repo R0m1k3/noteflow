@@ -44,16 +44,16 @@ router.put('/', async (req, res) => {
       if (value === undefined || value === null) continue;
 
       // Vérifier si le paramètre existe
-      const existing = await getOne('SELECT id FROM settings WHERE key = ?', [key]);
+      const existing = await getOne('SELECT id FROM settings WHERE key = $1', [key]);
 
       if (existing) {
         await runQuery(
-          'UPDATE settings SET value = ?, updated_at = CURRENT_TIMESTAMP WHERE key = ?',
+          'UPDATE settings SET value = $1, updated_at = CURRENT_TIMESTAMP WHERE key = $2',
           [value, key]
         );
       } else {
         await runQuery(
-          'INSERT INTO settings (key, value) VALUES (?, ?)',
+          'INSERT INTO settings (key, value) VALUES ($1, $2)',
           [key, value]
         );
       }
@@ -73,7 +73,7 @@ router.put('/', async (req, res) => {
  */
 router.get('/:key', async (req, res) => {
   try {
-    const setting = await getOne('SELECT value FROM settings WHERE key = ?', [req.params.key]);
+    const setting = await getOne('SELECT value FROM settings WHERE key = $1', [req.params.key]);
 
     if (!setting) {
       return res.status(404).json({ error: 'Paramètre non trouvé' });
@@ -95,16 +95,16 @@ router.put('/:key', async (req, res) => {
     const { value } = req.body;
 
     // Vérifier si le paramètre existe
-    const existing = await getOne('SELECT id FROM settings WHERE key = ?', [req.params.key]);
+    const existing = await getOne('SELECT id FROM settings WHERE key = $1', [req.params.key]);
 
     if (existing) {
       await runQuery(
-        'UPDATE settings SET value = ?, updated_at = CURRENT_TIMESTAMP WHERE key = ?',
+        'UPDATE settings SET value = $1, updated_at = CURRENT_TIMESTAMP WHERE key = $2',
         [value, req.params.key]
       );
     } else {
       await runQuery(
-        'INSERT INTO settings (key, value) VALUES (?, ?)',
+        'INSERT INTO settings (key, value) VALUES ($1, $2)',
         [req.params.key, value]
       );
     }
@@ -123,7 +123,7 @@ router.put('/:key', async (req, res) => {
  */
 router.delete('/:key', async (req, res) => {
   try {
-    await runQuery('DELETE FROM settings WHERE key = ?', [req.params.key]);
+    await runQuery('DELETE FROM settings WHERE key = $1', [req.params.key]);
 
     logger.info(`Paramètre supprimé: ${req.params.key}`);
     res.json({ message: 'Paramètre supprimé avec succès' });

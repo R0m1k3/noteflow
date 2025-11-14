@@ -23,7 +23,7 @@ router.get('/models', authenticateToken, async (req, res) => {
     }
 
     // Récupérer la clé API depuis les paramètres
-    const setting = await getOne('SELECT value FROM settings WHERE key = ?', ['openrouter_api_key']);
+    const setting = await getOne('SELECT value FROM settings WHERE key = $1', ['openrouter_api_key']);
 
     if (!setting || !setting.value) {
       return res.status(400).json({
@@ -90,7 +90,7 @@ router.post('/refresh-models', authenticateToken, requireAdmin, async (req, res)
     modelsCacheTime = 0;
 
     // Rediriger vers la route GET pour récupérer les modèles
-    const setting = await getOne('SELECT value FROM settings WHERE key = ?', ['openrouter_api_key']);
+    const setting = await getOne('SELECT value FROM settings WHERE key = $1', ['openrouter_api_key']);
 
     if (!setting || !setting.value) {
       return res.status(400).json({
@@ -150,7 +150,7 @@ router.post('/chat', authenticateToken, async (req, res) => {
     }
 
     // Récupérer la clé API
-    const setting = await getOne('SELECT value FROM settings WHERE key = ?', ['openrouter_api_key']);
+    const setting = await getOne('SELECT value FROM settings WHERE key = $1', ['openrouter_api_key']);
 
     if (!setting || !setting.value) {
       return res.status(400).json({ error: 'Clé API OpenRouter non configurée' });

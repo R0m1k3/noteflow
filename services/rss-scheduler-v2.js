@@ -37,7 +37,7 @@ async function fetchSingleFeed(feed) {
 
     // Mettre à jour les infos du flux
     await runQuery(
-      'UPDATE rss_feeds SET title = ?, description = ?, last_fetched_at = CURRENT_TIMESTAMP WHERE id = ?',
+      'UPDATE rss_feeds SET title = $1, description = $2, last_fetched_at = CURRENT_TIMESTAMP WHERE id = $3',
       [parsedFeed.title || feed.url, parsedFeed.description || '', feed.id]
     );
 
@@ -70,7 +70,7 @@ async function fetchSingleFeed(feed) {
         // Vérifier si l'article existe UNIQUEMENT par lien
         // Simple et fiable
         const existing = await getOne(
-          'SELECT id FROM rss_articles WHERE link = ?',
+          'SELECT id FROM rss_articles WHERE link = $1',
           [item.link]
         );
 
@@ -78,7 +78,7 @@ async function fetchSingleFeed(feed) {
           // Nouvel article - l'ajouter
           await runQuery(
             `INSERT INTO rss_articles (feed_id, title, link, description, pub_date, content)
-             VALUES (?, ?, ?, ?, ?, ?)`,
+             VALUES ($1, $2, $3, $4, $5, $6)`,
             [
               feed.id,
               item.title.trim(),
@@ -105,7 +105,7 @@ async function fetchSingleFeed(feed) {
 
     // Nettoyer les vieux articles (garder les N derniers)
     const articlesCount = await getOne(
-      'SELECT COUNT(*) as count FROM rss_articles WHERE feed_id = ?',
+      'SELECT COUNT(*) as count FROM rss_articles WHERE feed_id = $1',
       [feed.id]
     );
 
@@ -115,9 +115,9 @@ async function fetchSingleFeed(feed) {
         DELETE FROM rss_articles
         WHERE id IN (
           SELECT id FROM rss_articles
-          WHERE feed_id = ?
+          WHERE feed_id = $1
           ORDER BY pub_date ASC
-          LIMIT ?
+          LIMIT $2
         )
       `, [feed.id, toDelete]);
       logger.debug(`  🗑️  ${toDelete} anciens articles supprimés`);
@@ -151,7 +151,7 @@ async function fetchAllFeeds() {
     logger.info('🔄 === Début mise à jour RSS ===');
 
     // Récupérer tous les flux activés
-    const feeds = await getAll('SELECT * FROM rss_feeds WHERE enabled = 1');
+    const feeds = await getAll('SELECT * FROM rss_feeds WHERE enabled = TRUE');
 
     if (!feeds || feeds.length === 0) {
       logger.info('⚠️  Aucun flux RSS activé');

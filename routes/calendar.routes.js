@@ -172,14 +172,14 @@ router.get('/oauth-callback', async (req, res) => {
     const { tokens } = await oauth2Client.getToken(code);
 
     // Sauvegarder les tokens dans la base de données
-    const existing = await getOne('SELECT id FROM google_oauth_tokens WHERE user_id = ?', [userId]);
+    const existing = await getOne('SELECT id FROM google_oauth_tokens WHERE user_id = $1', [userId]);
 
     if (existing) {
       await runQuery(`
         UPDATE google_oauth_tokens
-        SET access_token = ?, refresh_token = COALESCE(?, refresh_token),
-            token_type = ?, expiry_date = ?, scope = ?, updated_at = CURRENT_TIMESTAMP
-        WHERE user_id = ?
+        SET access_token = $1, refresh_token = COALESCE($2, refresh_token),
+            token_type = $3, expiry_date = $4, scope = $5, updated_at = CURRENT_TIMESTAMP
+        WHERE user_id = $6
       `, [
         tokens.access_token,
         tokens.refresh_token,
@@ -192,7 +192,7 @@ router.get('/oauth-callback', async (req, res) => {
       await runQuery(`
         INSERT INTO google_oauth_tokens
         (user_id, access_token, refresh_token, token_type, expiry_date, scope)
-        VALUES (?, ?, ?, ?, ?, ?)
+        VALUES ($1, $2, $3, $4, $5, $6)
       `, [
         userId,
         tokens.access_token,
@@ -267,7 +267,7 @@ router.get('/auth-status', authenticateToken, async (req, res) => {
     } else {
       // OAuth2
       const tokens = await getOne(
-        'SELECT access_token, expiry_date FROM google_oauth_tokens WHERE user_id = ?',
+        'SELECT access_token, expiry_date FROM google_oauth_tokens WHERE user_id = $1',
         [req.user.id]
       );
 
@@ -292,7 +292,7 @@ router.get('/auth-status', authenticateToken, async (req, res) => {
  */
 async function getValidTokens(userId) {
   const tokenData = await getOne(
-    'SELECT * FROM google_oauth_tokens WHERE user_id = ?',
+    'SELECT * FROM google_oauth_tokens WHERE user_id = $1',
     [userId]
   );
 
@@ -317,8 +317,8 @@ async function getValidTokens(userId) {
       // Mettre à jour les tokens dans la base de données
       await runQuery(`
         UPDATE google_oauth_tokens
-        SET access_token = ?, expiry_date = ?, updated_at = CURRENT_TIMESTAMP
-        WHERE user_id = ?
+        SET access_token = $1, expiry_date = $2, updated_at = CURRENT_TIMESTAMP
+        WHERE user_id = $3
       `, [credentials.access_token, credentials.expiry_date, userId]);
 
       oauth2Client.setCredentials(credentials);
@@ -347,9 +347,9 @@ router.get('/events', authenticateToken, async (req, res) => {
         id, google_event_id, title, description,
         start_time, end_time, location, html_link
       FROM calendar_events
-      WHERE user_id = ? AND start_time >= ?
+      WHERE user_id = $1 AND start_time >= $2
       ORDER BY start_time ASC
-      LIMIT ?
+      LIMIT $3
     `, [req.user.id, now, limit]);
 
     res.json(events || []);
@@ -412,7 +412,7 @@ router.post('/sync', authenticateToken, async (req, res) => {
 
       // Vérifier si l'événement existe déjà
       const existing = await getOne(
-        'SELECT id FROM calendar_events WHERE google_event_id = ? AND user_id = ?',
+        'SELECT id FROM calendar_events WHERE google_event_id = $1 AND user_id = $2',
         [event.id, req.user.id]
       );
 
@@ -420,9 +420,9 @@ router.post('/sync', authenticateToken, async (req, res) => {
         // Mettre à jour l'événement existant
         await runQuery(`
           UPDATE calendar_events
-          SET title = ?, description = ?, start_time = ?, end_time = ?,
-              location = ?, html_link = ?, all_day = ?, synced_at = CURRENT_TIMESTAMP
-          WHERE id = ?
+          SET title = $1, description = $2, start_time = $3, end_time = $4,
+              location = $5, html_link = $6, all_day = $7, synced_at = CURRENT_TIMESTAMP
+          WHERE id = $8
         `, [
           event.summary || 'Sans titre',
           event.description || '',
@@ -438,7 +438,7 @@ router.post('/sync', authenticateToken, async (req, res) => {
         await runQuery(`
           INSERT INTO calendar_events
           (google_event_id, user_id, title, description, start_time, end_time, location, html_link, all_day)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         `, [
           event.id,
           req.user.id,
@@ -485,7 +485,7 @@ router.post('/sync', authenticateToken, async (req, res) => {
  */
 router.post('/disconnect', authenticateToken, async (req, res) => {
   try {
-    await runQuery('DELETE FROM google_oauth_tokens WHERE user_id = ?', [req.user.id]);
+    await runQuery('DELETE FROM google_oauth_tokens WHERE user_id = $1', [req.user.id]);
     logger.info(`Tokens OAuth supprimés pour l'utilisateur ${req.user.username}`);
 
     res.json({ message: 'Déconnecté avec succès' });
@@ -553,7 +553,7 @@ router.post('/events', authenticateToken, async (req, res) => {
     const response = await calendar.events.insert({
       calendarId: calendarId,
       resource: event,
-      sendUpdates: attendees && attendees.length > 0 ? 'all' : 'none'
+      sendUpdates: attendees && attendees.length > 0 $1 'all' : 'none'
     });
 
     logger.info(`Événement créé: ${response.data.id} pour l'utilisateur ${req.user.username}`);
@@ -626,7 +626,7 @@ router.put('/events/:id', authenticateToken, async (req, res) => {
 
     // Récupérer l'événement existant depuis la DB
     const dbEvent = await getOne(
-      'SELECT google_event_id FROM calendar_events WHERE id = ? AND user_id = ?',
+      'SELECT google_event_id FROM calendar_events WHERE id = $1 AND user_id = $2',
       [req.params.id, req.user.id]
     );
 
@@ -674,7 +674,7 @@ router.put('/events/:id', authenticateToken, async (req, res) => {
       calendarId: calendarId,
       eventId: dbEvent.google_event_id,
       resource: event,
-      sendUpdates: attendees && attendees.length > 0 ? 'all' : 'none'
+      sendUpdates: attendees && attendees.length > 0 $1 'all' : 'none'
     });
 
     logger.info(`Événement mis à jour: ${response.data.id} pour l'utilisateur ${req.user.username}`);
@@ -683,9 +683,9 @@ router.put('/events/:id', authenticateToken, async (req, res) => {
     const isAllDay = !startDateTime.includes('T') && !endDateTime.includes('T');
     await runQuery(`
       UPDATE calendar_events
-      SET title = ?, description = ?, start_time = ?, end_time = ?,
-          location = ?, html_link = ?, all_day = ?, synced_at = CURRENT_TIMESTAMP
-      WHERE id = ?
+      SET title = $1, description = $2, start_time = $3, end_time = $4,
+          location = $5, html_link = $6, all_day = $7, synced_at = CURRENT_TIMESTAMP
+      WHERE id = $8
     `, [
       title,
       description || null,
@@ -719,7 +719,7 @@ router.put('/events/:id', authenticateToken, async (req, res) => {
 router.delete('/events/:id', authenticateToken, async (req, res) => {
   try {
     const event = await getOne(
-      'SELECT id FROM calendar_events WHERE id = ? AND user_id = ?',
+      'SELECT id FROM calendar_events WHERE id = $1 AND user_id = $2',
       [req.params.id, req.user.id]
     );
 
@@ -727,7 +727,7 @@ router.delete('/events/:id', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Événement non trouvé' });
     }
 
-    await runQuery('DELETE FROM calendar_events WHERE id = ?', [req.params.id]);
+    await runQuery('DELETE FROM calendar_events WHERE id = $1', [req.params.id]);
 
     logger.info(`Événement ${req.params.id} supprimé`);
 
