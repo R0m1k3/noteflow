@@ -7,7 +7,7 @@ const path = require('path');
 const fs = require('fs');
 
 const logger = require('./config/logger');
-const { initDatabase } = require('./config/database-loader');
+const { initDatabase } = require('./config/database');
 
 // Créer l'application Express
 const app = express();

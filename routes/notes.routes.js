@@ -6,7 +6,7 @@ const path = require('path');
 const fs = require('fs');
 const { body, validationResult } = require('express-validator');
 
-const { getAll, getOne, runQuery } = require('../config/database-loader');
+const { getAll, getOne, runQuery } = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
 const logger = require('../config/logger');
 

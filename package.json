@@ -1,7 +1,7 @@
 {
   "name": "noteflow",
   "version": "1.0.0",
-  "description": "Application NoteFlow - Notes et gestion de tâches moderne avec Docker",
+  "description": "Application NoteFlow - Notes et gestion de tâches moderne avec Docker et PostgreSQL",
   "main": "server.js",
   "scripts": {
     "dev": "vite",
@@ -22,7 +22,7 @@
     "todo",
     "docker",
     "express",
-    "sqlite",
+    "postgresql",
     "react",
     "typescript"
   ],
