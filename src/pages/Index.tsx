@@ -879,10 +879,18 @@ const Index = () => {
                       const isToday = startDate.toDateString() === new Date().toDateString();
                       const isSoon = startDate.getTime() - new Date().getTime() < 30 * 60 * 1000 && startDate > new Date();
 
+                      // Détecter les événements "toute la journée" (all_day OU heure à 00:00 ou 01:00)
+                      const isAllDay = event.all_day ||
+                        (startDate.getHours() === 0 && startDate.getMinutes() === 0) ||
+                        (startDate.getHours() === 1 && startDate.getMinutes() === 0 && endDate.getHours() === 1);
+
                       return (
                         <div
                           key={event.id}
-                          className={`p-3 border rounded-lg hover:bg-accent/50 transition-colors group relative ${isSoon ? 'border-red-500 bg-red-50 dark:bg-red-900/20' : ''}`}
+                          className={`p-3 border rounded-lg hover:bg-accent/50 transition-colors group relative ${
+                            isSoon ? 'border-red-500 bg-red-50 dark:bg-red-900/20' :
+                            isToday ? 'bg-red-50/50 dark:bg-red-900/10' : ''
+                          }`}
                         >
                           <div className="flex items-start justify-between gap-2">
                             <div
@@ -890,14 +898,11 @@ const Index = () => {
                               onClick={() => event.html_link && window.open(event.html_link, '_blank')}
                             >
                               <div className="flex items-center gap-2 mb-1">
-                                {isToday && (
-                                  <div className="h-2 w-2 rounded-full bg-blue-500 flex-shrink-0 animate-pulse" />
-                                )}
                                 <h4 className="font-medium line-clamp-2 text-sm">{event.title}</h4>
                               </div>
                               <p className="text-xs text-muted-foreground">
                                 {isToday ? "Aujourd'hui" : startDate.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}
-                                {event.all_day ? ' - Toute la journée' : ` à ${startDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`}
+                                {isAllDay ? ' - Toute la journée' : ` à ${startDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`}
                               </p>
                               {event.location && (
                                 <p className="text-xs text-muted-foreground mt-1 truncate">
