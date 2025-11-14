@@ -758,7 +758,7 @@ const Index = () => {
                 Rendez-vous dans moins de 30 minutes : {upcomingAlert.title}
               </span>
               <span className="text-sm opacity-90">
-                à {new Date(upcomingAlert.start_time).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                à {new Date(upcomingAlert.start_time).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' })}
               </span>
             </div>
             <Button
@@ -901,8 +901,8 @@ const Index = () => {
                                 <h4 className="font-medium line-clamp-2 text-sm">{event.title}</h4>
                               </div>
                               <p className="text-xs text-muted-foreground">
-                                {isToday ? "Aujourd'hui" : startDate.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}
-                                {isAllDay ? ' - Toute la journée' : ` à ${startDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`}
+                                {isToday ? "Aujourd'hui" : startDate.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Paris' })}
+                                {isAllDay ? ' - Toute la journée' : ` à ${startDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' })}`}
                               </p>
                               {event.location && (
                                 <p className="text-xs text-muted-foreground mt-1 truncate">
