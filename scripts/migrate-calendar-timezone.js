@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 // Migration: Convertir calendar_events TIMESTAMP → TIMESTAMPTZ
+// + Supprimer les données existantes et forcer resynchronisation
 const { Pool } = require('pg');
 
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -48,6 +49,11 @@ async function migrate() {
 
     await client.query('BEGIN');
 
+    // SUPPRIMER toutes les données existantes pour éviter les problèmes de timezone
+    console.log('  🗑️  Suppression des événements existants (seront resynchronisés)');
+    const deleteResult = await client.query('DELETE FROM calendar_events');
+    console.log(`  ✅ ${deleteResult.rowCount} événements supprimés`);
+
     // Convertir start_time
     await client.query(`
       ALTER TABLE calendar_events
@@ -81,8 +87,8 @@ async function migrate() {
 
     console.log('\n✅ Migration terminée avec succès!');
     console.log('');
-    console.log('📝 Note: Resynchronisez vos événements Google Calendar');
-    console.log('   pour appliquer le nouveau format de timezone.');
+    console.log('⚠️  IMPORTANT: Resynchronisez Google Calendar pour récupérer');
+    console.log('   vos événements avec les bonnes heures.');
     console.log('');
 
     client.release();
