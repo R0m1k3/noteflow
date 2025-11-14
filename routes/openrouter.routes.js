@@ -2,7 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticateToken, requireAdmin } = require('../middleware/auth');
-const { getOne } = require('../config/database');
+const { getOne } = require('../config/database-loader');
 const logger = require('../config/logger');
 
 // Cache pour les modèles (rafraîchi toutes les heures)
