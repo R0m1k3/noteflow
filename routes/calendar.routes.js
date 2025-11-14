@@ -553,7 +553,7 @@ router.post('/events', authenticateToken, async (req, res) => {
     const response = await calendar.events.insert({
       calendarId: calendarId,
       resource: event,
-      sendUpdates: attendees && attendees.length > 0 $1 'all' : 'none'
+      sendUpdates: attendees && attendees.length > 0 ? 'all' : 'none'
     });
 
     logger.info(`Événement créé: ${response.data.id} pour l'utilisateur ${req.user.username}`);
@@ -674,7 +674,7 @@ router.put('/events/:id', authenticateToken, async (req, res) => {
       calendarId: calendarId,
       eventId: dbEvent.google_event_id,
       resource: event,
-      sendUpdates: attendees && attendees.length > 0 $1 'all' : 'none'
+      sendUpdates: attendees && attendees.length > 0 ? 'all' : 'none'
     });
 
     logger.info(`Événement mis à jour: ${response.data.id} pour l'utilisateur ${req.user.username}`);
