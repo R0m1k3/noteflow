@@ -552,12 +552,12 @@ const Index = () => {
     }
   }, []);
 
-  // Load models when chatbox opens
+  // Load models when chatbox opens (only if API key is configured)
   useEffect(() => {
-    if (chatOpen && openRouterModels.length === 0) {
+    if (chatOpen && settings.openrouter_api_key && openRouterModels.length === 0) {
       loadOpenRouterModels();
     }
-  }, [chatOpen]);
+  }, [chatOpen, settings.openrouter_api_key]);
 
   // Set default model when models are loaded
   useEffect(() => {
