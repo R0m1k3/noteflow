@@ -58,7 +58,7 @@ async function migrate() {
     await client.query(`
       ALTER TABLE calendar_events
         ALTER COLUMN start_time TYPE TIMESTAMPTZ
-        USING start_time AT TIME ZONE 'UTC'
+        USING start_time AT TIME ZONE 'Europe/Paris'
     `);
     console.log('  ✅ start_time → TIMESTAMPTZ');
 
@@ -66,7 +66,7 @@ async function migrate() {
     await client.query(`
       ALTER TABLE calendar_events
         ALTER COLUMN end_time TYPE TIMESTAMPTZ
-        USING end_time AT TIME ZONE 'UTC'
+        USING end_time AT TIME ZONE 'Europe/Paris'
     `);
     console.log('  ✅ end_time → TIMESTAMPTZ');
 
