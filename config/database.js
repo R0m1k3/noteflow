@@ -1,7 +1,15 @@
 // Configuration et initialisation de la base de données PostgreSQL
-const { Pool } = require('pg');
+const { Pool, types } = require('pg');
 const bcrypt = require('bcrypt');
 const logger = require('./logger');
+
+// IMPORTANT: Désactiver le parsing automatique des TIMESTAMPTZ en objets Date
+// Pour éviter les problèmes de timezone, on renvoie les dates comme strings ISO
+types.setTypeParser(1184, function(stringValue) {
+  // 1184 = TIMESTAMPTZ
+  // Renvoyer la string ISO au lieu d'un objet Date
+  return stringValue;
+});
 
 // Configuration PostgreSQL depuis DATABASE_URL ou variables d'environnement
 const DATABASE_URL = process.env.DATABASE_URL ||
