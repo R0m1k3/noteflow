@@ -37,6 +37,7 @@ services:
     volumes:
       - notes_uploads:/app/public/uploads
       - notes_logs:/app/data/logs
+      - ./data:/app/data-sqlite:ro  # Mount SQLite DB for migration (read-only)
     environment:
       - NODE_ENV=production
       - JWT_SECRET=${JWT_SECRET:-change_me_in_production_please_use_strong_secret}
