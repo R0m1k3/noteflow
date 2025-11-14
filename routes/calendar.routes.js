@@ -430,7 +430,7 @@ router.post('/sync', authenticateToken, async (req, res) => {
           endTime,
           event.location || '',
           event.htmlLink || '',
-          isAllDay ? 1 : 0,
+          isAllDay,
           existing.id
         ]);
       } else {
@@ -448,7 +448,7 @@ router.post('/sync', authenticateToken, async (req, res) => {
           endTime,
           event.location || '',
           event.htmlLink || '',
-          isAllDay ? 1 : 0
+          isAllDay
         ]);
       }
       syncedCount++;

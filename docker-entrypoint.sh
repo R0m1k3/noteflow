@@ -76,6 +76,10 @@ else
 fi
 
 echo ""
+echo "🔄 Migration des timezones du calendrier..."
+node scripts/migrate-calendar-timezone.js 2>/dev/null || echo "  ℹ️  Migration timezone déjà effectuée ou non nécessaire"
+
+echo ""
 echo "========================================"
 echo "🚀 Démarrage du serveur NoteFlow..."
 echo ""
