@@ -1,21 +1,50 @@
 version: '3.8'
 
 services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: noteflow-postgres
+    restart: unless-stopped
+    command: -p 5499
+    environment:
+      POSTGRES_DB: noteflow
+      POSTGRES_USER: noteflow
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-noteflow_secure_password_change_me}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5499:5499"
+    networks:
+      - nginx_default
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U noteflow -d noteflow -p 5499"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # NoteFlow Application
   notes-app:
     build: .
     container_name: notes-todo-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
       - "2222:2222"
     volumes:
-      - notes_data:/app/data
       - notes_uploads:/app/public/uploads
+      - notes_logs:/app/data/logs
     environment:
       - NODE_ENV=production
       - JWT_SECRET=${JWT_SECRET:-change_me_in_production_please_use_strong_secret}
       - PORT=2222
       - UPLOADS_PATH=/app/public/uploads
-      - DB_PATH=/app/data/notes.db
-    restart: unless-stopped
+      # PostgreSQL connection
+      - DATABASE_URL=postgresql://noteflow:${POSTGRES_PASSWORD:-noteflow_secure_password_change_me}@postgres:5499/noteflow
+      - DB_TYPE=postgres
     networks:
       - nginx_default
     healthcheck:
@@ -26,8 +55,9 @@ services:
       start_period: 40s
 
 volumes:
-  notes_data:
+  postgres_data:
   notes_uploads:
+  notes_logs:
 
 networks:
   nginx_default:

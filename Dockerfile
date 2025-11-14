@@ -33,16 +33,14 @@ FROM node:20-alpine
 # Définir le répertoire de travail
 WORKDIR /app
 
-# Installer SQLite et les outils de build pour les modules natifs
-RUN apk add --no-cache sqlite python3 make g++
+# Installer PostgreSQL client et les outils de build pour les modules natifs
+RUN apk add --no-cache postgresql-client python3 make g++
 
 # Copier les fichiers de dépendances
 COPY package.json package-lock.json ./
 
 # Installer les dépendances backend
-# Note: On installe toutes les dépendances car package.json contient aussi les deps frontend
-# mais seules les deps backend sont utilisées en runtime (express, sqlite3, bcrypt, etc.)
-RUN npm ci
+RUN npm ci --only=production
 
 # Copier le code du serveur
 COPY server.js ./
@@ -51,12 +49,13 @@ COPY routes ./routes
 COPY middleware ./middleware
 COPY services ./services
 COPY migrations ./migrations
+COPY scripts ./scripts
 
 # Copier le build de l'application React depuis le builder
 COPY --from=builder /app/dist ./dist
 
 # Créer les dossiers nécessaires et définir les permissions
-RUN mkdir -p /app/data /app/public/uploads && \
+RUN mkdir -p /app/data/logs /app/public/uploads && \
     chown -R node:node /app
 
 # Utiliser l'utilisateur node pour la sécurité
