@@ -260,10 +260,10 @@ const Index = () => {
   }, [showAdmin]);
 
   useEffect(() => {
-    if (showAdmin && adminTab === 'openrouter' && settings.openrouter_api_key && openRouterModels.length === 0) {
+    if (showAdmin && adminTab === 'openrouter' && openRouterModels.length === 0) {
       loadOpenRouterModels();
     }
-  }, [showAdmin, adminTab, settings.openrouter_api_key]);
+  }, [showAdmin, adminTab]);
 
   useEffect(() => {
     if (showAdmin && adminTab === 'calendar') {
@@ -552,12 +552,12 @@ const Index = () => {
     }
   }, []);
 
-  // Load models when chatbox opens (only if API key is configured)
+  // Load models when chatbox opens
   useEffect(() => {
-    if (chatOpen && settings.openrouter_api_key && openRouterModels.length === 0) {
+    if (chatOpen && openRouterModels.length === 0) {
       loadOpenRouterModels();
     }
-  }, [chatOpen, settings.openrouter_api_key]);
+  }, [chatOpen]);
 
   // Set default model when models are loaded
   useEffect(() => {
@@ -2443,7 +2443,7 @@ const Index = () => {
                       {loadingModels ? (
                         "Chargement des modèles..."
                       ) : openRouterModels.length === 0 ? (
-                        "Aucun modèle disponible"
+                        user?.is_admin ? "Configurer clé API OpenRouter" : "Aucun modèle IA configuré"
                       ) : selectedModel ? (
                         <>
                           {openRouterModels.find(m => m.id === selectedModel)?.name || "Sélectionner un modèle"}
@@ -2462,7 +2462,26 @@ const Index = () => {
                   <Command>
                     <CommandInput placeholder="Rechercher un modèle..." className="h-9" />
                     <CommandList>
-                      <CommandEmpty>Aucun modèle trouvé.</CommandEmpty>
+                      <CommandEmpty>
+                        {openRouterModels.length === 0 && user?.is_admin ? (
+                          <div className="p-4 text-center text-sm">
+                            <p className="mb-2">Aucun modèle IA disponible</p>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setModelSelectorOpen(false);
+                                setShowAdmin(true);
+                                setAdminTab('openrouter');
+                              }}
+                            >
+                              Configurer OpenRouter
+                            </Button>
+                          </div>
+                        ) : (
+                          "Aucun modèle trouvé."
+                        )}
+                      </CommandEmpty>
                       <CommandGroup>
                         {openRouterModels.map((model) => (
                           <CommandItem
