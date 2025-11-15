@@ -214,21 +214,25 @@ router.put('/:id',
 
       const updates = [];
       const params = [];
+      let paramCount = 0;
 
       if (title !== undefined) {
-        updates.push('title = ?');
+        paramCount++;
+        updates.push(`title = $${paramCount}`);
         params.push(title);
       }
       if (content !== undefined) {
-        updates.push('content = ?');
+        paramCount++;
+        updates.push(`content = $${paramCount}`);
         params.push(content);
       }
 
       if (updates.length > 0) {
         updates.push('updated_at = CURRENT_TIMESTAMP');
+        paramCount++;
         params.push(req.params.id);
 
-        await runQuery(`UPDATE notes SET ${updates.join(', ')} WHERE id = ?`, params);
+        await runQuery(`UPDATE notes SET ${updates.join(', ')} WHERE id = $${paramCount}`, params);
       }
 
       res.json({ message: 'Note modifiée avec succès' });
@@ -439,23 +443,28 @@ router.put('/todos/:todoId',
 
       const updates = [];
       const params = [];
+      let paramCount = 0;
 
       if (text !== undefined) {
-        updates.push('text = ?');
+        paramCount++;
+        updates.push(`text = $${paramCount}`);
         params.push(text);
       }
       if (completed !== undefined) {
-        updates.push('completed = ?');
+        paramCount++;
+        updates.push(`completed = $${paramCount}`);
         params.push(completed ? 1 : 0);
       }
       if (position !== undefined) {
-        updates.push('position = ?');
+        paramCount++;
+        updates.push(`position = $${paramCount}`);
         params.push(position);
       }
 
       if (updates.length > 0) {
+        paramCount++;
         params.push(req.params.todoId);
-        await runQuery(`UPDATE note_todos SET ${updates.join(', ')} WHERE id = ?`, params);
+        await runQuery(`UPDATE note_todos SET ${updates.join(', ')} WHERE id = $${paramCount}`, params);
         await runQuery('UPDATE notes SET updated_at = CURRENT_TIMESTAMP WHERE id = $1', [todo.note_id]);
       }
 
