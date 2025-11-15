@@ -91,19 +91,23 @@ router.put('/:id',
 
       const updates = [];
       const params = [];
+      let paramCount = 0;
 
       if (text !== undefined) {
-        updates.push('text = ?');
+        paramCount++;
+        updates.push(`text = $${paramCount}`);
         params.push(text);
       }
       if (completed !== undefined) {
-        updates.push('completed = ?');
+        paramCount++;
+        updates.push(`completed = $${paramCount}`);
         params.push(completed ? 1 : 0);
       }
 
       if (updates.length > 0) {
+        paramCount++;
         params.push(req.params.id);
-        await runQuery(`UPDATE global_todos SET ${updates.join(', ')} WHERE id = ?`, params);
+        await runQuery(`UPDATE global_todos SET ${updates.join(', ')} WHERE id = $${paramCount}`, params);
       }
 
       res.json({ message: 'Todo modifié avec succès' });
