@@ -32,6 +32,74 @@ import { ConfirmModal } from "@/components/modals/ConfirmModal";
 import { InputModal } from "@/components/modals/InputModal";
 import { AddUserModal } from "@/components/modals/AddUserModal";
 
+// ===== FONCTIONS UTILITAIRES TIMEZONE EUROPE/PARIS =====
+
+/**
+ * Convertit une date ISO/UTC en format datetime-local pour Europe/Paris
+ * @param date - Date ISO string ou Date object
+ * @returns String au format "YYYY-MM-DDTHH:mm" en heure Europe/Paris
+ */
+function toLocalDateTimeString(date: string | Date): string {
+  const d = typeof date === 'string' ? new Date(date) : date;
+
+  // Formater en heure Europe/Paris
+  const formatter = new Intl.DateTimeFormat('fr-FR', {
+    timeZone: 'Europe/Paris',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  });
+
+  const parts = formatter.formatToParts(d);
+  const year = parts.find(p => p.type === 'year')?.value;
+  const month = parts.find(p => p.type === 'month')?.value;
+  const day = parts.find(p => p.type === 'day')?.value;
+  const hour = parts.find(p => p.type === 'hour')?.value;
+  const minute = parts.find(p => p.type === 'minute')?.value;
+
+  return `${year}-${month}-${day}T${hour}:${minute}`;
+}
+
+/**
+ * Convertit une valeur datetime-local en ISO string pour Europe/Paris
+ * @param localDateTimeString - String au format "YYYY-MM-DDTHH:mm" (sans timezone)
+ * @returns ISO string représentant cette heure en Europe/Paris
+ */
+function toParisISO(localDateTimeString: string): string {
+  // Input: "2024-11-16T14:30" signifie 14:30 à Paris
+  // Output: ISO UTC correspondant (ex: "2024-11-16T13:30:00.000Z" en hiver)
+
+  const [datePart, timePart] = localDateTimeString.split('T');
+  const [year, month, day] = datePart.split('-').map(Number);
+  const [hour, minute] = timePart.split(':').map(Number);
+
+  // Déterminer l'offset de Europe/Paris pour cette date spécifique
+  // (pour gérer automatiquement l'heure d'été/hiver)
+
+  // Créer une date test en UTC à midi
+  const testDate = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+
+  // Formater cette date en Europe/Paris
+  const parisHour = parseInt(testDate.toLocaleString('en-US', {
+    timeZone: 'Europe/Paris',
+    hour: '2-digit',
+    hour12: false
+  }));
+
+  // Calculer l'offset (normalement +1 en hiver, +2 en été)
+  const offset = parisHour - 12;
+  const offsetString = offset === 1 ? '+01:00' : '+02:00';
+
+  // Construire l'ISO string avec le timezone de Paris
+  const isoWithTZ = `${datePart}T${timePart.padEnd(5, '0')}:00${offsetString}`;
+
+  // Créer la date (JavaScript va automatiquement convertir en UTC)
+  return new Date(isoWithTZ).toISOString();
+}
+
 interface UserType {
   id: number;
   username: string;
@@ -2061,8 +2129,8 @@ const Index = () => {
               const eventData = {
                 title: formData.get('title') as string,
                 description: formData.get('description') as string || undefined,
-                startDateTime: new Date(formData.get('startDateTime') as string).toISOString(),
-                endDateTime: new Date(formData.get('endDateTime') as string).toISOString(),
+                startDateTime: toParisISO(formData.get('startDateTime') as string),
+                endDateTime: toParisISO(formData.get('endDateTime') as string),
                 location: formData.get('location') as string || undefined,
                 attendees: (formData.get('attendees') as string || '').split(',').map(e => e.trim()).filter(e => e),
                 reminders: reminderMinutes && reminderMinutes !== '0' ? [
@@ -2105,7 +2173,7 @@ const Index = () => {
                   name="startDateTime"
                   type="datetime-local"
                   required
-                  defaultValue={new Date(Date.now() + 60*60*1000).toISOString().slice(0, 16)}
+                  defaultValue={toLocalDateTimeString(new Date(Date.now() + 60*60*1000))}
                 />
               </div>
               <div className="space-y-2">
@@ -2115,7 +2183,7 @@ const Index = () => {
                   name="endDateTime"
                   type="datetime-local"
                   required
-                  defaultValue={new Date(Date.now() + 2*60*60*1000).toISOString().slice(0, 16)}
+                  defaultValue={toLocalDateTimeString(new Date(Date.now() + 2*60*60*1000))}
                 />
               </div>
             </div>
@@ -2239,8 +2307,8 @@ const Index = () => {
               const eventData = {
                 title: formData.get('title') as string,
                 description: formData.get('description') as string || undefined,
-                startDateTime: new Date(formData.get('startDateTime') as string).toISOString(),
-                endDateTime: new Date(formData.get('endDateTime') as string).toISOString(),
+                startDateTime: toParisISO(formData.get('startDateTime') as string),
+                endDateTime: toParisISO(formData.get('endDateTime') as string),
                 location: formData.get('location') as string || undefined,
                 attendees: (formData.get('attendees') as string || '').split(',').map(e => e.trim()).filter(e => e),
                 reminders: reminderMinutes && reminderMinutes !== '0' ? [
@@ -2282,7 +2350,7 @@ const Index = () => {
                   name="startDateTime"
                   type="datetime-local"
                   required
-                  defaultValue={editEventModal.event ? new Date(editEventModal.event.start_time).toISOString().slice(0, 16) : ''}
+                  defaultValue={editEventModal.event ? toLocalDateTimeString(editEventModal.event.start_time) : ''}
                 />
               </div>
               <div className="space-y-2">
@@ -2292,7 +2360,7 @@ const Index = () => {
                   name="endDateTime"
                   type="datetime-local"
                   required
-                  defaultValue={editEventModal.event ? new Date(editEventModal.event.end_time).toISOString().slice(0, 16) : ''}
+                  defaultValue={editEventModal.event ? toLocalDateTimeString(editEventModal.event.end_time) : ''}
                 />
               </div>
             </div>

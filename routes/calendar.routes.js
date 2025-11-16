@@ -528,11 +528,12 @@ router.post('/events', authenticateToken, async (req, res) => {
       description: description || undefined,
       start: {
         dateTime: startDateTime,
-        timeZone: 'Europe/Paris',
+        // Note: startDateTime est déjà en ISO UTC (ex: "2024-11-16T13:30:00.000Z")
+        // Google Calendar l'interprétera correctement sans spécifier timeZone
       },
       end: {
         dateTime: endDateTime,
-        timeZone: 'Europe/Paris',
+        // Note: endDateTime est déjà en ISO UTC
       },
       attendees: attendees && attendees.length > 0 ?
         attendees.map(email => ({ email })) : undefined,
@@ -648,11 +649,11 @@ router.put('/events/:id', authenticateToken, async (req, res) => {
       description: description || undefined,
       start: {
         dateTime: startDateTime,
-        timeZone: 'Europe/Paris',
+        // Note: startDateTime est déjà en ISO UTC
       },
       end: {
         dateTime: endDateTime,
-        timeZone: 'Europe/Paris',
+        // Note: endDateTime est déjà en ISO UTC
       },
       attendees: attendees && attendees.length > 0 ?
         attendees.map(email => ({ email })) : undefined,
