@@ -69,37 +69,35 @@ function toLocalDateTimeString(date: string | Date): string {
  * @returns ISO string représentant cette heure en Europe/Paris
  */
 function toParisISO(localDateTimeString: string): string {
-  // Le champ datetime-local renvoie une string locale (ex: "2024-11-16T14:30")
-  // On doit l'interpréter comme étant en Europe/Paris, puis convertir en ISO
+  // Input: "2024-11-16T14:30" signifie 14:30 à Paris
+  // Output: ISO UTC correspondant (ex: "2024-11-16T13:30:00.000Z" en hiver)
 
-  // Parser les composants de la date
   const [datePart, timePart] = localDateTimeString.split('T');
   const [year, month, day] = datePart.split('-').map(Number);
   const [hour, minute] = timePart.split(':').map(Number);
 
-  // Créer une date "fictive" en UTC avec ces valeurs
-  const utcDate = new Date(Date.UTC(year, month - 1, day, hour, minute, 0));
+  // Déterminer l'offset de Europe/Paris pour cette date spécifique
+  // (pour gérer automatiquement l'heure d'été/hiver)
 
-  // Formater cette date en tant que date Paris
-  const parisTime = utcDate.toLocaleString('en-US', {
+  // Créer une date test en UTC à midi
+  const testDate = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+
+  // Formater cette date en Europe/Paris
+  const parisHour = parseInt(testDate.toLocaleString('en-US', {
     timeZone: 'Europe/Paris',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
     hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
     hour12: false
-  });
+  }));
 
-  // Calculer la différence entre l'heure voulue et l'heure obtenue
-  const parisDate = new Date(parisTime);
-  const diff = utcDate.getTime() - parisDate.getTime();
+  // Calculer l'offset (normalement +1 en hiver, +2 en été)
+  const offset = parisHour - 12;
+  const offsetString = offset === 1 ? '+01:00' : '+02:00';
 
-  // Créer la date finale en ajustant
-  const finalDate = new Date(utcDate.getTime() - diff);
+  // Construire l'ISO string avec le timezone de Paris
+  const isoWithTZ = `${datePart}T${timePart.padEnd(5, '0')}:00${offsetString}`;
 
-  return finalDate.toISOString();
+  // Créer la date (JavaScript va automatiquement convertir en UTC)
+  return new Date(isoWithTZ).toISOString();
 }
 
 interface UserType {
