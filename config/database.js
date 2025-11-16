@@ -2,6 +2,7 @@
 const { Pool, types } = require('pg');
 const bcrypt = require('bcrypt');
 const logger = require('./logger');
+const timezoneLogger = require('../services/timezone-logger');
 
 // IMPORTANT: Parser personnalisé pour TIMESTAMPTZ
 // On force PostgreSQL à renvoyer en UTC (options: '-c timezone=UTC')
@@ -22,14 +23,14 @@ types.setTypeParser(1184, function(stringValue) {
   // Si déjà au format ISO avec Z ou timezone (+HH:MM ou +HH)
   if (stringValue.includes('Z') || stringValue.match(/[+-]\d{2}(:\d{2})?$/)) {
     result = new Date(stringValue).toISOString();
-    logger.debug(`[PARSER TIMESTAMPTZ] Input avec TZ: "${originalValue}" → Output: "${result}"`);
+    timezoneLogger.log('PARSER', `Input avec TZ: "${originalValue}" → Output: "${result}"`);
   } else {
     // Si format "YYYY-MM-DD HH:MM:SS" sans timezone
     // Comme timezone=UTC, on sait que c'est en UTC
     // On ajoute 'Z' pour forcer JavaScript à l'interpréter comme UTC
     const isoString = stringValue.replace(' ', 'T') + 'Z';
     result = new Date(isoString).toISOString();
-    logger.debug(`[PARSER TIMESTAMPTZ] Input sans TZ: "${originalValue}" → ISO+Z: "${isoString}" → Output: "${result}"`);
+    timezoneLogger.log('PARSER', `Input sans TZ: "${originalValue}" → ISO+Z: "${isoString}" → Output: "${result}"`);
   }
 
   return result;
