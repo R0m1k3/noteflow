@@ -352,10 +352,102 @@ router.get('/events', authenticateToken, async (req, res) => {
       LIMIT $3
     `, [req.user.id, now, limit]);
 
+    // LOG pour chaque événement récupéré
+    events.forEach(event => {
+      logger.debug(`[GET /events] "${event.title}"`);
+      logger.debug(`[GET /events]   - start_time de la DB: "${event.start_time}" (type: ${typeof event.start_time})`);
+      if (event.start_time) {
+        const date = new Date(event.start_time);
+        logger.debug(`[GET /events]   - new Date(): ${date.toISOString()}`);
+        logger.debug(`[GET /events]   - Affichage Paris: ${date.toLocaleString('fr-FR', { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit' })}`);
+      }
+    });
+
     res.json(events || []);
   } catch (error) {
     logger.error('Erreur lors de la récupération des événements:', error);
     res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+/**
+ * GET /api/calendar/debug
+ * Endpoint de diagnostic détaillé pour le timezone
+ */
+router.get('/debug', authenticateToken, async (req, res) => {
+  try {
+    const diagnostics = {
+      timestamp: new Date().toISOString(),
+      serverTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      postgresTimezone: null,
+      sampleEvent: null,
+      parsing: {
+        input: null,
+        output: null,
+        display: null
+      }
+    };
+
+    // Récupérer le timezone de PostgreSQL
+    const tzResult = await getOne('SHOW timezone');
+    diagnostics.postgresTimezone = tzResult?.timezone || tzResult?.TimeZone;
+
+    // Récupérer un événement pour test
+    const event = await getOne(`
+      SELECT
+        title,
+        start_time,
+        pg_typeof(start_time) as type_col,
+        start_time::text as start_text,
+        to_char(start_time AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as start_utc_formatted,
+        to_char(start_time AT TIME ZONE 'Europe/Paris', 'YYYY-MM-DD HH24:MI:SS') as start_paris_formatted
+      FROM calendar_events
+      WHERE user_id = $1
+      ORDER BY start_time DESC
+      LIMIT 1
+    `, [req.user.id]);
+
+    if (event) {
+      diagnostics.sampleEvent = {
+        title: event.title,
+        type_col: event.type_col,
+        start_time_raw: event.start_time,
+        start_time_type: typeof event.start_time,
+        start_text: event.start_text,
+        start_utc_formatted: event.start_utc_formatted,
+        start_paris_formatted: event.start_paris_formatted
+      };
+
+      // Test de parsing
+      if (event.start_time) {
+        const date = new Date(event.start_time);
+        diagnostics.parsing = {
+          input: event.start_time,
+          inputType: typeof event.start_time,
+          dateObject: date.toISOString(),
+          displayUTC: date.toUTCString(),
+          displayParis: date.toLocaleString('fr-FR', {
+            timeZone: 'Europe/Paris',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+          }),
+          displayParisTime: date.toLocaleTimeString('fr-FR', {
+            timeZone: 'Europe/Paris',
+            hour: '2-digit',
+            minute: '2-digit'
+          })
+        };
+      }
+    }
+
+    res.json(diagnostics);
+  } catch (error) {
+    logger.error('Erreur lors du diagnostic:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 
@@ -409,6 +501,17 @@ router.post('/sync', authenticateToken, async (req, res) => {
       const startTime = event.start.dateTime || event.start.date;
       const endTime = event.end.dateTime || event.end.date;
       const isAllDay = !event.start.dateTime; // Si pas de dateTime, c'est un événement toute la journée
+
+      // LOG DÉTAILLÉ pour debug timezone
+      logger.info(`[SYNC CALENDAR] Événement: "${event.summary}"`);
+      logger.info(`[SYNC CALENDAR]   - Google startTime brut: ${JSON.stringify(event.start)}`);
+      logger.info(`[SYNC CALENDAR]   - startTime extrait: "${startTime}"`);
+      logger.info(`[SYNC CALENDAR]   - Type: ${typeof startTime}`);
+      if (startTime) {
+        const testDate = new Date(startTime);
+        logger.info(`[SYNC CALENDAR]   - new Date(startTime): ${testDate.toISOString()}`);
+        logger.info(`[SYNC CALENDAR]   - Affichage Paris: ${testDate.toLocaleString('fr-FR', { timeZone: 'Europe/Paris' })}`);
+      }
 
       // Vérifier si l'événement existe déjà
       const existing = await getOne(

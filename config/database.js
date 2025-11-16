@@ -11,19 +11,28 @@ types.setTypeParser(1184, function(stringValue) {
   // 1184 = TIMESTAMPTZ
   if (!stringValue) return null;
 
+  // LOG pour debug
+  const originalValue = stringValue;
+
   // PostgreSQL avec timezone=UTC renvoie: "2024-11-17 09:20:00" ou "2024-11-17 09:20:00+00"
   // On doit toujours renvoyer une ISO string UTC propre avec 'Z'
 
+  let result;
+
   // Si déjà au format ISO avec Z ou timezone (+HH:MM ou +HH)
   if (stringValue.includes('Z') || stringValue.match(/[+-]\d{2}(:\d{2})?$/)) {
-    return new Date(stringValue).toISOString();
+    result = new Date(stringValue).toISOString();
+    logger.debug(`[PARSER TIMESTAMPTZ] Input avec TZ: "${originalValue}" → Output: "${result}"`);
+  } else {
+    // Si format "YYYY-MM-DD HH:MM:SS" sans timezone
+    // Comme timezone=UTC, on sait que c'est en UTC
+    // On ajoute 'Z' pour forcer JavaScript à l'interpréter comme UTC
+    const isoString = stringValue.replace(' ', 'T') + 'Z';
+    result = new Date(isoString).toISOString();
+    logger.debug(`[PARSER TIMESTAMPTZ] Input sans TZ: "${originalValue}" → ISO+Z: "${isoString}" → Output: "${result}"`);
   }
 
-  // Si format "YYYY-MM-DD HH:MM:SS" sans timezone
-  // Comme timezone=UTC, on sait que c'est en UTC
-  // On ajoute 'Z' pour forcer JavaScript à l'interpréter comme UTC
-  const isoString = stringValue.replace(' ', 'T') + 'Z';
-  return new Date(isoString).toISOString();
+  return result;
 });
 
 // Configuration PostgreSQL depuis DATABASE_URL ou variables d'environnement
