@@ -504,21 +504,26 @@ router.post('/sync', authenticateToken, async (req, res) => {
 
     // Sauvegarder chaque événement dans la base de données
     for (const event of events) {
-      const startTime = event.start.dateTime || event.start.date;
-      const endTime = event.end.dateTime || event.end.date;
+      const startTimeRaw = event.start.dateTime || event.start.date;
+      const endTimeRaw = event.end.dateTime || event.end.date;
       const isAllDay = !event.start.dateTime; // Si pas de dateTime, c'est un événement toute la journée
+
+      // Convertir en UTC pour PostgreSQL TIMESTAMP
+      // PostgreSQL TIMESTAMP stocke l'heure sans fuseau horaire, donc il faut convertir en UTC avant insertion
+      const startTime = isAllDay ? startTimeRaw : new Date(startTimeRaw).toISOString();
+      const endTime = isAllDay ? endTimeRaw : new Date(endTimeRaw).toISOString();
 
       // LOG DÉTAILLÉ pour debug timezone
       timezoneLogger.log('SYNC', `📅 Événement: "${event.summary}"`, {
         googleStartBrut: event.start,
-        startTimeExtrait: startTime,
-        type: typeof startTime,
+        startTimeExtrait: startTimeRaw,
+        type: typeof startTimeRaw,
         isAllDay
       });
 
-      if (startTime) {
-        const testDate = new Date(startTime);
-        timezoneLogger.log('SYNC', `  → Conversion: new Date("${startTime}") = ${testDate.toISOString()}`, {
+      if (startTimeRaw) {
+        const testDate = new Date(startTimeRaw);
+        timezoneLogger.log('SYNC', `  → Conversion: new Date("${startTimeRaw}") = ${testDate.toISOString()}`, {
           affichageParis: testDate.toLocaleString('fr-FR', { timeZone: 'Europe/Paris' }),
           heureParisSeule: testDate.toLocaleTimeString('fr-FR', { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit' })
         });
@@ -534,7 +539,8 @@ router.post('/sync', authenticateToken, async (req, res) => {
       timezoneLogger.log('SYNC', `  → Insertion dans PostgreSQL`, {
         startTimeType: typeof startTime,
         startTimeValue: startTime,
-        endTimeValue: endTime
+        endTimeValue: endTime,
+        convertedToUTC: !isAllDay
       });
 
       if (existing) {
@@ -692,19 +698,38 @@ router.post('/events', authenticateToken, async (req, res) => {
 
       if (events.data.items && events.data.items.length > 0) {
         for (const item of events.data.items) {
+          const itemStartRaw = item.start.dateTime || item.start.date;
+          const itemEndRaw = item.end.dateTime || item.end.date;
+          const itemIsAllDay = !item.start.dateTime;
+
+          // Convertir en UTC pour PostgreSQL TIMESTAMP
+          const itemStartUTC = itemIsAllDay ? itemStartRaw : new Date(itemStartRaw).toISOString();
+          const itemEndUTC = itemIsAllDay ? itemEndRaw : new Date(itemEndRaw).toISOString();
+
+          // PostgreSQL : INSERT ... ON CONFLICT DO UPDATE (pas INSERT OR REPLACE)
           await runQuery(`
-            INSERT OR REPLACE INTO calendar_events
-            (google_event_id, user_id, title, description, start_time, end_time, location, html_link, synced_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+            INSERT INTO calendar_events
+            (google_event_id, user_id, title, description, start_time, end_time, location, html_link, all_day, synced_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP)
+            ON CONFLICT (google_event_id) DO UPDATE SET
+              title = EXCLUDED.title,
+              description = EXCLUDED.description,
+              start_time = EXCLUDED.start_time,
+              end_time = EXCLUDED.end_time,
+              location = EXCLUDED.location,
+              html_link = EXCLUDED.html_link,
+              all_day = EXCLUDED.all_day,
+              synced_at = CURRENT_TIMESTAMP
           `, [
             item.id,
             req.user.id,
             item.summary || 'Sans titre',
             item.description || null,
-            item.start.dateTime || item.start.date,
-            item.end.dateTime || item.end.date,
+            itemStartUTC,
+            itemEndUTC,
             item.location || null,
-            item.htmlLink || null
+            item.htmlLink || null,
+            itemIsAllDay
           ]);
         }
       }
@@ -803,6 +828,11 @@ router.put('/events/:id', authenticateToken, async (req, res) => {
 
     // Mettre à jour dans la base de données locale
     const isAllDay = !startDateTime.includes('T') && !endDateTime.includes('T');
+
+    // Convertir en UTC pour PostgreSQL TIMESTAMP (comme dans la synchronisation)
+    const startTimeUTC = isAllDay ? startDateTime : new Date(startDateTime).toISOString();
+    const endTimeUTC = isAllDay ? endDateTime : new Date(endDateTime).toISOString();
+
     await runQuery(`
       UPDATE calendar_events
       SET title = $1, description = $2, start_time = $3, end_time = $4,
@@ -811,8 +841,8 @@ router.put('/events/:id', authenticateToken, async (req, res) => {
     `, [
       title,
       description || null,
-      startDateTime,
-      endDateTime,
+      startTimeUTC,
+      endTimeUTC,
       location || null,
       response.data.htmlLink || null,
       isAllDay ? 1 : 0,

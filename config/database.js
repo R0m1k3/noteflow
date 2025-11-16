@@ -33,9 +33,16 @@ types.setTypeParser(1184, function(stringValue) {
   return result;
 });
 
-// Parser pour TIMESTAMP WITHOUT TIME ZONE (1114) - au cas où
+// Parser pour TIMESTAMP WITHOUT TIME ZONE (1114)
+// IMPORTANT: Les valeurs TIMESTAMP sont stockées en heure locale (Europe/Paris)
+// mais PostgreSQL les retourne sans fuseau horaire.
+// Exemple: Google envoie "2025-11-17T10:20:00+01:00" → PG stocke "2025-11-17 10:20:00"
+// On doit interpréter cette heure comme UTC (car PG a converti lors de l'insertion)
 types.setTypeParser(1114, function(stringValue) {
   if (!stringValue) return null;
+
+  // PostgreSQL retourne "YYYY-MM-DD HH:MM:SS" sans fuseau horaire
+  // Cette valeur doit être traitée comme UTC car PostgreSQL stocke en UTC en interne
   const isoString = stringValue.replace(' ', 'T') + 'Z';
   const result = new Date(isoString).toISOString();
   timezoneLogger.log('PARSER', `[1114 TIMESTAMP] Input: "${stringValue}" → Output: "${result}"`);
