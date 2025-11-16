@@ -3,12 +3,27 @@ const { Pool, types } = require('pg');
 const bcrypt = require('bcrypt');
 const logger = require('./logger');
 
-// IMPORTANT: Désactiver le parsing automatique des TIMESTAMPTZ en objets Date
-// Pour éviter les problèmes de timezone, on renvoie les dates comme strings ISO
+// IMPORTANT: Parser personnalisé pour TIMESTAMPTZ
+// On force PostgreSQL à renvoyer en UTC (options: '-c timezone=UTC')
+// Mais PostgreSQL peut renvoyer "2024-11-17 09:20:00" sans le 'Z'
+// On doit normaliser en ISO UTC propre
 types.setTypeParser(1184, function(stringValue) {
   // 1184 = TIMESTAMPTZ
-  // Renvoyer la string ISO au lieu d'un objet Date
-  return stringValue;
+  if (!stringValue) return null;
+
+  // PostgreSQL avec timezone=UTC renvoie: "2024-11-17 09:20:00" ou "2024-11-17 09:20:00+00"
+  // On doit toujours renvoyer une ISO string UTC propre avec 'Z'
+
+  // Si déjà au format ISO avec Z ou timezone
+  if (stringValue.includes('Z') || stringValue.match(/[+-]\d{2}:\d{2}$/)) {
+    return new Date(stringValue).toISOString();
+  }
+
+  // Si format "YYYY-MM-DD HH:MM:SS" sans timezone
+  // Comme timezone=UTC, on sait que c'est en UTC
+  // On ajoute 'Z' pour forcer JavaScript à l'interpréter comme UTC
+  const isoString = stringValue.replace(' ', 'T') + 'Z';
+  return new Date(isoString).toISOString();
 });
 
 // Configuration PostgreSQL depuis DATABASE_URL ou variables d'environnement
@@ -21,6 +36,9 @@ const pool = new Pool({
   max: 20, // Maximum de connexions dans le pool
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 2000,
+  // IMPORTANT: Forcer le timezone à UTC pour toutes les connexions
+  // Cela garantit que PostgreSQL renvoie toujours les dates en UTC
+  options: '-c timezone=UTC'
 });
 
 // Gestion des erreurs du pool
