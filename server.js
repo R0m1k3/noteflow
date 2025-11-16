@@ -93,6 +93,7 @@ app.use('/api/settings', require('./routes/settings.routes'));
 app.use('/api/rss', require('./routes/rss.routes'));
 app.use('/api/calendar', require('./routes/calendar.routes'));
 app.use('/api/openrouter', require('./routes/openrouter.routes'));
+app.use('/api/timezone-logs', require('./routes/timezone-logs.routes'));
 
 // Route de recherche
 app.get('/api/search', require('./routes/notes.routes').searchNotes);

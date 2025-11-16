@@ -5,6 +5,7 @@ const { google } = require('googleapis');
 const { getAll, getOne, runQuery } = require('../config/database');
 const { authenticateToken, requireAdmin } = require('../middleware/auth');
 const logger = require('../config/logger');
+const timezoneLogger = require('../services/timezone-logger');
 
 // Scopes Google Calendar requis (lecture ET écriture)
 const SCOPES = ['https://www.googleapis.com/auth/calendar'];
@@ -354,12 +355,17 @@ router.get('/events', authenticateToken, async (req, res) => {
 
     // LOG pour chaque événement récupéré
     events.forEach(event => {
-      logger.debug(`[GET /events] "${event.title}"`);
-      logger.debug(`[GET /events]   - start_time de la DB: "${event.start_time}" (type: ${typeof event.start_time})`);
+      timezoneLogger.log('GET', `📤 Envoi au frontend: "${event.title}"`, {
+        start_time_DB: event.start_time,
+        type: typeof event.start_time
+      });
+
       if (event.start_time) {
         const date = new Date(event.start_time);
-        logger.debug(`[GET /events]   - new Date(): ${date.toISOString()}`);
-        logger.debug(`[GET /events]   - Affichage Paris: ${date.toLocaleString('fr-FR', { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit' })}`);
+        timezoneLogger.log('GET', `  → Frontend recevra: ${event.start_time}`, {
+          apresNewDate: date.toISOString(),
+          affichageParisAttendu: date.toLocaleTimeString('fr-FR', { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit' })
+        });
       }
     });
 
@@ -503,14 +509,19 @@ router.post('/sync', authenticateToken, async (req, res) => {
       const isAllDay = !event.start.dateTime; // Si pas de dateTime, c'est un événement toute la journée
 
       // LOG DÉTAILLÉ pour debug timezone
-      logger.info(`[SYNC CALENDAR] Événement: "${event.summary}"`);
-      logger.info(`[SYNC CALENDAR]   - Google startTime brut: ${JSON.stringify(event.start)}`);
-      logger.info(`[SYNC CALENDAR]   - startTime extrait: "${startTime}"`);
-      logger.info(`[SYNC CALENDAR]   - Type: ${typeof startTime}`);
+      timezoneLogger.log('SYNC', `📅 Événement: "${event.summary}"`, {
+        googleStartBrut: event.start,
+        startTimeExtrait: startTime,
+        type: typeof startTime,
+        isAllDay
+      });
+
       if (startTime) {
         const testDate = new Date(startTime);
-        logger.info(`[SYNC CALENDAR]   - new Date(startTime): ${testDate.toISOString()}`);
-        logger.info(`[SYNC CALENDAR]   - Affichage Paris: ${testDate.toLocaleString('fr-FR', { timeZone: 'Europe/Paris' })}`);
+        timezoneLogger.log('SYNC', `  → Conversion: new Date("${startTime}") = ${testDate.toISOString()}`, {
+          affichageParis: testDate.toLocaleString('fr-FR', { timeZone: 'Europe/Paris' }),
+          heureParisSeule: testDate.toLocaleTimeString('fr-FR', { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit' })
+        });
       }
 
       // Vérifier si l'événement existe déjà
