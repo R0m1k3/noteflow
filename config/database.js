@@ -14,8 +14,8 @@ types.setTypeParser(1184, function(stringValue) {
   // PostgreSQL avec timezone=UTC renvoie: "2024-11-17 09:20:00" ou "2024-11-17 09:20:00+00"
   // On doit toujours renvoyer une ISO string UTC propre avec 'Z'
 
-  // Si déjà au format ISO avec Z ou timezone
-  if (stringValue.includes('Z') || stringValue.match(/[+-]\d{2}:\d{2}$/)) {
+  // Si déjà au format ISO avec Z ou timezone (+HH:MM ou +HH)
+  if (stringValue.includes('Z') || stringValue.match(/[+-]\d{2}(:\d{2})?$/)) {
     return new Date(stringValue).toISOString();
   }
 
