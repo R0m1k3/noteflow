@@ -530,6 +530,13 @@ router.post('/sync', authenticateToken, async (req, res) => {
         [event.id, req.user.id]
       );
 
+      // LOG ce qui sera inséré dans PostgreSQL
+      timezoneLogger.log('SYNC', `  → Insertion dans PostgreSQL`, {
+        startTimeType: typeof startTime,
+        startTimeValue: startTime,
+        endTimeValue: endTime
+      });
+
       if (existing) {
         // Mettre à jour l'événement existant
         await runQuery(`

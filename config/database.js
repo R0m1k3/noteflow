@@ -5,34 +5,40 @@ const logger = require('./logger');
 const timezoneLogger = require('../services/timezone-logger');
 
 // IMPORTANT: Parser personnalisé pour TIMESTAMPTZ
-// On force PostgreSQL à renvoyer en UTC (options: '-c timezone=UTC')
-// Mais PostgreSQL peut renvoyer "2024-11-17 09:20:00" sans le 'Z'
-// On doit normaliser en ISO UTC propre
+// DOIT être appelé AVANT le Pool pour être pris en compte !
+// Types TIMESTAMP(TZ) PostgreSQL :
+// - 1082 = DATE
+// - 1114 = TIMESTAMP WITHOUT TIME ZONE
+// - 1184 = TIMESTAMP WITH TIME ZONE (TIMESTAMPTZ)
+
+// Parser pour TIMESTAMPTZ (1184)
 types.setTypeParser(1184, function(stringValue) {
-  // 1184 = TIMESTAMPTZ
   if (!stringValue) return null;
 
-  // LOG pour debug
   const originalValue = stringValue;
-
-  // PostgreSQL avec timezone=UTC renvoie: "2024-11-17 09:20:00" ou "2024-11-17 09:20:00+00"
-  // On doit toujours renvoyer une ISO string UTC propre avec 'Z'
-
   let result;
 
   // Si déjà au format ISO avec Z ou timezone (+HH:MM ou +HH)
   if (stringValue.includes('Z') || stringValue.match(/[+-]\d{2}(:\d{2})?$/)) {
     result = new Date(stringValue).toISOString();
-    timezoneLogger.log('PARSER', `Input avec TZ: "${originalValue}" → Output: "${result}"`);
+    timezoneLogger.log('PARSER', `[1184 TIMESTAMPTZ] Input avec TZ: "${originalValue}" → Output: "${result}"`);
   } else {
     // Si format "YYYY-MM-DD HH:MM:SS" sans timezone
-    // Comme timezone=UTC, on sait que c'est en UTC
-    // On ajoute 'Z' pour forcer JavaScript à l'interpréter comme UTC
+    // Avec timezone=UTC, on sait que c'est en UTC
     const isoString = stringValue.replace(' ', 'T') + 'Z';
     result = new Date(isoString).toISOString();
-    timezoneLogger.log('PARSER', `Input sans TZ: "${originalValue}" → ISO+Z: "${isoString}" → Output: "${result}"`);
+    timezoneLogger.log('PARSER', `[1184 TIMESTAMPTZ] Input sans TZ: "${originalValue}" → ISO+Z: "${isoString}" → Output: "${result}"`);
   }
 
+  return result;
+});
+
+// Parser pour TIMESTAMP WITHOUT TIME ZONE (1114) - au cas où
+types.setTypeParser(1114, function(stringValue) {
+  if (!stringValue) return null;
+  const isoString = stringValue.replace(' ', 'T') + 'Z';
+  const result = new Date(isoString).toISOString();
+  timezoneLogger.log('PARSER', `[1114 TIMESTAMP] Input: "${stringValue}" → Output: "${result}"`);
   return result;
 });
 
