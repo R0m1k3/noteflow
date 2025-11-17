@@ -238,7 +238,19 @@ router.put('/:id',
         await runQuery(`UPDATE notes SET ${updates.join(', ')} WHERE id = $${paramCount}`, params);
       }
 
-      res.json({ message: 'Note modifiée avec succès' });
+      // Récupérer la note mise à jour avec sa nouvelle updated_at
+      const updatedNote = await getOne(`
+        SELECT id, title, content, image_filename, archived, priority, created_at, updated_at
+        FROM notes
+        WHERE id = $1
+      `, [req.params.id]);
+
+      logger.info(`[UPDATE NOTE] Note mise à jour - ID: ${req.params.id}, updated_at: ${updatedNote.updated_at}`);
+
+      res.json({
+        message: 'Note modifiée avec succès',
+        note: updatedNote
+      });
     } catch (error) {
       logger.error('Erreur lors de la modification de la note:', error);
       res.status(500).json({ error: 'Erreur serveur' });

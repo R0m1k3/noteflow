@@ -85,9 +85,9 @@ class NotesService {
     }
   }
   
-  async updateNote(note: Note): Promise<boolean> {
-    if (!note.id) return false;
-    
+  async updateNote(note: Note): Promise<Note | null> {
+    if (!note.id) return null;
+
     try {
       const response = await fetch(`/api/notes/${note.id}`, {
         method: "PUT",
@@ -98,15 +98,24 @@ class NotesService {
           images: note.images || []
         })
       });
-      
+
       if (!response.ok) {
         throw new Error("Erreur lors de la mise à jour de la note");
       }
-      
-      return true;
+
+      const result = await response.json();
+      // Le backend retourne { message, note } avec la note mise à jour incluant updated_at
+      if (result.note) {
+        return {
+          ...note, // Garder les todos et images de l'état local
+          ...result.note // Écraser avec les données du serveur (updated_at, etc.)
+        };
+      }
+
+      return note; // Fallback si le backend ne retourne pas la note
     } catch (error) {
       showError(error instanceof Error ? error.message : "Erreur serveur");
-      return false;
+      return null;
     }
   }
   
