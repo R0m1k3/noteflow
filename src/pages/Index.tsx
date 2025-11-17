@@ -423,6 +423,14 @@ const Index = () => {
     try {
       const tags = await TagsService.getTags(noteId);
       setNoteTags(tags || []);
+
+      // Synchroniser avec openNote.tags (convertir de 'tag' vers 'name')
+      if (openNote && openNote.id === noteId) {
+        setOpenNote({
+          ...openNote,
+          tags: (tags || []).map(t => ({ id: t.id, name: t.tag }))
+        });
+      }
     } catch (error) {
       console.error("Erreur lors du chargement des tags:", error);
       setNoteTags([]);
@@ -458,8 +466,12 @@ const Index = () => {
     setNotes(prev => prev.map(note => note.id === updatedNote.id ? updatedNote : note));
 
     try {
-      const success = await NotesService.updateNote(updatedNote);
-      if (!success) {
+      const savedNote = await NotesService.updateNote(updatedNote);
+      if (savedNote) {
+        // Mettre à jour avec les données du serveur (updated_at, etc.)
+        setOpenNote(savedNote);
+        setNotes(prev => prev.map(note => note.id === savedNote.id ? savedNote : note));
+      } else {
         showError("Erreur lors de la sauvegarde");
       }
     } catch (error) {
@@ -482,9 +494,12 @@ const Index = () => {
 
     saveTimerRef.current = setTimeout(async () => {
       try {
-        await NotesService.updateNote(updatedNote);
-        // Update notes list silently after save
-        setNotes(prev => prev.map(note => note.id === updatedNote.id ? updatedNote : note));
+        const savedNote = await NotesService.updateNote(updatedNote);
+        if (savedNote) {
+          // Mettre à jour avec les données du serveur (updated_at, etc.)
+          setOpenNote(savedNote);
+          setNotes(prev => prev.map(note => note.id === savedNote.id ? savedNote : note));
+        }
       } catch (error) {
         showError("Erreur lors de la sauvegarde automatique");
       }
@@ -701,7 +716,15 @@ const Index = () => {
     try {
       const newTag = await TagsService.addTag(openNote.id, tagText);
       if (newTag) {
-        setNoteTags([...noteTags, newTag]);
+        const updatedNoteTags = [...noteTags, newTag];
+        setNoteTags(updatedNoteTags);
+
+        // Synchroniser avec openNote.tags (convertir de 'tag' vers 'name')
+        setOpenNote({
+          ...openNote,
+          tags: updatedNoteTags.map(t => ({ id: t.id, name: t.tag }))
+        });
+
         showSuccess("Tag ajouté");
       }
     } catch (error) {
@@ -715,7 +738,15 @@ const Index = () => {
     try {
       const success = await TagsService.deleteTag(openNote.id, tagId);
       if (success) {
-        setNoteTags(noteTags.filter(t => t.id !== tagId));
+        const updatedNoteTags = noteTags.filter(t => t.id !== tagId);
+        setNoteTags(updatedNoteTags);
+
+        // Synchroniser avec openNote.tags (convertir de 'tag' vers 'name')
+        setOpenNote({
+          ...openNote,
+          tags: updatedNoteTags.map(t => ({ id: t.id, name: t.tag }))
+        });
+
         showSuccess("Tag supprimé");
       }
     } catch (error) {
