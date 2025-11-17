@@ -45,12 +45,15 @@ router.post('/',
 
       const { text } = req.body;
 
+      logger.info(`[CREATE GLOBAL TODO] Début création - user_id: ${req.user.id}, text: "${text}"`);
+
       const result = await runQuery(`
         INSERT INTO global_todos (user_id, text)
         VALUES ($1, $2)
+        RETURNING *
       `, [req.user.id, text]);
 
-      logger.info(`Todo global créé (ID: ${result.id}) par ${req.user.username}`);
+      logger.info(`[CREATE GLOBAL TODO] Todo global créé avec succès - ID: ${result.id}, user: ${req.user.username}`);
 
       res.status(201).json({
         id: result.id,

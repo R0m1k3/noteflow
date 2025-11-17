@@ -52,10 +52,12 @@ router.put('/', async (req, res) => {
           [value, key]
         );
       } else {
+        logger.info(`[CREATE SETTING] Ajout nouveau paramètre - key: "${key}"`);
         await runQuery(
-          'INSERT INTO settings (key, value) VALUES ($1, $2)',
+          'INSERT INTO settings (key, value) VALUES ($1, $2) RETURNING *',
           [key, value]
         );
+        logger.info(`[CREATE SETTING] Paramètre créé avec succès - key: "${key}"`);
       }
     }
 
@@ -102,14 +104,15 @@ router.put('/:key', async (req, res) => {
         'UPDATE settings SET value = $1, updated_at = CURRENT_TIMESTAMP WHERE key = $2',
         [value, req.params.key]
       );
+      logger.info(`Paramètre mis à jour: ${req.params.key}`);
     } else {
+      logger.info(`[CREATE SETTING] Ajout nouveau paramètre - key: "${req.params.key}"`);
       await runQuery(
-        'INSERT INTO settings (key, value) VALUES ($1, $2)',
+        'INSERT INTO settings (key, value) VALUES ($1, $2) RETURNING *',
         [req.params.key, value]
       );
+      logger.info(`[CREATE SETTING] Paramètre créé avec succès - key: "${req.params.key}"`);
     }
-
-    logger.info(`Paramètre mis à jour: ${req.params.key}`);
     res.json({ key: req.params.key, value });
   } catch (error) {
     logger.error('Erreur lors de la mise à jour du paramètre:', error);

@@ -172,12 +172,15 @@ router.post('/',
 
       const { title, content } = req.body;
 
+      logger.info(`[CREATE NOTE] Début création - user_id: ${req.user.id}, title: "${title}"`);
+
       const result = await runQuery(`
         INSERT INTO notes (user_id, title, content)
         VALUES ($1, $2, $3)
+        RETURNING *
       `, [req.user.id, title, content || '']);
 
-      logger.info(`Note créée: ${title} (ID: ${result.id}) par ${req.user.username}`);
+      logger.info(`[CREATE NOTE] Note créée avec succès - ID: ${result.id}, title: "${title}", user: ${req.user.username}`);
 
       res.status(201).json({
         id: result.id,
@@ -395,10 +398,15 @@ router.post('/:id/todos',
 
       const { text } = req.body;
 
+      logger.info(`[CREATE TODO] Ajout todo à note ${req.params.id}: "${text}"`);
+
       const result = await runQuery(`
         INSERT INTO note_todos (note_id, text, position)
         VALUES ($1, $2, (SELECT COALESCE(MAX(position), FALSE) + 1 FROM note_todos WHERE note_id = $3))
+        RETURNING *
       `, [req.params.id, text, req.params.id]);
+
+      logger.info(`[CREATE TODO] Todo créé - ID: ${result.id}, note_id: ${req.params.id}`);
 
       await runQuery('UPDATE notes SET updated_at = CURRENT_TIMESTAMP WHERE id = $1', [req.params.id]);
 
@@ -582,15 +590,18 @@ router.post('/:id/images', imageUpload.single('image'), async (req, res) => {
     }
 
     // Enregistrer l'image dans la base de données
+    logger.info(`[CREATE IMAGE] Ajout image à note ${req.params.id}: ${req.file.originalname}`);
+
     const result = await runQuery(`
       INSERT INTO note_images (note_id, filename, original_name)
       VALUES ($1, $2, $3)
+      RETURNING *
     `, [req.params.id, req.file.filename, req.file.originalname]);
 
     // Mettre à jour la date de modification de la note
     await runQuery('UPDATE notes SET updated_at = CURRENT_TIMESTAMP WHERE id = $1', [req.params.id]);
 
-    logger.info(`Image ajoutée à la note ${req.params.id}: ${req.file.filename}`);
+    logger.info(`[CREATE IMAGE] Image créée - ID: ${result.id}, filename: ${req.file.filename}, note_id: ${req.params.id}`);
 
     res.json({
       message: 'Image ajoutée avec succès',
@@ -716,15 +727,18 @@ router.post('/:id/files', fileUpload.single('file'), async (req, res) => {
     }
 
     // Enregistrer le fichier dans la base de données
+    logger.info(`[CREATE FILE] Ajout fichier à note ${req.params.id}: ${req.file.originalname}`);
+
     const result = await runQuery(`
       INSERT INTO note_files (note_id, filename, original_name, file_size, mime_type)
       VALUES ($1, $2, $3, $4, $5)
+      RETURNING *
     `, [req.params.id, req.file.filename, req.file.originalname, req.file.size, req.file.mimetype]);
 
     // Mettre à jour la date de modification de la note
     await runQuery('UPDATE notes SET updated_at = CURRENT_TIMESTAMP WHERE id = $1', [req.params.id]);
 
-    logger.info(`Fichier ajouté à la note ${req.params.id}: ${req.file.originalname}`);
+    logger.info(`[CREATE FILE] Fichier créé - ID: ${result.id}, filename: ${req.file.filename}, note_id: ${req.params.id}`);
 
     res.json({
       message: 'Fichier ajouté avec succès',
@@ -877,7 +891,12 @@ router.post('/:id/tags', async (req, res) => {
       return res.status(404).json({ error: 'Note non trouvée' });
     }
 
-    const result = await runQuery('INSERT INTO note_tags (note_id, tag) VALUES ($1, $2)', [req.params.id, tag.trim().toLowerCase()]);
+    logger.info(`[CREATE TAG] Ajout tag à note ${req.params.id}: "${tag.trim().toLowerCase()}"`);
+
+    const result = await runQuery('INSERT INTO note_tags (note_id, tag) VALUES ($1, $2) RETURNING *', [req.params.id, tag.trim().toLowerCase()]);
+
+    logger.info(`[CREATE TAG] Tag créé - ID: ${result.id}, tag: "${result.tag}", note_id: ${req.params.id}`);
+
     res.json({ id: result.id, tag: tag.trim().toLowerCase() });
   } catch (error) {
     if (error.message && error.message.includes('UNIQUE constraint')) {

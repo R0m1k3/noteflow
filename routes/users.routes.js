@@ -56,13 +56,15 @@ router.post('/',
       // Hasher le mot de passe
       const passwordHash = await bcrypt.hash(password, 12);
 
+      logger.info(`[CREATE USER] Début création - username: "${username}", is_admin: ${is_admin ? 1 : 0}`);
+
       // Créer l'utilisateur
       const result = await runQuery(
-        'INSERT INTO users (username, password_hash, is_admin) VALUES ($1, $2, $3)',
+        'INSERT INTO users (username, password_hash, is_admin) VALUES ($1, $2, $3) RETURNING *',
         [username, passwordHash, is_admin ? 1 : 0]
       );
 
-      logger.info(`Utilisateur créé: ${username} (ID: ${result.id})`);
+      logger.info(`[CREATE USER] Utilisateur créé avec succès - ID: ${result.id}, username: "${username}"`);
 
       res.status(201).json({
         id: result.id,
