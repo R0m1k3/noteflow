@@ -256,8 +256,20 @@ async function runQuery(sql, params = []) {
   const client = await pool.connect();
   try {
     const result = await client.query(sql, params);
+
+    // Si c'est un INSERT/UPDATE avec RETURNING, retourner la ligne complète
+    if (result.rows && result.rows.length > 0) {
+      logger.info(`[runQuery] Requête avec RETURNING - ID: ${result.rows[0].id}, rowCount: ${result.rowCount}`);
+      return {
+        ...result.rows[0], // Retourne toutes les colonnes de la première ligne
+        changes: result.rowCount
+      };
+    }
+
+    // Sinon, retourner juste le nombre de lignes affectées
+    logger.info(`[runQuery] Requête sans RETURNING - rowCount: ${result.rowCount}`);
     return {
-      id: result.rows[0]?.id || result.rowCount,
+      id: result.rowCount,
       changes: result.rowCount
     };
   } catch (error) {

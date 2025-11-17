@@ -190,10 +190,12 @@ router.get('/oauth-callback', async (req, res) => {
         userId
       ]);
     } else {
+      logger.info(`[CREATE OAUTH TOKEN] Ajout nouveau token OAuth - user_id: ${userId}`);
       await runQuery(`
         INSERT INTO google_oauth_tokens
         (user_id, access_token, refresh_token, token_type, expiry_date, scope)
         VALUES ($1, $2, $3, $4, $5, $6)
+        RETURNING *
       `, [
         userId,
         tokens.access_token,
@@ -202,6 +204,7 @@ router.get('/oauth-callback', async (req, res) => {
         tokens.expiry_date || null,
         tokens.scope || SCOPES.join(' ')
       ]);
+      logger.info(`[CREATE OAUTH TOKEN] Token OAuth créé avec succès pour user_id: ${userId}`);
     }
 
     logger.info(`Tokens OAuth sauvegardés pour l'utilisateur ${userId}`);
@@ -562,10 +565,12 @@ router.post('/sync', authenticateToken, async (req, res) => {
         ]);
       } else {
         // Créer un nouvel événement
+        logger.info(`[CREATE CALENDAR EVENT] Ajout événement - event_id: "${event.id}", title: "${event.summary || 'Sans titre'}"`);
         await runQuery(`
           INSERT INTO calendar_events
           (google_event_id, user_id, title, description, start_time, end_time, location, html_link, all_day)
           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          RETURNING *
         `, [
           event.id,
           req.user.id,
@@ -577,6 +582,7 @@ router.post('/sync', authenticateToken, async (req, res) => {
           event.htmlLink || '',
           isAllDay
         ]);
+        logger.info(`[CREATE CALENDAR EVENT] Événement créé avec succès - event_id: "${event.id}"`);
       }
       syncedCount++;
     }
@@ -707,6 +713,7 @@ router.post('/events', authenticateToken, async (req, res) => {
           const itemEndUTC = itemIsAllDay ? itemEndRaw : new Date(itemEndRaw).toISOString();
 
           // PostgreSQL : INSERT ... ON CONFLICT DO UPDATE (pas INSERT OR REPLACE)
+          logger.info(`[SYNC CALENDAR EVENT] Sync événement - event_id: "${item.id}"`);
           await runQuery(`
             INSERT INTO calendar_events
             (google_event_id, user_id, title, description, start_time, end_time, location, html_link, all_day, synced_at)
@@ -720,6 +727,7 @@ router.post('/events', authenticateToken, async (req, res) => {
               html_link = EXCLUDED.html_link,
               all_day = EXCLUDED.all_day,
               synced_at = CURRENT_TIMESTAMP
+            RETURNING *
           `, [
             item.id,
             req.user.id,

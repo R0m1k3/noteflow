@@ -47,13 +47,15 @@ router.post('/feeds', requireAdmin, async (req, res) => {
     try {
       const feed = await parser.parseURL(url);
 
+      logger.info(`[CREATE RSS FEED] Ajout flux - url: "${url}", title: "${feed.title || url}"`);
+
       // Ajouter le flux
       const result = await runQuery(
-        'INSERT INTO rss_feeds (url, title, description, enabled) VALUES ($1, $2, $3, TRUE)',
+        'INSERT INTO rss_feeds (url, title, description, enabled) VALUES ($1, $2, $3, TRUE) RETURNING *',
         [url, feed.title || url, feed.description || '']
       );
 
-      logger.info(`✅ Flux ajouté: ${feed.title}`);
+      logger.info(`[CREATE RSS FEED] Flux créé avec succès - ID: ${result.id}, title: "${feed.title}"`);
 
       // Déclencher un fetch immédiat
       setTimeout(() => {
@@ -250,10 +252,14 @@ Résumé (100 mots max):`;
 
         const summary = response.data.choices[0].message.content;
 
+        logger.info(`[CREATE RSS SUMMARY] Ajout résumé - article: "${article.title}", model: "${selectedModel}"`);
+
         await runQuery(
-          'INSERT INTO rss_summaries (summary, model, articles_count, feed_title, created_at) VALUES (?, ?, ?, ?, datetime("now"))',
+          'INSERT INTO rss_summaries (summary, model, articles_count, feed_title, created_at) VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP) RETURNING *',
           [`**${article.title}**\n\n${summary}\n\n🔗 [Lire l'article](${article.link})`, selectedModel, 1, article.feed_title]
         );
+
+        logger.info(`[CREATE RSS SUMMARY] Résumé créé avec succès`);
 
         return {
           article_id: article.id,
