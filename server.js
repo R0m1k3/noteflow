@@ -94,6 +94,7 @@ app.use('/api/rss', require('./routes/rss.routes'));
 app.use('/api/calendar', require('./routes/calendar.routes'));
 app.use('/api/openrouter', require('./routes/openrouter.routes'));
 app.use('/api/timezone-logs', require('./routes/timezone-logs.routes'));
+app.use('/api/admin', require('./routes/admin.routes'));
 
 // Route de recherche
 app.get('/api/search', require('./routes/notes.routes').searchNotes);
@@ -137,6 +138,11 @@ async function startServer() {
     const rssScheduler = require('./services/rss-scheduler');
     rssScheduler.startScheduler();
     logger.info('✓ Scheduler RSS démarré');
+
+    // Démarrer le scheduler de purge automatique
+    const cleanupScheduler = require('./services/cleanup-scheduler');
+    cleanupScheduler.startScheduler();
+    logger.info('✓ Scheduler de purge automatique démarré');
 
     // Démarrer le serveur
     app.listen(PORT, '0.0.0.0', () => {
