@@ -59,6 +59,7 @@ async function initDatabase() {
         content TEXT,
         image_filename TEXT,
         archived BOOLEAN DEFAULT FALSE,
+        archived_at TIMESTAMP,
         priority INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -72,7 +73,9 @@ async function initDatabase() {
         note_id INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
         text TEXT NOT NULL,
         completed BOOLEAN DEFAULT FALSE,
-        position INTEGER DEFAULT 0
+        completed_at TIMESTAMP,
+        position INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
 
@@ -83,6 +86,7 @@ async function initDatabase() {
         user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         text TEXT NOT NULL,
         completed BOOLEAN DEFAULT FALSE,
+        completed_at TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
@@ -220,6 +224,78 @@ async function initDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_calendar_events_start ON calendar_events(start_time)');
 
     logger.info('✓ Tables PostgreSQL créées avec succès');
+
+    // Créer les triggers pour mise à jour automatique des dates de purge
+    // Trigger pour notes.archived_at
+    await client.query(`
+      CREATE OR REPLACE FUNCTION update_notes_archived_at()
+      RETURNS TRIGGER AS $$
+      BEGIN
+        IF NEW.archived = TRUE AND OLD.archived = FALSE THEN
+          NEW.archived_at = CURRENT_TIMESTAMP;
+        ELSIF NEW.archived = FALSE THEN
+          NEW.archived_at = NULL;
+        END IF;
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql;
+    `);
+
+    await client.query(`
+      DROP TRIGGER IF EXISTS trigger_notes_archived_at ON notes;
+      CREATE TRIGGER trigger_notes_archived_at
+      BEFORE UPDATE ON notes
+      FOR EACH ROW
+      EXECUTE FUNCTION update_notes_archived_at();
+    `);
+
+    // Trigger pour global_todos.completed_at
+    await client.query(`
+      CREATE OR REPLACE FUNCTION update_global_todos_completed_at()
+      RETURNS TRIGGER AS $$
+      BEGIN
+        IF NEW.completed = TRUE AND OLD.completed = FALSE THEN
+          NEW.completed_at = CURRENT_TIMESTAMP;
+        ELSIF NEW.completed = FALSE THEN
+          NEW.completed_at = NULL;
+        END IF;
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql;
+    `);
+
+    await client.query(`
+      DROP TRIGGER IF EXISTS trigger_global_todos_completed_at ON global_todos;
+      CREATE TRIGGER trigger_global_todos_completed_at
+      BEFORE UPDATE ON global_todos
+      FOR EACH ROW
+      EXECUTE FUNCTION update_global_todos_completed_at();
+    `);
+
+    // Trigger pour note_todos.completed_at
+    await client.query(`
+      CREATE OR REPLACE FUNCTION update_note_todos_completed_at()
+      RETURNS TRIGGER AS $$
+      BEGIN
+        IF NEW.completed = TRUE AND (OLD.completed IS NULL OR OLD.completed = FALSE) THEN
+          NEW.completed_at = CURRENT_TIMESTAMP;
+        ELSIF NEW.completed = FALSE THEN
+          NEW.completed_at = NULL;
+        END IF;
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql;
+    `);
+
+    await client.query(`
+      DROP TRIGGER IF EXISTS trigger_note_todos_completed_at ON note_todos;
+      CREATE TRIGGER trigger_note_todos_completed_at
+      BEFORE UPDATE ON note_todos
+      FOR EACH ROW
+      EXECUTE FUNCTION update_note_todos_completed_at();
+    `);
+
+    logger.info('✓ Triggers de purge automatique créés');
 
     // Créer l'utilisateur admin par défaut si la table est vide
     const usersCount = await client.query('SELECT COUNT(*) as count FROM users');

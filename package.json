@@ -15,7 +15,10 @@
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down",
     "docker:logs": "docker-compose logs -f",
-    "docker:restart": "docker-compose restart"
+    "docker:restart": "docker-compose restart",
+    "db:migrate": "node scripts/add-cleanup-tracking-fields.js",
+    "db:cleanup": "node scripts/database-cleanup.js",
+    "db:cleanup:dry-run": "DRY_RUN=true node scripts/database-cleanup.js"
   },
   "keywords": [
     "notes",
