@@ -16,14 +16,31 @@ router.use(authenticateToken);
  */
 router.get('/', async (req, res) => {
   try {
-    const todos = await getAll(`
-      SELECT id, text, completed, priority, created_at
-      FROM global_todos
-      WHERE user_id = $1
-      ORDER BY priority DESC, created_at DESC
-    `, [req.user.id]);
+    // Essayer d'abord avec le champ priority (nouvelle version)
+    try {
+      const todos = await getAll(`
+        SELECT id, text, completed, priority, created_at
+        FROM global_todos
+        WHERE user_id = $1
+        ORDER BY priority DESC, created_at DESC
+      `, [req.user.id]);
 
-    res.json(todos);
+      res.json(todos);
+      return;
+    } catch (priorityError) {
+      // Si le champ priority n'existe pas, utiliser l'ancienne requête
+      logger.info('Champ priority non trouvé, utilisation de la requête sans priority');
+      const todos = await getAll(`
+        SELECT id, text, completed, created_at
+        FROM global_todos
+        WHERE user_id = $1
+        ORDER BY created_at DESC
+      `, [req.user.id]);
+
+      // Ajouter priority=false par défaut pour compatibilité frontend
+      const todosWithPriority = todos.map(t => ({ ...t, priority: false }));
+      res.json(todosWithPriority);
+    }
   } catch (error) {
     logger.error('Erreur lors de la récupération des todos:', error);
     res.status(500).json({ error: 'Erreur serveur' });
@@ -159,17 +176,29 @@ router.patch('/:id/toggle', async (req, res) => {
 router.patch('/:id/priority', async (req, res) => {
   try {
     // Vérifier que le todo appartient à l'utilisateur
-    const todo = await getOne('SELECT id, priority FROM global_todos WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
-    if (!todo) {
-      return res.status(404).json({ error: 'Todo non trouvé' });
+    try {
+      const todo = await getOne('SELECT id, priority FROM global_todos WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
+      if (!todo) {
+        return res.status(404).json({ error: 'Todo non trouvé' });
+      }
+
+      const newPriority = todo.priority ? 0 : 1;
+      await runQuery('UPDATE global_todos SET priority = $1 WHERE id = $2', [newPriority, req.params.id]);
+
+      logger.info(`Todo global ${newPriority ? 'marqué prioritaire' : 'démarqué prioritaire'} (ID: ${req.params.id}) par ${req.user.username}`);
+
+      res.json({ message: 'Priorité modifiée avec succès', priority: newPriority === 1 });
+    } catch (priorityError) {
+      // Si le champ priority n'existe pas encore, retourner un message d'erreur explicite
+      if (priorityError.message && priorityError.message.includes('priority')) {
+        logger.warn('Tentative d\'utilisation de la fonctionnalité priority sans migration');
+        return res.status(400).json({
+          error: 'Fonctionnalité priority non disponible',
+          message: 'Veuillez exécuter la migration: npm run db:migrate:priority'
+        });
+      }
+      throw priorityError;
     }
-
-    const newPriority = todo.priority ? 0 : 1;
-    await runQuery('UPDATE global_todos SET priority = $1 WHERE id = $2', [newPriority, req.params.id]);
-
-    logger.info(`Todo global ${newPriority ? 'marqué prioritaire' : 'démarqué prioritaire'} (ID: ${req.params.id}) par ${req.user.username}`);
-
-    res.json({ message: 'Priorité modifiée avec succès', priority: newPriority === 1 });
   } catch (error) {
     logger.error('Erreur lors du toggle de la priorité:', error);
     res.status(500).json({ error: 'Erreur serveur' });

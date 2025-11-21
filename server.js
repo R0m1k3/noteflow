@@ -134,6 +134,11 @@ async function startServer() {
     await initDatabase();
     logger.info('✓ Base de données initialisée avec succès');
 
+    // Exécuter les migrations automatiques
+    const { autoMigrate } = require('./scripts/auto-migrate');
+    await autoMigrate();
+    logger.info('✓ Migrations automatiques appliquées');
+
     // Démarrer le scheduler RSS
     const rssScheduler = require('./services/rss-scheduler');
     rssScheduler.startScheduler();
