@@ -15,7 +15,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { RichTextEditor } from "@/components/RichTextEditor";
 import {
   PlusCircle, Search, User, LogOut, Settings, ChevronDown, Plus, Archive, Trash2,
-  Image as ImageIcon, CheckSquare, FileText, Rss, ExternalLink, RefreshCw, Key, Zap, Paperclip, X, Edit, Calendar as CalendarIcon, Tag as TagIcon, MessageSquare, Send, Check, ChevronsUpDown
+  Image as ImageIcon, CheckSquare, FileText, Rss, ExternalLink, RefreshCw, Key, Zap, Paperclip, X, Edit, Calendar as CalendarIcon, Tag as TagIcon, MessageSquare, Send, Check, ChevronsUpDown, Star
 } from "lucide-react";
 import AuthService from "@/services/AuthService";
 import AdminService from "@/services/AdminService";
@@ -550,6 +550,15 @@ const Index = () => {
       setTodos(todos.map(t => t.id === todoId ? { ...t, completed: !t.completed } : t));
     } catch (error) {
       showError("Erreur lors de la mise à jour");
+    }
+  };
+
+  const handleToggleTodoPriority = async (todoId: number) => {
+    try {
+      await TodosService.togglePriority(todoId);
+      setTodos(todos.map(t => t.id === todoId ? { ...t, priority: !t.priority } : t));
+    } catch (error) {
+      showError("Erreur lors de la mise à jour de la priorité");
     }
   };
 
@@ -1582,6 +1591,15 @@ const Index = () => {
                           <Button
                             variant="ghost"
                             size="icon"
+                            className={`h-7 w-7 ${todo.priority ? '' : 'opacity-0 group-hover:opacity-100'} transition-opacity`}
+                            onClick={() => todo.id && handleToggleTodoPriority(todo.id)}
+                            title={todo.priority ? "Retirer la priorité" : "Marquer comme prioritaire"}
+                          >
+                            <Star className={`h-3.5 w-3.5 ${todo.priority ? 'fill-yellow-400 text-yellow-400' : ''}`} />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
                             onClick={() => todo.id && handleDeleteTodo(todo.id)}
                           >
@@ -1631,6 +1649,9 @@ const Index = () => {
                           <span className="text-sm flex-1 line-through text-muted-foreground leading-snug">
                             {todo.text}
                           </span>
+                          {todo.priority && (
+                            <Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400 opacity-50" />
+                          )}
                           <Button
                             variant="ghost"
                             size="icon"

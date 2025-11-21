@@ -74,6 +74,7 @@ async function initDatabase() {
         text TEXT NOT NULL,
         completed BOOLEAN DEFAULT FALSE,
         completed_at TIMESTAMP,
+        priority BOOLEAN DEFAULT FALSE,
         position INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
@@ -87,6 +88,7 @@ async function initDatabase() {
         text TEXT NOT NULL,
         completed BOOLEAN DEFAULT FALSE,
         completed_at TIMESTAMP,
+        priority BOOLEAN DEFAULT FALSE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);

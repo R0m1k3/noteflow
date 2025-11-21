@@ -4,7 +4,7 @@ export interface Todo {
   id?: number;
   text: string;
   completed: boolean;
-  priority?: 'low' | 'medium' | 'high';
+  priority?: boolean;
   due_date?: string;
   created_at?: string;
 }
@@ -32,9 +32,9 @@ class TodosService {
     }
   }
 
-  async createTodo(text: string, priority?: 'low' | 'medium' | 'high'): Promise<Todo> {
+  async createTodo(text: string, priority?: boolean): Promise<Todo> {
     try {
-      const response = await axios.post(this.baseURL, { text, priority, completed: false }, this.getAuthHeader());
+      const response = await axios.post(this.baseURL, { text, priority: priority || false, completed: false }, this.getAuthHeader());
       return response.data;
     } catch (error) {
       console.error('Error creating todo:', error);
@@ -68,6 +68,16 @@ class TodosService {
       return true;
     } catch (error) {
       console.error('Error toggling todo:', error);
+      throw error;
+    }
+  }
+
+  async togglePriority(todoId: number): Promise<boolean> {
+    try {
+      await axios.patch(`${this.baseURL}/${todoId}/priority`, {}, this.getAuthHeader());
+      return true;
+    } catch (error) {
+      console.error('Error toggling priority:', error);
       throw error;
     }
   }

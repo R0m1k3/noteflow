@@ -17,10 +17,10 @@ router.use(authenticateToken);
 router.get('/', async (req, res) => {
   try {
     const todos = await getAll(`
-      SELECT id, text, completed, created_at
+      SELECT id, text, completed, priority, created_at
       FROM global_todos
       WHERE user_id = $1
-      ORDER BY created_at DESC
+      ORDER BY priority DESC, created_at DESC
     `, [req.user.id]);
 
     res.json(todos);
@@ -59,6 +59,7 @@ router.post('/',
         id: result.id,
         text,
         completed: false,
+        priority: false,
         created_at: new Date().toISOString()
       });
     } catch (error) {
@@ -75,7 +76,8 @@ router.post('/',
 router.put('/:id',
   [
     body('text').optional().trim().notEmpty(),
-    body('completed').optional().isBoolean()
+    body('completed').optional().isBoolean(),
+    body('priority').optional().isBoolean()
   ],
   async (req, res) => {
     try {
@@ -84,7 +86,7 @@ router.put('/:id',
         return res.status(400).json({ error: 'Données invalides', details: errors.array() });
       }
 
-      const { text, completed } = req.body;
+      const { text, completed, priority } = req.body;
 
       // Vérifier que le todo appartient à l'utilisateur
       const todo = await getOne('SELECT id FROM global_todos WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
@@ -105,6 +107,11 @@ router.put('/:id',
         paramCount++;
         updates.push(`completed = $${paramCount}`);
         params.push(completed ? 1 : 0);
+      }
+      if (priority !== undefined) {
+        paramCount++;
+        updates.push(`priority = $${paramCount}`);
+        params.push(priority ? 1 : 0);
       }
 
       if (updates.length > 0) {
@@ -141,6 +148,30 @@ router.patch('/:id/toggle', async (req, res) => {
     res.json({ message: 'Todo modifié avec succès', completed: newCompleted === 1 });
   } catch (error) {
     logger.error('Erreur lors du toggle du todo:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+/**
+ * PATCH /api/todos/:id/priority
+ * Basculer l'état priority d'un todo
+ */
+router.patch('/:id/priority', async (req, res) => {
+  try {
+    // Vérifier que le todo appartient à l'utilisateur
+    const todo = await getOne('SELECT id, priority FROM global_todos WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
+    if (!todo) {
+      return res.status(404).json({ error: 'Todo non trouvé' });
+    }
+
+    const newPriority = todo.priority ? 0 : 1;
+    await runQuery('UPDATE global_todos SET priority = $1 WHERE id = $2', [newPriority, req.params.id]);
+
+    logger.info(`Todo global ${newPriority ? 'marqué prioritaire' : 'démarqué prioritaire'} (ID: ${req.params.id}) par ${req.user.username}`);
+
+    res.json({ message: 'Priorité modifiée avec succès', priority: newPriority === 1 });
+  } catch (error) {
+    logger.error('Erreur lors du toggle de la priorité:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
