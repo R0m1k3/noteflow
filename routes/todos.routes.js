@@ -19,7 +19,7 @@ router.get('/', async (req, res) => {
     // Essayer d'abord avec le champ priority (nouvelle version)
     try {
       const todos = await getAll(`
-        SELECT id, text, completed, priority, created_at
+        SELECT id, text, completed, priority, in_progress, created_at
         FROM global_todos
         WHERE user_id = $1
         ORDER BY priority DESC, created_at DESC
@@ -37,8 +37,8 @@ router.get('/', async (req, res) => {
         ORDER BY created_at DESC
       `, [req.user.id]);
 
-      // Ajouter priority=false par défaut pour compatibilité frontend
-      const todosWithPriority = todos.map(t => ({ ...t, priority: false }));
+      // Ajouter priority=false et in_progress=false par défaut pour compatibilité frontend
+      const todosWithPriority = todos.map(t => ({ ...t, priority: false, in_progress: false }));
       res.json(todosWithPriority);
     }
   } catch (error) {
@@ -77,6 +77,7 @@ router.post('/',
         text,
         completed: false,
         priority: false,
+        in_progress: false,
         created_at: new Date().toISOString()
       });
     } catch (error) {
@@ -94,7 +95,8 @@ router.put('/:id',
   [
     body('text').optional().trim().notEmpty(),
     body('completed').optional().isBoolean(),
-    body('priority').optional().isBoolean()
+    body('priority').optional().isBoolean(),
+    body('in_progress').optional().isBoolean()
   ],
   async (req, res) => {
     try {
@@ -103,7 +105,7 @@ router.put('/:id',
         return res.status(400).json({ error: 'Données invalides', details: errors.array() });
       }
 
-      const { text, completed, priority } = req.body;
+      const { text, completed, priority, in_progress } = req.body;
 
       // Vérifier que le todo appartient à l'utilisateur
       const todo = await getOne('SELECT id FROM global_todos WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
@@ -129,6 +131,11 @@ router.put('/:id',
         paramCount++;
         updates.push(`priority = $${paramCount}`);
         params.push(priority ? 1 : 0);
+      }
+      if (in_progress !== undefined) {
+        paramCount++;
+        updates.push(`in_progress = $${paramCount}`);
+        params.push(in_progress ? 1 : 0);
       }
 
       if (updates.length > 0) {
@@ -201,6 +208,42 @@ router.patch('/:id/priority', async (req, res) => {
     }
   } catch (error) {
     logger.error('Erreur lors du toggle de la priorité:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+/**
+ * PATCH /api/todos/:id/in-progress
+ * Basculer l'état in_progress d'un todo
+ */
+router.patch('/:id/in-progress', async (req, res) => {
+  try {
+    // Vérifier que le todo appartient à l'utilisateur
+    try {
+      const todo = await getOne('SELECT id, in_progress FROM global_todos WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
+      if (!todo) {
+        return res.status(404).json({ error: 'Todo non trouvé' });
+      }
+
+      const newInProgress = todo.in_progress ? 0 : 1;
+      await runQuery('UPDATE global_todos SET in_progress = $1 WHERE id = $2', [newInProgress, req.params.id]);
+
+      logger.info(`Todo global ${newInProgress ? 'marqué en cours' : 'démarqué en cours'} (ID: ${req.params.id}) par ${req.user.username}`);
+
+      res.json({ message: 'Statut en cours modifié avec succès', in_progress: newInProgress === 1 });
+    } catch (inProgressError) {
+      // Si le champ in_progress n'existe pas encore
+      if (inProgressError.message && inProgressError.message.includes('in_progress')) {
+        logger.warn('Tentative d\'utilisation de la fonctionnalité in_progress sans migration');
+        return res.status(400).json({
+          error: 'Fonctionnalité in_progress non disponible',
+          message: 'Veuillez exécuter la migration: node scripts/migrate_003.js'
+        });
+      }
+      throw inProgressError;
+    }
+  } catch (error) {
+    logger.error('Erreur lors du toggle du statut en cours:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });

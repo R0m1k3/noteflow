@@ -5,6 +5,7 @@ export interface Todo {
   text: string;
   completed: boolean;
   priority?: boolean;
+  in_progress?: boolean;
   due_date?: string;
   created_at?: string;
 }
@@ -78,6 +79,16 @@ class TodosService {
       return true;
     } catch (error) {
       console.error('Error toggling priority:', error);
+      throw error;
+    }
+  }
+
+  async toggleInProgress(todoId: number): Promise<boolean> {
+    try {
+      await axios.patch(`${this.baseURL}/${todoId}/in-progress`, {}, this.getAuthHeader());
+      return true;
+    } catch (error) {
+      console.error('Error toggling in progress status:', error);
       throw error;
     }
   }
