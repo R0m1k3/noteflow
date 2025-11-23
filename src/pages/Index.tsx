@@ -572,6 +572,15 @@ const Index = () => {
     }
   };
 
+  const handleToggleTodoInProgress = async (todoId: number) => {
+    try {
+      await TodosService.toggleInProgress(todoId);
+      setTodos(todos.map(t => t.id === todoId ? { ...t, in_progress: !t.in_progress } : t));
+    } catch (error) {
+      showError("Erreur lors de la mise à jour du statut");
+    }
+  };
+
   const confirmAddRssFeed = async (url: string) => {
     try {
       const newFeed = await RssService.addFeed(url);
@@ -1617,7 +1626,15 @@ const Index = () => {
                             <span className="text-sm flex-1 leading-snug">
                               {todo.text}
                             </span>
-                            <Activity className="h-3.5 w-3.5 text-muted-foreground mr-1" title="En cours" />
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className={`h-7 w-7 ${todo.in_progress ? 'opacity-100 text-orange-500' : 'opacity-0 group-hover:opacity-100 text-muted-foreground'} transition-all`}
+                              onClick={() => todo.id && handleToggleTodoInProgress(todo.id)}
+                              title={todo.in_progress ? "Marquer comme non commencé" : "Marquer comme en cours"}
+                            >
+                              <Activity className="h-3.5 w-3.5" />
+                            </Button>
                             <Button
                               variant="ghost"
                               size="icon"
