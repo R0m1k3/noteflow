@@ -76,6 +76,10 @@ else
 fi
 
 echo ""
+echo "🔄 Vérification des migrations de schéma..."
+node scripts/auto-migrate.js
+
+echo ""
 echo "🔄 Migration des timezones du calendrier..."
 node scripts/migrate-calendar-timezone.js 2>/dev/null || echo "  ℹ️  Migration timezone déjà effectuée ou non nécessaire"
 
