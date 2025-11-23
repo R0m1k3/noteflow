@@ -1629,7 +1629,7 @@ const Index = () => {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className={`h-7 w-7 ${todo.in_progress ? 'opacity-100 text-orange-500' : 'opacity-0 group-hover:opacity-100 text-muted-foreground'} transition-all`}
+                              className={`h-7 w-7 opacity-0 group-hover:opacity-100 transition-all ${todo.in_progress ? 'text-red-500' : 'text-muted-foreground'}`}
                               onClick={() => todo.id && handleToggleTodoInProgress(todo.id)}
                               title={todo.in_progress ? "Marquer comme non commencé" : "Marquer comme en cours"}
                             >
