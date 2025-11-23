@@ -41,13 +41,13 @@ class NotesService {
       const response = await fetch("/api/notes", {
         headers: AuthService.getHeaders()
       });
-      
+
       if (!response.ok) {
         throw new Error("Erreur lors de la récupération des notes");
       }
-      
+
       const notes = await response.json();
-      
+
       // Ensure todos and images are always arrays
       return notes.map((note: Note) => ({
         ...note,
@@ -59,7 +59,7 @@ class NotesService {
       return [];
     }
   }
-  
+
   async createNote(title: string, content: string = ""): Promise<Note | null> {
     try {
       const response = await fetch("/api/notes", {
@@ -67,11 +67,11 @@ class NotesService {
         headers: AuthService.getHeaders(),
         body: JSON.stringify({ title, content, todos: [] })
       });
-      
+
       if (!response.ok) {
         throw new Error("Erreur lors de la création de la note");
       }
-      
+
       showSuccess("Note créée avec succès");
       const note = await response.json();
       return {
@@ -84,7 +84,7 @@ class NotesService {
       return null;
     }
   }
-  
+
   async updateNote(note: Note): Promise<Note | null> {
     if (!note.id) return null;
 
@@ -118,18 +118,18 @@ class NotesService {
       return null;
     }
   }
-  
+
   async deleteNote(noteId: number): Promise<boolean> {
     try {
       const response = await fetch(`/api/notes/${noteId}`, {
         method: "DELETE",
         headers: AuthService.getHeaders()
       });
-      
+
       if (!response.ok) {
         throw new Error("Erreur lors de la suppression de la note");
       }
-      
+
       showSuccess("Note supprimée avec succès");
       return true;
     } catch (error) {
@@ -137,7 +137,7 @@ class NotesService {
       return false;
     }
   }
-  
+
   async uploadImage(noteId: number, file: File): Promise<Image | null> {
     const formData = new FormData();
     formData.append("image", file);
@@ -162,7 +162,7 @@ class NotesService {
       return null;
     }
   }
-  
+
   async deleteImage(noteId: number, imageId: number): Promise<boolean> {
     try {
       const response = await fetch(`/api/notes/${noteId}/images/${imageId}`, {
@@ -193,6 +193,26 @@ class NotesService {
         throw new Error("Erreur lors de la mise à jour de la priorité");
       }
 
+      return true;
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "Erreur serveur");
+      return false;
+    }
+  }
+
+  async archiveNote(noteId: number, archived: boolean): Promise<boolean> {
+    try {
+      const response = await fetch(`/api/notes/${noteId}/archive`, {
+        method: "PUT",
+        headers: AuthService.getHeaders(),
+        body: JSON.stringify({ archived })
+      });
+
+      if (!response.ok) {
+        throw new Error("Erreur lors de l'archivage de la note");
+      }
+
+      showSuccess(archived ? "Note archivée" : "Note désarchivée");
       return true;
     } catch (error) {
       showError(error instanceof Error ? error.message : "Erreur serveur");

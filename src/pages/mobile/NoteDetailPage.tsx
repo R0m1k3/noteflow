@@ -163,7 +163,15 @@ export default function NoteDetailPage() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => updateNote({ archived: !note.archived })}>
+              <DropdownMenuItem onClick={async () => {
+                if (note?.id) {
+                  const newArchived = !note.archived;
+                  const success = await NotesService.archiveNote(note.id, newArchived);
+                  if (success) {
+                    setNote({ ...note, archived: newArchived });
+                  }
+                }
+              }}>
                 <Archive className="h-4 w-4 mr-2" />
                 {note.archived ? "Désarchiver" : "Archiver"}
               </DropdownMenuItem>
