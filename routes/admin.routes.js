@@ -362,4 +362,45 @@ router.get('/stats', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/admin/migrate/in-progress
+ * Exécuter la migration pour ajouter la colonne in_progress
+ */
+router.post('/migrate/in-progress', async (req, res) => {
+  const pool = new Pool({ connectionString: DATABASE_URL });
+
+  try {
+    const client = await pool.connect();
+    try {
+      logger.info('Lancement manuel de la migration in_progress par admin');
+
+      // Check if column exists
+      const checkRes = await client.query(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name='global_todos' AND column_name='in_progress'
+      `);
+
+      if (checkRes.rows.length === 0) {
+        await client.query('ALTER TABLE global_todos ADD COLUMN in_progress INTEGER DEFAULT 0');
+        logger.info('✓ Colonne in_progress ajoutée avec succès');
+        res.json({ success: true, message: 'Migration réussie : colonne ajoutée' });
+      } else {
+        logger.info('⚠ Colonne in_progress existe déjà');
+        res.json({ success: true, message: 'Migration non nécessaire : la colonne existe déjà' });
+      }
+    } finally {
+      client.release();
+    }
+    await pool.end();
+  } catch (error) {
+    logger.error('Erreur lors de la migration manuelle:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Erreur lors de la migration',
+      message: error.message
+    });
+  }
+});
+
 module.exports = router;
