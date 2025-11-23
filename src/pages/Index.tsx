@@ -996,7 +996,7 @@ const Index = () => {
                         <div
                           key={event.id}
                           className={`p-3 border rounded-lg hover:bg-accent/50 transition-colors group relative ${isSoon ? 'border-red-500 bg-red-50 dark:bg-red-900/20' :
-                              isToday ? 'bg-red-50/50 dark:bg-red-900/10' : ''
+                            isToday ? 'bg-red-50/50 dark:bg-red-900/10' : ''
                             }`}
                         >
                           <div className="flex items-start justify-between gap-2">
@@ -1148,6 +1148,27 @@ const Index = () => {
                             ) : (
                               <span className="text-muted-foreground text-lg">!</span>
                             )}
+                          </Button>
+
+                          {/* Archive icon */}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className={`absolute top-2 right-10 h-6 w-6 transition-opacity ${note.archived ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                              }`}
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              if (note.id) {
+                                const newArchived = !note.archived;
+                                const success = await NotesService.archiveNote(note.id, newArchived);
+                                if (success) {
+                                  setNotes(notes.map(n => n.id === note.id ? { ...n, archived: newArchived } : n));
+                                }
+                              }
+                            }}
+                            title={note.archived ? "Désarchiver" : "Archiver"}
+                          >
+                            <Archive className="h-4 w-4 text-muted-foreground" />
                           </Button>
 
                           <h3 className="font-semibold text-base mb-2 line-clamp-1 pr-8">
@@ -2670,8 +2691,8 @@ const Index = () => {
                 >
                   <div
                     className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${msg.role === 'user'
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-muted'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted'
                       }`}
                   >
                     {msg.content}
