@@ -167,6 +167,20 @@ async function autoMigrate() {
         await client.query(`ALTER TABLE note_todos ADD COLUMN priority BOOLEAN DEFAULT FALSE`);
       }
 
+      // Migration 3: Champ in_progress pour les tâches globales
+      logger.info('  Vérification: champ in_progress pour global_todos...');
+
+      const globalTodosInProgressExists = await client.query(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name='global_todos' AND column_name='in_progress'
+      `);
+
+      if (globalTodosInProgressExists.rows.length === 0) {
+        logger.info('  → Ajout du champ in_progress à global_todos');
+        await client.query('ALTER TABLE global_todos ADD COLUMN in_progress INTEGER DEFAULT 0');
+      }
+
       // Créer les index pour performance
       await client.query(`CREATE INDEX IF NOT EXISTS idx_global_todos_priority ON global_todos(priority DESC, created_at DESC)`);
       await client.query(`CREATE INDEX IF NOT EXISTS idx_note_todos_priority ON note_todos(priority DESC, position)`);

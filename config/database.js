@@ -12,7 +12,7 @@ const timezoneLogger = require('../services/timezone-logger');
 // - 1184 = TIMESTAMP WITH TIME ZONE (TIMESTAMPTZ)
 
 // Parser pour TIMESTAMPTZ (1184)
-types.setTypeParser(1184, function(stringValue) {
+types.setTypeParser(1184, function (stringValue) {
   if (!stringValue) return null;
 
   const originalValue = stringValue;
@@ -38,7 +38,7 @@ types.setTypeParser(1184, function(stringValue) {
 // mais PostgreSQL les retourne sans fuseau horaire.
 // Exemple: Google envoie "2025-11-17T10:20:00+01:00" → PG stocke "2025-11-17 10:20:00"
 // On doit interpréter cette heure comme UTC (car PG a converti lors de l'insertion)
-types.setTypeParser(1114, function(stringValue) {
+types.setTypeParser(1114, function (stringValue) {
   if (!stringValue) return null;
 
   // PostgreSQL retourne "YYYY-MM-DD HH:MM:SS" sans fuseau horaire
@@ -108,6 +108,7 @@ async function initDatabase() {
         content TEXT,
         image_filename TEXT,
         archived BOOLEAN DEFAULT FALSE,
+        archived_at TIMESTAMP,
         priority INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -121,7 +122,10 @@ async function initDatabase() {
         note_id INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
         text TEXT NOT NULL,
         completed BOOLEAN DEFAULT FALSE,
-        position INTEGER DEFAULT 0
+        priority BOOLEAN DEFAULT FALSE,
+        position INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        completed_at TIMESTAMP
       )
     `);
 
@@ -132,7 +136,10 @@ async function initDatabase() {
         user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         text TEXT NOT NULL,
         completed BOOLEAN DEFAULT FALSE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        priority BOOLEAN DEFAULT FALSE,
+        in_progress INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        completed_at TIMESTAMP
       )
     `);
 
