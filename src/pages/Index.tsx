@@ -142,13 +142,13 @@ const Index = () => {
   const [addTodoModal, setAddTodoModal] = useState(false);
   const [addRssFeedModal, setAddRssFeedModal] = useState(false);
   const [addUserModal, setAddUserModal] = useState(false);
-  const [deleteUserModal, setDeleteUserModal] = useState<{open: boolean, userId?: number}>({open: false});
-  const [changePasswordModal, setChangePasswordModal] = useState<{open: boolean, userId?: number}>({open: false});
+  const [deleteUserModal, setDeleteUserModal] = useState<{ open: boolean, userId?: number }>({ open: false });
+  const [changePasswordModal, setChangePasswordModal] = useState<{ open: boolean, userId?: number }>({ open: false });
   const [addNoteTodoModal, setAddNoteTodoModal] = useState(false);
   const [addTagModal, setAddTagModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [addEventModal, setAddEventModal] = useState(false);
-  const [editEventModal, setEditEventModal] = useState<{open: boolean, event?: CalendarEvent}>({open: false});
+  const [editEventModal, setEditEventModal] = useState<{ open: boolean, event?: CalendarEvent }>({ open: false });
 
   // Pagination states
   const [notesPage, setNotesPage] = useState(0);
@@ -796,8 +796,8 @@ const Index = () => {
   const filteredNotes = notes.filter(note =>
     (showArchived ? note.archived : !note.archived) &&
     (searchQuery === "" ||
-     (note.title && note.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
-     (note.content && note.content.toLowerCase().includes(searchQuery.toLowerCase())))
+      (note.title && note.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (note.content && note.content.toLowerCase().includes(searchQuery.toLowerCase())))
   );
 
   // Pagination for notes
@@ -995,10 +995,9 @@ const Index = () => {
                       return (
                         <div
                           key={event.id}
-                          className={`p-3 border rounded-lg hover:bg-accent/50 transition-colors group relative ${
-                            isSoon ? 'border-red-500 bg-red-50 dark:bg-red-900/20' :
-                            isToday ? 'bg-red-50/50 dark:bg-red-900/10' : ''
-                          }`}
+                          className={`p-3 border rounded-lg hover:bg-accent/50 transition-colors group relative ${isSoon ? 'border-red-500 bg-red-50 dark:bg-red-900/20' :
+                              isToday ? 'bg-red-50/50 dark:bg-red-900/10' : ''
+                            }`}
                         >
                           <div className="flex items-start justify-between gap-2">
                             <div
@@ -1133,9 +1132,8 @@ const Index = () => {
                           <Button
                             variant="ghost"
                             size="icon"
-                            className={`absolute top-2 right-2 h-6 w-6 transition-opacity ${
-                              note.priority ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                            }`}
+                            className={`absolute top-2 right-2 h-6 w-6 transition-opacity ${note.priority ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                              }`}
                             onClick={(e) => {
                               e.stopPropagation();
                               const newPriority = !note.priority;
@@ -1249,7 +1247,17 @@ const Index = () => {
                     <Button
                       variant="outline"
                       size="icon"
-                      onClick={() => openNote && handleUpdateNote({ archived: !openNote.archived })}
+                      onClick={async () => {
+                        if (openNote?.id) {
+                          const newArchived = !openNote.archived;
+                          const success = await NotesService.archiveNote(openNote.id, newArchived);
+                          if (success) {
+                            const updatedNote = { ...openNote, archived: newArchived };
+                            setOpenNote(updatedNote);
+                            setNotes(notes.map(n => n.id === openNote.id ? updatedNote : n));
+                          }
+                        }
+                      }}
                       title={openNote?.archived ? "Désarchiver" : "Archiver"}
                     >
                       <Archive className="h-4 w-4" />
@@ -1372,31 +1380,31 @@ const Index = () => {
                       <CardContent className="p-4">
                         <div className="space-y-2">
                           {openNote.todos.map((todo, index) => (
-                          <div key={index} className="flex items-center gap-3 p-2 border rounded">
-                            <Checkbox
-                              checked={todo.completed}
-                              onCheckedChange={async () => {
-                                const updatedTodos = [...(openNote.todos || [])];
-                                updatedTodos[index] = { ...todo, completed: !todo.completed };
-                                await handleUpdateNote({ todos: updatedTodos });
-                              }}
-                            />
-                            <span className={todo.completed ? "line-through text-muted-foreground flex-1 text-sm" : "flex-1 text-sm"}>
-                              {todo.text}
-                            </span>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6"
-                              onClick={async () => {
-                                const updatedTodos = [...(openNote.todos || [])];
-                                updatedTodos.splice(index, 1);
-                                await handleUpdateNote({ todos: updatedTodos });
-                              }}
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
-                          </div>
+                            <div key={index} className="flex items-center gap-3 p-2 border rounded">
+                              <Checkbox
+                                checked={todo.completed}
+                                onCheckedChange={async () => {
+                                  const updatedTodos = [...(openNote.todos || [])];
+                                  updatedTodos[index] = { ...todo, completed: !todo.completed };
+                                  await handleUpdateNote({ todos: updatedTodos });
+                                }}
+                              />
+                              <span className={todo.completed ? "line-through text-muted-foreground flex-1 text-sm" : "flex-1 text-sm"}>
+                                {todo.text}
+                              </span>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6"
+                                onClick={async () => {
+                                  const updatedTodos = [...(openNote.todos || [])];
+                                  updatedTodos.splice(index, 1);
+                                  await handleUpdateNote({ todos: updatedTodos });
+                                }}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
                           ))}
                         </div>
                       </CardContent>
@@ -1451,54 +1459,54 @@ const Index = () => {
                       <CardContent className="p-4">
                         <div className="space-y-2">
                           {openNote.files.map((file: any, index: number) => (
-                          <div key={index} className="flex items-center gap-3 p-2 border rounded group">
-                            <Paperclip className="h-4 w-4 text-muted-foreground" />
-                            <div className="flex-1 min-w-0">
-                              <p className="font-medium truncate text-sm">{file.original_name || file.filename}</p>
-                              {file.size && (
-                                <p className="text-xs text-muted-foreground">
-                                  {(file.size / 1024).toFixed(2)} KB
-                                </p>
-                              )}
-                            </div>
-                            <div className="flex gap-1">
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                className="h-7 w-7"
-                                onClick={() => window.open(`/uploads/files/${file.filename}`, '_blank')}
-                              >
-                                <ExternalLink className="h-3 w-3" />
-                              </Button>
-                              <Button
-                                variant="destructive"
-                                size="icon"
-                                className="h-7 w-7"
-                                onClick={async () => {
-                                  if (file.id && openNote.id) {
-                                    try {
-                                      const response = await fetch(`/api/notes/${openNote.id}/files/${file.id}`, {
-                                        method: 'DELETE',
-                                        headers: {
-                                          'Authorization': `Bearer ${AuthService.getToken()}`
-                                        }
-                                      });
+                            <div key={index} className="flex items-center gap-3 p-2 border rounded group">
+                              <Paperclip className="h-4 w-4 text-muted-foreground" />
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium truncate text-sm">{file.original_name || file.filename}</p>
+                                {file.size && (
+                                  <p className="text-xs text-muted-foreground">
+                                    {(file.size / 1024).toFixed(2)} KB
+                                  </p>
+                                )}
+                              </div>
+                              <div className="flex gap-1">
+                                <Button
+                                  variant="outline"
+                                  size="icon"
+                                  className="h-7 w-7"
+                                  onClick={() => window.open(`/uploads/files/${file.filename}`, '_blank')}
+                                >
+                                  <ExternalLink className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  variant="destructive"
+                                  size="icon"
+                                  className="h-7 w-7"
+                                  onClick={async () => {
+                                    if (file.id && openNote.id) {
+                                      try {
+                                        const response = await fetch(`/api/notes/${openNote.id}/files/${file.id}`, {
+                                          method: 'DELETE',
+                                          headers: {
+                                            'Authorization': `Bearer ${AuthService.getToken()}`
+                                          }
+                                        });
 
-                                      if (response.ok) {
-                                        const updatedFiles = (openNote.files || []).filter((_, i) => i !== index);
-                                        await handleUpdateNote({ files: updatedFiles });
-                                        showSuccess("Fichier supprimé");
+                                        if (response.ok) {
+                                          const updatedFiles = (openNote.files || []).filter((_, i) => i !== index);
+                                          await handleUpdateNote({ files: updatedFiles });
+                                          showSuccess("Fichier supprimé");
+                                        }
+                                      } catch (error) {
+                                        showError("Erreur lors de la suppression");
                                       }
-                                    } catch (error) {
-                                      showError("Erreur lors de la suppression");
                                     }
-                                  }
-                                }}
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </Button>
+                                  }}
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </div>
                             </div>
-                          </div>
                           ))}
                         </div>
                       </CardContent>
@@ -1555,228 +1563,228 @@ const Index = () => {
 
           {/* Right Column: Todos & RSS Boxes side by side */}
           <div className="grid grid-cols-2 gap-6">
-          {/* Todos Box */}
-          <Card className="shadow-lg">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-xl flex items-center gap-2">
-                  <CheckSquare className="h-5 w-5" />
-                  Tâches
-                </CardTitle>
-                <Button size="sm" variant="outline" onClick={() => setAddTodoModal(true)}>
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <Tabs defaultValue="active" className="w-full">
-                <TabsList className="grid grid-cols-2 w-full mb-3">
-                  <TabsTrigger value="active" className="text-xs">Actives ({todos.filter(t => !t.completed).length})</TabsTrigger>
-                  <TabsTrigger value="completed" className="text-xs">Complétées ({todos.filter(t => t.completed).length})</TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="active" className="mt-0">
-                  <div className="space-y-1.5 max-h-[calc(100vh-400px)] overflow-y-auto">
-                    {activeTodos.length > 0 ? (
-                      paginatedActiveTodos.map(todo => (
-                        <div key={todo.id} className="flex items-center gap-2 p-2 border rounded hover:bg-accent/50 transition-colors group">
-                          <Checkbox
-                            checked={false}
-                            onCheckedChange={() => todo.id && handleToggleTodo(todo.id)}
-                            className="h-4 w-4"
-                          />
-                          <span className="text-sm flex-1 leading-snug">
-                            {todo.text}
-                          </span>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className={`h-7 w-7 ${todo.priority ? '' : 'opacity-0 group-hover:opacity-100'} transition-opacity`}
-                            onClick={() => todo.id && handleToggleTodoPriority(todo.id)}
-                            title={todo.priority ? "Retirer la priorité" : "Marquer comme prioritaire"}
-                          >
-                            <Star className={`h-3.5 w-3.5 ${todo.priority ? 'fill-yellow-400 text-yellow-400' : ''}`} />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
-                            onClick={() => todo.id && handleDeleteTodo(todo.id)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-center text-muted-foreground text-sm py-6">Aucune tâche active</p>
-                    )}
-                  </div>
-                  {totalActiveTodosPages > 1 && (
-                    <div className="flex items-center justify-center gap-2 mt-3 pt-3 border-t">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setTodosActivePage(p => Math.max(0, p - 1))}
-                        disabled={todosActivePage === 0}
-                      >
-                        ‹
-                      </Button>
-                      <span className="text-xs text-muted-foreground">
-                        {todosActivePage + 1}/{totalActiveTodosPages}
-                      </span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setTodosActivePage(p => Math.min(totalActiveTodosPages - 1, p + 1))}
-                        disabled={todosActivePage >= totalActiveTodosPages - 1}
-                      >
-                        ›
-                      </Button>
-                    </div>
-                  )}
-                </TabsContent>
-
-                <TabsContent value="completed" className="mt-0">
-                  <div className="space-y-1.5 max-h-[calc(100vh-400px)] overflow-y-auto">
-                    {completedTodos.length > 0 ? (
-                      paginatedCompletedTodos.map(todo => (
-                        <div key={todo.id} className="flex items-center gap-2 p-2 border rounded hover:bg-accent/50 transition-colors group">
-                          <Checkbox
-                            checked={true}
-                            onCheckedChange={() => todo.id && handleToggleTodo(todo.id)}
-                            className="h-4 w-4"
-                          />
-                          <span className="text-sm flex-1 line-through text-muted-foreground leading-snug">
-                            {todo.text}
-                          </span>
-                          {todo.priority && (
-                            <Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400 opacity-50" />
-                          )}
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
-                            onClick={() => todo.id && handleDeleteTodo(todo.id)}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      ))
-                    ) : (
-                      <p className="text-center text-muted-foreground text-sm py-6">Aucune tâche complétée</p>
-                    )}
-                  </div>
-                  {totalCompletedTodosPages > 1 && (
-                    <div className="flex items-center justify-center gap-2 mt-3 pt-3 border-t">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setTodosCompletedPage(p => Math.max(0, p - 1))}
-                        disabled={todosCompletedPage === 0}
-                      >
-                        ‹
-                      </Button>
-                      <span className="text-xs text-muted-foreground">
-                        {todosCompletedPage + 1}/{totalCompletedTodosPages}
-                      </span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setTodosCompletedPage(p => Math.min(totalCompletedTodosPages - 1, p + 1))}
-                        disabled={todosCompletedPage >= totalCompletedTodosPages - 1}
-                      >
-                        ›
-                      </Button>
-                    </div>
-                  )}
-                </TabsContent>
-              </Tabs>
-            </CardContent>
-          </Card>
-
-          {/* RSS Box */}
-          <Card className="shadow-lg">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between gap-2">
-                <CardTitle className="text-xl flex items-center gap-2 flex-shrink-0">
-                  <Rss className="h-5 w-5" />
-                  Flux RSS
-                </CardTitle>
-                <div className="flex gap-1.5 flex-shrink-0">
-                  <Button size="sm" variant="outline" onClick={handleRefreshRss}>
-                    <RefreshCw className="h-4 w-4" />
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => setAddRssFeedModal(true)}>
+            {/* Todos Box */}
+            <Card className="shadow-lg">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-xl flex items-center gap-2">
+                    <CheckSquare className="h-5 w-5" />
+                    Tâches
+                  </CardTitle>
+                  <Button size="sm" variant="outline" onClick={() => setAddTodoModal(true)}>
                     <Plus className="h-4 w-4" />
                   </Button>
                 </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2 max-h-[calc(100vh-500px)] overflow-y-auto">
-                {rssArticles.length > 0 ? (
-                  paginatedRssArticles.map(article => (
-                    <div
-                      key={article.id}
-                      className="p-2.5 border rounded hover:bg-accent/50 transition-colors cursor-pointer"
-                      onClick={() => article.link && window.open(article.link, '_blank')}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-medium text-sm line-clamp-2 mb-1">{article.title}</h4>
-                          {article.description && (
-                            <p className="text-xs text-muted-foreground line-clamp-2">
-                              {article.description.replace(/<[^>]*>/g, '')}
-                            </p>
-                          )}
-                        </div>
-                        <ExternalLink className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0 mt-0.5" />
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-center text-muted-foreground text-sm py-6">
-                    Aucun article
-                    <br />
-                    <Button
-                      variant="link"
-                      className="mt-2 text-xs"
-                      onClick={() => setAddRssFeedModal(true)}
-                    >
-                      Ajouter un flux RSS
-                    </Button>
-                  </p>
-                )}
-              </div>
-              {totalRssPages > 1 && (
-                <div className="flex items-center justify-center gap-2 mt-3 pt-3 border-t">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setRssPage(p => Math.max(0, p - 1))}
-                    disabled={rssPage === 0}
-                  >
-                    ‹
-                  </Button>
-                  <span className="text-xs text-muted-foreground">
-                    {rssPage + 1}/{totalRssPages}
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setRssPage(p => Math.min(totalRssPages - 1, p + 1))}
-                    disabled={rssPage >= totalRssPages - 1}
-                  >
-                    ›
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+              </CardHeader>
+              <CardContent>
+                <Tabs defaultValue="active" className="w-full">
+                  <TabsList className="grid grid-cols-2 w-full mb-3">
+                    <TabsTrigger value="active" className="text-xs">Actives ({todos.filter(t => !t.completed).length})</TabsTrigger>
+                    <TabsTrigger value="completed" className="text-xs">Complétées ({todos.filter(t => t.completed).length})</TabsTrigger>
+                  </TabsList>
 
+                  <TabsContent value="active" className="mt-0">
+                    <div className="space-y-1.5 max-h-[calc(100vh-400px)] overflow-y-auto">
+                      {activeTodos.length > 0 ? (
+                        paginatedActiveTodos.map(todo => (
+                          <div key={todo.id} className="flex items-center gap-2 p-2 border rounded hover:bg-accent/50 transition-colors group">
+                            <Checkbox
+                              checked={false}
+                              onCheckedChange={() => todo.id && handleToggleTodo(todo.id)}
+                              className="h-4 w-4"
+                            />
+                            <span className="text-sm flex-1 leading-snug">
+                              {todo.text}
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className={`h-7 w-7 ${todo.priority ? '' : 'opacity-0 group-hover:opacity-100'} transition-opacity`}
+                              onClick={() => todo.id && handleToggleTodoPriority(todo.id)}
+                              title={todo.priority ? "Retirer la priorité" : "Marquer comme prioritaire"}
+                            >
+                              <Star className={`h-3.5 w-3.5 ${todo.priority ? 'fill-yellow-400 text-yellow-400' : ''}`} />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                              onClick={() => todo.id && handleDeleteTodo(todo.id)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-center text-muted-foreground text-sm py-6">Aucune tâche active</p>
+                      )}
+                    </div>
+                    {totalActiveTodosPages > 1 && (
+                      <div className="flex items-center justify-center gap-2 mt-3 pt-3 border-t">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setTodosActivePage(p => Math.max(0, p - 1))}
+                          disabled={todosActivePage === 0}
+                        >
+                          ‹
+                        </Button>
+                        <span className="text-xs text-muted-foreground">
+                          {todosActivePage + 1}/{totalActiveTodosPages}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setTodosActivePage(p => Math.min(totalActiveTodosPages - 1, p + 1))}
+                          disabled={todosActivePage >= totalActiveTodosPages - 1}
+                        >
+                          ›
+                        </Button>
+                      </div>
+                    )}
+                  </TabsContent>
+
+                  <TabsContent value="completed" className="mt-0">
+                    <div className="space-y-1.5 max-h-[calc(100vh-400px)] overflow-y-auto">
+                      {completedTodos.length > 0 ? (
+                        paginatedCompletedTodos.map(todo => (
+                          <div key={todo.id} className="flex items-center gap-2 p-2 border rounded hover:bg-accent/50 transition-colors group">
+                            <Checkbox
+                              checked={true}
+                              onCheckedChange={() => todo.id && handleToggleTodo(todo.id)}
+                              className="h-4 w-4"
+                            />
+                            <span className="text-sm flex-1 line-through text-muted-foreground leading-snug">
+                              {todo.text}
+                            </span>
+                            {todo.priority && (
+                              <Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400 opacity-50" />
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                              onClick={() => todo.id && handleDeleteTodo(todo.id)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-center text-muted-foreground text-sm py-6">Aucune tâche complétée</p>
+                      )}
+                    </div>
+                    {totalCompletedTodosPages > 1 && (
+                      <div className="flex items-center justify-center gap-2 mt-3 pt-3 border-t">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setTodosCompletedPage(p => Math.max(0, p - 1))}
+                          disabled={todosCompletedPage === 0}
+                        >
+                          ‹
+                        </Button>
+                        <span className="text-xs text-muted-foreground">
+                          {todosCompletedPage + 1}/{totalCompletedTodosPages}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setTodosCompletedPage(p => Math.min(totalCompletedTodosPages - 1, p + 1))}
+                          disabled={todosCompletedPage >= totalCompletedTodosPages - 1}
+                        >
+                          ›
+                        </Button>
+                      </div>
+                    )}
+                  </TabsContent>
+                </Tabs>
+              </CardContent>
+            </Card>
+
+            {/* RSS Box */}
+            <Card className="shadow-lg">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between gap-2">
+                  <CardTitle className="text-xl flex items-center gap-2 flex-shrink-0">
+                    <Rss className="h-5 w-5" />
+                    Flux RSS
+                  </CardTitle>
+                  <div className="flex gap-1.5 flex-shrink-0">
+                    <Button size="sm" variant="outline" onClick={handleRefreshRss}>
+                      <RefreshCw className="h-4 w-4" />
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setAddRssFeedModal(true)}>
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2 max-h-[calc(100vh-500px)] overflow-y-auto">
+                  {rssArticles.length > 0 ? (
+                    paginatedRssArticles.map(article => (
+                      <div
+                        key={article.id}
+                        className="p-2.5 border rounded hover:bg-accent/50 transition-colors cursor-pointer"
+                        onClick={() => article.link && window.open(article.link, '_blank')}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-medium text-sm line-clamp-2 mb-1">{article.title}</h4>
+                            {article.description && (
+                              <p className="text-xs text-muted-foreground line-clamp-2">
+                                {article.description.replace(/<[^>]*>/g, '')}
+                              </p>
+                            )}
+                          </div>
+                          <ExternalLink className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0 mt-0.5" />
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-center text-muted-foreground text-sm py-6">
+                      Aucun article
+                      <br />
+                      <Button
+                        variant="link"
+                        className="mt-2 text-xs"
+                        onClick={() => setAddRssFeedModal(true)}
+                      >
+                        Ajouter un flux RSS
+                      </Button>
+                    </p>
+                  )}
+                </div>
+                {totalRssPages > 1 && (
+                  <div className="flex items-center justify-center gap-2 mt-3 pt-3 border-t">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setRssPage(p => Math.max(0, p - 1))}
+                      disabled={rssPage === 0}
+                    >
+                      ‹
+                    </Button>
+                    <span className="text-xs text-muted-foreground">
+                      {rssPage + 1}/{totalRssPages}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setRssPage(p => Math.min(totalRssPages - 1, p + 1))}
+                      disabled={rssPage >= totalRssPages - 1}
+                    >
+                      ›
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+          </div>
         </div>
       </div>
-    </div>
 
       {/* Admin Modal */}
       <Dialog open={showAdmin} onOpenChange={setShowAdmin}>
@@ -1825,7 +1833,7 @@ const Index = () => {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => setChangePasswordModal({open: true, userId: u.id})}
+                          onClick={() => setChangePasswordModal({ open: true, userId: u.id })}
                         >
                           <Key className="h-4 w-4 mr-2" />
                           Mot de passe
@@ -1834,7 +1842,7 @@ const Index = () => {
                           <Button
                             variant="destructive"
                             size="sm"
-                            onClick={() => setDeleteUserModal({open: true, userId: u.id})}
+                            onClick={() => setDeleteUserModal({ open: true, userId: u.id })}
                           >
                             Supprimer
                           </Button>
@@ -2116,7 +2124,7 @@ const Index = () => {
 
       <ConfirmModal
         open={deleteUserModal.open}
-        onOpenChange={(open) => setDeleteUserModal({open})}
+        onOpenChange={(open) => setDeleteUserModal({ open })}
         title="Supprimer l'utilisateur"
         description="Êtes-vous sûr de vouloir supprimer cet utilisateur ? Cette action est irréversible."
         onConfirm={confirmDeleteUser}
@@ -2126,7 +2134,7 @@ const Index = () => {
 
       <InputModal
         open={changePasswordModal.open}
-        onOpenChange={(open) => setChangePasswordModal({open})}
+        onOpenChange={(open) => setChangePasswordModal({ open })}
         title="Changer le mot de passe"
         label="Nouveau mot de passe"
         placeholder="Entrez le nouveau mot de passe..."
@@ -2225,7 +2233,7 @@ const Index = () => {
                   name="startDateTime"
                   type="datetime-local"
                   required
-                  defaultValue={toLocalDateTimeString(new Date(Date.now() + 60*60*1000))}
+                  defaultValue={toLocalDateTimeString(new Date(Date.now() + 60 * 60 * 1000))}
                 />
               </div>
               <div className="space-y-2">
@@ -2235,7 +2243,7 @@ const Index = () => {
                   name="endDateTime"
                   type="datetime-local"
                   required
-                  defaultValue={toLocalDateTimeString(new Date(Date.now() + 2*60*60*1000))}
+                  defaultValue={toLocalDateTimeString(new Date(Date.now() + 2 * 60 * 60 * 1000))}
                 />
               </div>
             </div>
@@ -2337,7 +2345,7 @@ const Index = () => {
       </Dialog>
 
       {/* Edit Event Modal */}
-      <Dialog open={editEventModal.open} onOpenChange={(open) => setEditEventModal({open, event: undefined})}>
+      <Dialog open={editEventModal.open} onOpenChange={(open) => setEditEventModal({ open, event: undefined })}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Modifier le rendez-vous</DialogTitle>
@@ -2373,7 +2381,7 @@ const Index = () => {
 
               await CalendarService.updateEvent(editEventModal.event.id, eventData);
               showSuccess('Événement mis à jour avec succès');
-              setEditEventModal({open: false, event: undefined});
+              setEditEventModal({ open: false, event: undefined });
               await loadCalendarEvents();
             } catch (error: any) {
               showError(error.response?.data?.error || 'Erreur lors de la mise à jour de l\'événement');
@@ -2504,7 +2512,7 @@ const Index = () => {
             </div>
 
             <div className="flex justify-end gap-2 pt-4">
-              <Button type="button" variant="outline" onClick={() => setEditEventModal({open: false, event: undefined})}>
+              <Button type="button" variant="outline" onClick={() => setEditEventModal({ open: false, event: undefined })}>
                 Annuler
               </Button>
               <Button type="submit">
@@ -2614,9 +2622,8 @@ const Index = () => {
                             className="text-xs"
                           >
                             <Check
-                              className={`mr-2 h-4 w-4 ${
-                                selectedModel === model.id ? "opacity-100" : "opacity-0"
-                              }`}
+                              className={`mr-2 h-4 w-4 ${selectedModel === model.id ? "opacity-100" : "opacity-0"
+                                }`}
                             />
                             <div className="flex-1 truncate">
                               {model.name}
@@ -2662,11 +2669,10 @@ const Index = () => {
                   className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   <div
-                    className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${
-                      msg.role === 'user'
+                    className={`max-w-[80%] rounded-lg px-3 py-2 text-sm ${msg.role === 'user'
                         ? 'bg-primary text-primary-foreground'
                         : 'bg-muted'
-                    }`}
+                      }`}
                   >
                     {msg.content}
                   </div>
