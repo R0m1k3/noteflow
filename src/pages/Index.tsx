@@ -2115,6 +2115,32 @@ const Index = () => {
                   <Button onClick={handleSaveSettings}>
                     Enregistrer
                   </Button>
+
+                  <div className="border-t pt-4 mt-4">
+                    <h3 className="font-semibold mb-2 text-red-600">Zone de danger / Maintenance</h3>
+                    <p className="text-sm text-muted-foreground mb-3">
+                      Utilisez ces options uniquement si vous rencontrez des problèmes spécifiques.
+                    </p>
+                    <Button
+                      variant="outline"
+                      className="border-red-200 hover:bg-red-50 text-red-700"
+                      onClick={async () => {
+                        try {
+                          const result = await AdminService.runInProgressMigration();
+                          if (result.success) {
+                            showSuccess(result.message);
+                          } else {
+                            showError(result.message);
+                          }
+                        } catch (error) {
+                          showError("Erreur lors de la migration");
+                        }
+                      }}
+                    >
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Réparer la base de données (Migration)
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
