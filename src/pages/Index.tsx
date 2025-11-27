@@ -32,6 +32,7 @@ import { ConfirmModal } from "@/components/modals/ConfirmModal";
 import { InputModal } from "@/components/modals/InputModal";
 import { AddUserModal } from "@/components/modals/AddUserModal";
 import { compressImage, formatFileSize } from "@/utils/imageCompression";
+import { ModeToggle } from "@/components/mode-toggle";
 
 // ===== FONCTIONS UTILITAIRES TIMEZONE EUROPE/PARIS =====
 
@@ -922,6 +923,8 @@ const Index = () => {
                 <PlusCircle className="h-5 w-5" />
                 Nouvelle Note
               </Button>
+
+              <ModeToggle />
 
               {user && (
                 <DropdownMenu>
