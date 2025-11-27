@@ -31,6 +31,7 @@ import { showError, showSuccess } from "@/utils/toast";
 import { ConfirmModal } from "@/components/modals/ConfirmModal";
 import { InputModal } from "@/components/modals/InputModal";
 import { AddUserModal } from "@/components/modals/AddUserModal";
+import { compressImage, formatFileSize } from "@/utils/imageCompression";
 
 // ===== FONCTIONS UTILITAIRES TIMEZONE EUROPE/PARIS =====
 
@@ -1339,18 +1340,28 @@ const Index = () => {
                     className="hidden"
                     onChange={async (e) => {
                       if (e.target.files && e.target.files[0] && openNote?.id) {
-                        const file = e.target.files[0];
-
-                        // Vérifier la taille du fichier (5MB max)
-                        const maxSize = 5 * 1024 * 1024; // 5MB
-                        if (file.size > maxSize) {
-                          showError("L'image est trop grande (max 5MB)");
-                          e.target.value = '';
-                          return;
-                        }
+                        const originalFile = e.target.files[0];
+                        const originalSize = formatFileSize(originalFile.size);
 
                         try {
-                          const image = await NotesService.uploadImage(openNote.id, file);
+                          // Compresser l'image avant l'upload
+                          const compressedFile = await compressImage(originalFile);
+                          const compressedSize = formatFileSize(compressedFile.size);
+
+                          // Afficher un message si l'image a été compressée
+                          if (compressedFile.size < originalFile.size) {
+                            showSuccess(`Image compressée: ${originalSize} → ${compressedSize}`);
+                          }
+
+                          // Vérifier la taille finale (5MB max après compression)
+                          const maxSize = 5 * 1024 * 1024; // 5MB
+                          if (compressedFile.size > maxSize) {
+                            showError("L'image est trop grande même après compression (max 5MB)");
+                            e.target.value = '';
+                            return;
+                          }
+
+                          const image = await NotesService.uploadImage(openNote.id, compressedFile);
                           if (image) {
                             const updatedImages = [...(openNote.images || []), image];
                             setOpenNote({ ...openNote, images: updatedImages });
@@ -1360,7 +1371,7 @@ const Index = () => {
                             showError("Erreur lors de l'upload de l'image");
                           }
                         } catch (error) {
-                          showError("Erreur lors de l'upload de l'image");
+                          showError(error instanceof Error ? error.message : "Erreur lors de l'upload de l'image");
                         }
                         e.target.value = '';
                       }
