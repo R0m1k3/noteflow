@@ -1,7 +1,53 @@
 // Configuration et initialisation de la base de données PostgreSQL
-const { Pool } = require('pg');
+const { Pool, types } = require('pg');
 const bcrypt = require('bcrypt');
 const logger = require('./logger');
+const timezoneLogger = require('../services/timezone-logger');
+
+// IMPORTANT: Parser personnalisé pour TIMESTAMPTZ
+// DOIT être appelé AVANT le Pool pour être pris en compte !
+// Types TIMESTAMP(TZ) PostgreSQL :
+// - 1082 = DATE
+// - 1114 = TIMESTAMP WITHOUT TIME ZONE
+// - 1184 = TIMESTAMP WITH TIME ZONE (TIMESTAMPTZ)
+
+// Parser pour TIMESTAMPTZ (1184)
+types.setTypeParser(1184, function (stringValue) {
+  if (!stringValue) return null;
+
+  const originalValue = stringValue;
+  let result;
+
+  // Si déjà au format ISO avec Z ou timezone (+HH:MM ou +HH)
+  if (stringValue.includes('Z') || stringValue.match(/[+-]\d{2}(:\d{2})?$/)) {
+    result = new Date(stringValue).toISOString();
+    timezoneLogger.log('PARSER', `[1184 TIMESTAMPTZ] Input avec TZ: "${originalValue}" → Output: "${result}"`);
+  } else {
+    // Si format "YYYY-MM-DD HH:MM:SS" sans timezone
+    // Avec timezone=UTC, on sait que c'est en UTC
+    const isoString = stringValue.replace(' ', 'T') + 'Z';
+    result = new Date(isoString).toISOString();
+    timezoneLogger.log('PARSER', `[1184 TIMESTAMPTZ] Input sans TZ: "${originalValue}" → ISO+Z: "${isoString}" → Output: "${result}"`);
+  }
+
+  return result;
+});
+
+// Parser pour TIMESTAMP WITHOUT TIME ZONE (1114)
+// IMPORTANT: Les valeurs TIMESTAMP sont stockées en heure locale (Europe/Paris)
+// mais PostgreSQL les retourne sans fuseau horaire.
+// Exemple: Google envoie "2025-11-17T10:20:00+01:00" → PG stocke "2025-11-17 10:20:00"
+// On doit interpréter cette heure comme UTC (car PG a converti lors de l'insertion)
+types.setTypeParser(1114, function (stringValue) {
+  if (!stringValue) return null;
+
+  // PostgreSQL retourne "YYYY-MM-DD HH:MM:SS" sans fuseau horaire
+  // Cette valeur doit être traitée comme UTC car PostgreSQL stocke en UTC en interne
+  const isoString = stringValue.replace(' ', 'T') + 'Z';
+  const result = new Date(isoString).toISOString();
+  timezoneLogger.log('PARSER', `[1114 TIMESTAMP] Input: "${stringValue}" → Output: "${result}"`);
+  return result;
+});
 
 // Configuration PostgreSQL depuis DATABASE_URL ou variables d'environnement
 const DATABASE_URL = process.env.DATABASE_URL ||
@@ -13,6 +59,9 @@ const pool = new Pool({
   max: 20, // Maximum de connexions dans le pool
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 2000,
+  // IMPORTANT: Forcer le timezone à UTC pour toutes les connexions
+  // Cela garantit que PostgreSQL renvoie toujours les dates en UTC
+  options: '-c timezone=UTC'
 });
 
 // Gestion des erreurs du pool
@@ -73,10 +122,10 @@ async function initDatabase() {
         note_id INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
         text TEXT NOT NULL,
         completed BOOLEAN DEFAULT FALSE,
-        completed_at TIMESTAMP,
         priority BOOLEAN DEFAULT FALSE,
         position INTEGER DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        completed_at TIMESTAMP
       )
     `);
 
@@ -87,9 +136,10 @@ async function initDatabase() {
         user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         text TEXT NOT NULL,
         completed BOOLEAN DEFAULT FALSE,
-        completed_at TIMESTAMP,
         priority BOOLEAN DEFAULT FALSE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        in_progress INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        completed_at TIMESTAMP
       )
     `);
 
@@ -174,8 +224,8 @@ async function initDatabase() {
         user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         title TEXT NOT NULL,
         description TEXT,
-        start_time TIMESTAMP NOT NULL,
-        end_time TIMESTAMP NOT NULL,
+        start_time TIMESTAMPTZ NOT NULL,
+        end_time TIMESTAMPTZ NOT NULL,
         location TEXT,
         color_id TEXT,
         html_link TEXT,
@@ -227,78 +277,6 @@ async function initDatabase() {
 
     logger.info('✓ Tables PostgreSQL créées avec succès');
 
-    // Créer les triggers pour mise à jour automatique des dates de purge
-    // Trigger pour notes.archived_at
-    await client.query(`
-      CREATE OR REPLACE FUNCTION update_notes_archived_at()
-      RETURNS TRIGGER AS $$
-      BEGIN
-        IF NEW.archived = TRUE AND OLD.archived = FALSE THEN
-          NEW.archived_at = CURRENT_TIMESTAMP;
-        ELSIF NEW.archived = FALSE THEN
-          NEW.archived_at = NULL;
-        END IF;
-        RETURN NEW;
-      END;
-      $$ LANGUAGE plpgsql;
-    `);
-
-    await client.query(`
-      DROP TRIGGER IF EXISTS trigger_notes_archived_at ON notes;
-      CREATE TRIGGER trigger_notes_archived_at
-      BEFORE UPDATE ON notes
-      FOR EACH ROW
-      EXECUTE FUNCTION update_notes_archived_at();
-    `);
-
-    // Trigger pour global_todos.completed_at
-    await client.query(`
-      CREATE OR REPLACE FUNCTION update_global_todos_completed_at()
-      RETURNS TRIGGER AS $$
-      BEGIN
-        IF NEW.completed = TRUE AND OLD.completed = FALSE THEN
-          NEW.completed_at = CURRENT_TIMESTAMP;
-        ELSIF NEW.completed = FALSE THEN
-          NEW.completed_at = NULL;
-        END IF;
-        RETURN NEW;
-      END;
-      $$ LANGUAGE plpgsql;
-    `);
-
-    await client.query(`
-      DROP TRIGGER IF EXISTS trigger_global_todos_completed_at ON global_todos;
-      CREATE TRIGGER trigger_global_todos_completed_at
-      BEFORE UPDATE ON global_todos
-      FOR EACH ROW
-      EXECUTE FUNCTION update_global_todos_completed_at();
-    `);
-
-    // Trigger pour note_todos.completed_at
-    await client.query(`
-      CREATE OR REPLACE FUNCTION update_note_todos_completed_at()
-      RETURNS TRIGGER AS $$
-      BEGIN
-        IF NEW.completed = TRUE AND (OLD.completed IS NULL OR OLD.completed = FALSE) THEN
-          NEW.completed_at = CURRENT_TIMESTAMP;
-        ELSIF NEW.completed = FALSE THEN
-          NEW.completed_at = NULL;
-        END IF;
-        RETURN NEW;
-      END;
-      $$ LANGUAGE plpgsql;
-    `);
-
-    await client.query(`
-      DROP TRIGGER IF EXISTS trigger_note_todos_completed_at ON note_todos;
-      CREATE TRIGGER trigger_note_todos_completed_at
-      BEFORE UPDATE ON note_todos
-      FOR EACH ROW
-      EXECUTE FUNCTION update_note_todos_completed_at();
-    `);
-
-    logger.info('✓ Triggers de purge automatique créés');
-
     // Créer l'utilisateur admin par défaut si la table est vide
     const usersCount = await client.query('SELECT COUNT(*) as count FROM users');
 
@@ -334,20 +312,8 @@ async function runQuery(sql, params = []) {
   const client = await pool.connect();
   try {
     const result = await client.query(sql, params);
-
-    // Si c'est un INSERT/UPDATE avec RETURNING, retourner la ligne complète
-    if (result.rows && result.rows.length > 0) {
-      logger.info(`[runQuery] Requête avec RETURNING - ID: ${result.rows[0].id}, rowCount: ${result.rowCount}`);
-      return {
-        ...result.rows[0], // Retourne toutes les colonnes de la première ligne
-        changes: result.rowCount
-      };
-    }
-
-    // Sinon, retourner juste le nombre de lignes affectées
-    logger.info(`[runQuery] Requête sans RETURNING - rowCount: ${result.rowCount}`);
     return {
-      id: result.rowCount,
+      id: result.rows[0]?.id || result.rowCount,
       changes: result.rowCount
     };
   } catch (error) {
