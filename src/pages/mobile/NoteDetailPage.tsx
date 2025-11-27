@@ -17,7 +17,8 @@ import {
   Paperclip,
   Tag as TagIcon,
   X,
-  MoreVertical
+  MoreVertical,
+  FileDown
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -28,6 +29,7 @@ import {
 import NotesService, { Note } from "@/services/NotesService";
 import { showError, showSuccess } from "@/utils/toast";
 import { compressImage, formatFileSize } from "@/utils/imageCompression";
+import { downloadNoteAsMarkdown } from "@/utils/markdownExport";
 
 export default function NoteDetailPage() {
   const { id } = useParams();
@@ -199,6 +201,15 @@ export default function NoteDetailPage() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => {
+                if (note) {
+                  downloadNoteAsMarkdown(note);
+                  showSuccess("Note exportée en Markdown");
+                }
+              }}>
+                <FileDown className="h-4 w-4 mr-2" />
+                Exporter en Markdown
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={async () => {
                 if (note?.id) {
                   const newArchived = !note.archived;

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   User,
   LogOut,
@@ -53,10 +54,6 @@ export default function SettingsPage() {
     }
   };
 
-  const toggleTheme = () => {
-    setTheme(theme === "dark" ? "light" : "dark");
-  };
-
   return (
     <div className="p-4 space-y-6 pb-24">
       {/* Appearance */}
@@ -68,16 +65,29 @@ export default function SettingsPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center justify-between">
-            <Label htmlFor="dark-mode" className="text-base">
-              Mode sombre
-            </Label>
-            <Switch
-              id="dark-mode"
-              checked={theme === "dark"}
-              onCheckedChange={toggleTheme}
-            />
-          </div>
+          <RadioGroup value={theme} onValueChange={(value) => setTheme(value as "light" | "dark" | "system")}>
+            <div className="flex items-center space-x-2 mb-3">
+              <RadioGroupItem value="light" id="light" />
+              <Label htmlFor="light" className="text-base font-normal cursor-pointer flex items-center gap-2">
+                <Sun className="h-4 w-4" />
+                Clair
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2 mb-3">
+              <RadioGroupItem value="dark" id="dark" />
+              <Label htmlFor="dark" className="text-base font-normal cursor-pointer flex items-center gap-2">
+                <Moon className="h-4 w-4" />
+                Sombre
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="system" id="system" />
+              <Label htmlFor="system" className="text-base font-normal cursor-pointer flex items-center gap-2">
+                <User className="h-4 w-4" />
+                Système
+              </Label>
+            </div>
+          </RadioGroup>
         </CardContent>
       </Card>
 

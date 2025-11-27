@@ -6,6 +6,9 @@ interface Todo {
   text: string;
   completed: boolean;
   position?: number;
+  due_date?: string;
+  parent_id?: number;
+  level?: number;
 }
 
 interface Image {
@@ -221,12 +224,17 @@ class NotesService {
   }
 
   // Todo management methods
-  async addTodo(noteId: number, text: string): Promise<Todo | null> {
+  async addTodo(noteId: number, text: string, dueDate?: string): Promise<Todo | null> {
     try {
+      const payload: any = { text };
+      if (dueDate) {
+        payload.due_date = dueDate;
+      }
+
       const response = await fetch(`/api/notes/${noteId}/todos`, {
         method: "POST",
         headers: AuthService.getHeaders(),
-        body: JSON.stringify({ text })
+        body: JSON.stringify(payload)
       });
 
       if (!response.ok) {

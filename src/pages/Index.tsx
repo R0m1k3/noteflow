@@ -15,7 +15,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { RichTextEditor } from "@/components/RichTextEditor";
 import {
   PlusCircle, Search, User, LogOut, Settings, ChevronDown, Plus, Archive, Trash2,
-  Image as ImageIcon, CheckSquare, FileText, Rss, ExternalLink, RefreshCw, Key, Zap, Paperclip, X, Edit, Calendar as CalendarIcon, Tag as TagIcon, MessageSquare, Send, Check, ChevronsUpDown, Star, Activity
+  Image as ImageIcon, CheckSquare, FileText, Rss, ExternalLink, RefreshCw, Key, Zap, Paperclip, X, Edit, Calendar as CalendarIcon, Tag as TagIcon, MessageSquare, Send, Check, ChevronsUpDown, Star, Activity, FileDown, LayoutGrid, List, Sparkles
 } from "lucide-react";
 import AuthService from "@/services/AuthService";
 import AdminService from "@/services/AdminService";
@@ -32,6 +32,18 @@ import { ConfirmModal } from "@/components/modals/ConfirmModal";
 import { InputModal } from "@/components/modals/InputModal";
 import { AddUserModal } from "@/components/modals/AddUserModal";
 import { compressImage, formatFileSize } from "@/utils/imageCompression";
+import { ModeToggle } from "@/components/mode-toggle";
+import { downloadNoteAsMarkdown, downloadAllNotesAsMarkdown, downloadTodosAsMarkdown } from "@/utils/markdownExport";
+import { TemplateSelector } from "@/components/TemplateSelector";
+import type { NoteTemplate } from "@/utils/noteTemplates";
+import { AdvancedSearch, type SearchFilters, type TagOption } from "@/components/AdvancedSearch";
+import { PomodoroTimer } from "@/components/PomodoroTimer";
+import { KanbanBoard } from "@/components/KanbanBoard";
+import { getSmartTagSuggestions } from "@/utils/smartTags";
+import { QuickCaptureWidget } from "@/components/QuickCaptureWidget";
+import { StatsDashboard } from "@/components/StatsDashboard";
+import { KeyboardShortcutsHelp } from "@/components/KeyboardShortcutsHelp";
+import { useKeyboardShortcuts, type KeyboardShortcut } from "@/hooks/useKeyboardShortcuts";
 
 // ===== FONCTIONS UTILITAIRES TIMEZONE EUROPE/PARIS =====
 
@@ -111,6 +123,15 @@ const Index = () => {
   const [user, setUser] = useState<UserType | null>(null);
   const [showAdmin, setShowAdmin] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchFilters, setSearchFilters] = useState<SearchFilters>({
+    tags: [],
+    dateFrom: undefined,
+    dateTo: undefined,
+    hasTodos: undefined,
+    hasImages: undefined,
+    hasFiles: undefined,
+    priority: undefined
+  });
   const [notes, setNotes] = useState<Note[]>([]);
   const [openNote, setOpenNote] = useState<Note | null>(null);
   const [users, setUsers] = useState<UserType[]>([]);
@@ -121,6 +142,7 @@ const Index = () => {
   const [settings, setSettings] = useState<AppSettings>({});
   const [adminTab, setAdminTab] = useState("users");
   const [showArchived, setShowArchived] = useState(false);
+  const [notesViewMode, setNotesViewMode] = useState<'list' | 'kanban'>('list');
   const [noteTags, setNoteTags] = useState<Tag[]>([]);
   const [openRouterModels, setOpenRouterModels] = useState<OpenRouterModel[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
@@ -145,11 +167,14 @@ const Index = () => {
   const [addUserModal, setAddUserModal] = useState(false);
   const [deleteUserModal, setDeleteUserModal] = useState<{ open: boolean, userId?: number }>({ open: false });
   const [changePasswordModal, setChangePasswordModal] = useState<{ open: boolean, userId?: number }>({ open: false });
+  const [templateSelectorOpen, setTemplateSelectorOpen] = useState(false);
   const [addNoteTodoModal, setAddNoteTodoModal] = useState(false);
   const [addTagModal, setAddTagModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [addEventModal, setAddEventModal] = useState(false);
   const [editEventModal, setEditEventModal] = useState<{ open: boolean, event?: CalendarEvent }>({ open: false });
+  const [showKeyboardHelp, setShowKeyboardHelp] = useState(false);
+  const [showStatsDashboard, setShowStatsDashboard] = useState(false);
 
   // Pagination states
   const [notesPage, setNotesPage] = useState(0);
@@ -408,12 +433,32 @@ const Index = () => {
     navigate("/login");
   };
 
-  const handleCreateNote = async () => {
+  const handleCreateNote = () => {
+    setTemplateSelectorOpen(true);
+  };
+
+  const handleCreateNoteFromTemplate = async (template: NoteTemplate) => {
     try {
-      const newNote = await NotesService.createNote("Nouvelle note");
+      const title = template.name === "Note vide" ? "Nouvelle note" : template.name;
+      const newNote = await NotesService.createNote(title, template.content);
       if (newNote) {
-        setNotes([newNote, ...notes]);
-        setOpenNote(newNote);
+        // Add todos if template has any
+        if (template.todos && template.todos.length > 0) {
+          for (const todo of template.todos) {
+            await NotesService.addTodo(newNote.id!, todo.text);
+          }
+          // Reload note to get the todos
+          const notes = await NotesService.getNotes();
+          const updatedNote = notes.find(n => n.id === newNote.id);
+          if (updatedNote) {
+            setNotes([updatedNote, ...notes.filter(n => n.id !== newNote.id)]);
+            setOpenNote(updatedNote);
+          }
+        } else {
+          setNotes([newNote, ...notes]);
+          setOpenNote(newNote);
+        }
+        showSuccess("Note créée depuis le template");
       }
     } catch (error) {
       showError("Erreur lors de la création de la note");
@@ -803,12 +848,71 @@ const Index = () => {
     }
   };
 
-  const filteredNotes = notes.filter(note =>
-    (showArchived ? note.archived : !note.archived) &&
-    (searchQuery === "" ||
-      (note.title && note.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (note.content && note.content.toLowerCase().includes(searchQuery.toLowerCase())))
-  );
+  // Extract unique tags from all notes
+  const availableTags: TagOption[] = Array.from(
+    new Map(
+      notes.flatMap(note =>
+        (note.tags || []).map(tag => [tag.name, { id: tag.id!, name: tag.name }])
+      )
+    ).values()
+  ).sort((a, b) => a.name.localeCompare(b.name));
+
+  const filteredNotes = notes.filter(note => {
+    // Archived filter
+    if (showArchived ? !note.archived : note.archived) return false;
+
+    // Text search
+    if (searchQuery !== "" &&
+      !(note.title && note.title.toLowerCase().includes(searchQuery.toLowerCase())) &&
+      !(note.content && note.content.toLowerCase().includes(searchQuery.toLowerCase()))) {
+      return false;
+    }
+
+    // Tags filter
+    if (searchFilters.tags.length > 0) {
+      const noteTags = (note.tags || []).map(t => t.name);
+      if (!searchFilters.tags.some(filterTag => noteTags.includes(filterTag))) {
+        return false;
+      }
+    }
+
+    // Date range filter
+    if (searchFilters.dateFrom || searchFilters.dateTo) {
+      const noteDate = new Date(note.updated_at || note.created_at || 0);
+      if (searchFilters.dateFrom) {
+        const fromDate = new Date(searchFilters.dateFrom);
+        fromDate.setHours(0, 0, 0, 0);
+        if (noteDate < fromDate) return false;
+      }
+      if (searchFilters.dateTo) {
+        const toDate = new Date(searchFilters.dateTo);
+        toDate.setHours(23, 59, 59, 999);
+        if (noteDate > toDate) return false;
+      }
+    }
+
+    // Has todos filter
+    if (searchFilters.hasTodos && (!note.todos || note.todos.length === 0)) {
+      return false;
+    }
+
+    // Has images filter
+    if (searchFilters.hasImages && (!note.images || note.images.length === 0)) {
+      return false;
+    }
+
+    // Has files filter
+    if (searchFilters.hasFiles && (!note.files || note.files.length === 0)) {
+      return false;
+    }
+
+    // Priority filter
+    if (searchFilters.priority && !note.priority) {
+      return false;
+    }
+
+    return true;
+  });
 
   // Pagination for notes
   const totalNotesPages = Math.ceil(filteredNotes.length / NOTES_PER_PAGE);
@@ -820,7 +924,7 @@ const Index = () => {
   // Reset page when changing filters or search
   useEffect(() => {
     setNotesPage(0);
-  }, [showArchived, searchQuery]);
+  }, [showArchived, searchQuery, searchFilters]);
 
   useEffect(() => {
     setTodosActivePage(0);
@@ -834,6 +938,72 @@ const Index = () => {
   useEffect(() => {
     setCalendarPage(0);
   }, [calendarEvents.length]);
+
+  // Define keyboard shortcuts
+  const keyboardShortcuts: KeyboardShortcut[] = [
+    {
+      key: 'n',
+      ctrl: true,
+      description: 'Nouvelle note',
+      handler: () => !showAdmin && handleCreateNote()
+    },
+    {
+      key: 'k',
+      ctrl: true,
+      description: 'Rechercher',
+      handler: () => {
+        const searchInput = document.querySelector('input[type="search"]') as HTMLInputElement;
+        if (searchInput) searchInput.focus();
+      }
+    },
+    {
+      key: 'q',
+      ctrl: true,
+      description: 'Capture rapide',
+      handler: () => {
+        const captureButton = document.querySelector('[title="Capture rapide (Ctrl+Q)"]') as HTMLButtonElement;
+        if (captureButton) captureButton.click();
+      }
+    },
+    {
+      key: 'Escape',
+      description: 'Fermer note/modal',
+      handler: () => {
+        if (openNote) setOpenNote(null);
+        else if (showAdmin) setShowAdmin(false);
+        else if (showKeyboardHelp) setShowKeyboardHelp(false);
+      },
+      preventDefault: false
+    },
+    {
+      key: '?',
+      shift: true,
+      description: 'Aide raccourcis',
+      handler: () => setShowKeyboardHelp(true)
+    },
+    {
+      key: 'e',
+      ctrl: true,
+      description: 'Archiver note',
+      handler: async () => {
+        if (openNote?.id) {
+          await handleUpdateNote({ archived: !openNote.archived });
+        }
+      }
+    },
+    {
+      key: 's',
+      ctrl: true,
+      description: 'Sauvegarder (auto)',
+      handler: () => {
+        // Note: Auto-save is handled by the editor
+        showSuccess('Auto-save actif');
+      }
+    }
+  ];
+
+  // Register keyboard shortcuts
+  useKeyboardShortcuts(keyboardShortcuts, !showAdmin);
 
   // Pagination for todos
   const activeTodos = todos.filter(t => !t.completed);
@@ -922,6 +1092,8 @@ const Index = () => {
                 <PlusCircle className="h-5 w-5" />
                 Nouvelle Note
               </Button>
+
+              <ModeToggle />
 
               {user && (
                 <DropdownMenu>
@@ -1090,6 +1262,9 @@ const Index = () => {
                 )}
               </CardContent>
             </Card>
+
+            {/* Statistics Dashboard */}
+            <StatsDashboard notes={notes} todos={todos} />
           </div>
 
           {/* Middle Column: Notes or Open Note */}
@@ -1116,20 +1291,51 @@ const Index = () => {
                     </div>
                   </div>
 
-                  <div className="relative w-96">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                    <Input
-                      type="search"
-                      placeholder="Rechercher dans les notes..."
-                      className="pl-10 h-12 text-base"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
+                  <div className="flex items-center gap-2">
+                    <div className="relative w-96">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                      <Input
+                        type="search"
+                        placeholder="Rechercher dans les notes..."
+                        className="pl-10 h-12 text-base"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                      />
+                    </div>
+                    <AdvancedSearch
+                      filters={searchFilters}
+                      onFiltersChange={setSearchFilters}
+                      availableTags={availableTags}
                     />
+
+                    {/* View Mode Toggle */}
+                    <div className="flex gap-1 border rounded-md p-1">
+                      <Button
+                        variant={notesViewMode === 'list' ? 'default' : 'ghost'}
+                        size="sm"
+                        onClick={() => setNotesViewMode('list')}
+                        className="gap-2"
+                      >
+                        <List className="h-4 w-4" />
+                        Liste
+                      </Button>
+                      <Button
+                        variant={notesViewMode === 'kanban' ? 'default' : 'ghost'}
+                        size="sm"
+                        onClick={() => setNotesViewMode('kanban')}
+                        className="gap-2"
+                      >
+                        <LayoutGrid className="h-4 w-4" />
+                        Kanban
+                      </Button>
+                    </div>
                   </div>
                 </div>
 
-                {/* Notes Grid - 1 column for better visibility */}
-                <div className="grid grid-cols-1 gap-4">
+                {/* Notes View - List or Kanban */}
+                {notesViewMode === 'list' ? (
+                  <>
+                  <div className="grid grid-cols-1 gap-4">
                   {filteredNotes.length > 0 ? (
                     paginatedNotes.map(note => (
                       <Card
@@ -1267,6 +1473,41 @@ const Index = () => {
                     </Button>
                   </div>
                 )}
+                </>
+                ) : (
+                  /* Kanban View */
+                  <KanbanBoard
+                    notes={filteredNotes}
+                    onNoteClick={handleOpenNote}
+                    onCreateNote={(columnId) => {
+                      setTemplateSelectorOpen(true);
+                      // TODO: Set initial tag based on columnId
+                    }}
+                    onMoveNote={async (noteId, newStatus) => {
+                      // Move note to new column by updating its status tag
+                      const note = notes.find(n => n.id === noteId);
+                      if (!note) return;
+
+                      // Remove old status tags
+                      const oldStatusTags = note.tags?.filter(tag =>
+                        ['backlog', 'todo', 'in_progress', 'review', 'done'].includes(tag.name.toLowerCase())
+                      ) || [];
+
+                      for (const tag of oldStatusTags) {
+                        if (tag.id && note.id) {
+                          await TagsService.deleteTag(note.id, tag.id);
+                        }
+                      }
+
+                      // Add new status tag
+                      if (note.id) {
+                        await TagsService.addTag(note.id, newStatus);
+                        await loadNotes(); // Refresh notes
+                        showSuccess(`Note déplacée vers ${newStatus}`);
+                      }
+                    }}
+                  />
+                )}
               </>
             ) : (
               /* Open Note Editor */
@@ -1275,6 +1516,19 @@ const Index = () => {
                   <div></div>
 
                   <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => {
+                        if (openNote) {
+                          downloadNoteAsMarkdown(openNote);
+                          showSuccess("Note exportée en Markdown");
+                        }
+                      }}
+                      title="Exporter en Markdown"
+                    >
+                      <FileDown className="h-4 w-4" />
+                    </Button>
                     <Button
                       variant="outline"
                       size="icon"
@@ -1424,6 +1678,34 @@ const Index = () => {
                     ))}
                   </div>
                 )}
+
+                {/* Smart Tag Suggestions */}
+                {openNote && (() => {
+                  const existingTags = noteTags.map(t => t.tag);
+                  const suggestions = getSmartTagSuggestions(openNote, notes, existingTags);
+
+                  return suggestions.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Sparkles className="h-3 w-3" />
+                        Suggestions de tags
+                      </p>
+                      <div className="flex gap-2 flex-wrap">
+                        {suggestions.map((suggestion) => (
+                          <Badge
+                            key={suggestion}
+                            variant="outline"
+                            className="text-xs px-2 py-1 gap-1 cursor-pointer hover:bg-primary hover:text-primary-foreground transition-colors"
+                            onClick={() => confirmAddTag(suggestion)}
+                          >
+                            <Plus className="h-3 w-3" />
+                            {suggestion}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* Todos */}
                 {openNote.todos && openNote.todos.length > 0 && (
@@ -1624,8 +1906,13 @@ const Index = () => {
             )}
           </div>
 
-          {/* Right Column: Todos & RSS Boxes side by side */}
-          <div className="grid grid-cols-2 gap-6">
+          {/* Right Column: Pomodoro Timer, Todos & RSS */}
+          <div className="space-y-6">
+            {/* Pomodoro Timer */}
+            <PomodoroTimer />
+
+            {/* Todos & RSS Boxes side by side */}
+            <div className="grid grid-cols-2 gap-6">
             {/* Todos Box */}
             <Card className="shadow-lg">
               <CardHeader className="pb-3">
@@ -1854,6 +2141,7 @@ const Index = () => {
               </CardContent>
             </Card>
 
+          </div>
           </div>
         </div>
       </div>
@@ -2268,6 +2556,13 @@ const Index = () => {
         placeholder="Entrez le nom du tag..."
         onConfirm={confirmAddTag}
         confirmText="Ajouter"
+      />
+
+      {/* Template Selector */}
+      <TemplateSelector
+        open={templateSelectorOpen}
+        onOpenChange={setTemplateSelectorOpen}
+        onSelectTemplate={handleCreateNoteFromTemplate}
       />
 
       {/* Add Event Modal */}
@@ -2846,6 +3141,16 @@ const Index = () => {
           </div>
         </div>
       )}
+
+      {/* Keyboard Shortcuts Help Modal */}
+      <KeyboardShortcutsHelp
+        open={showKeyboardHelp}
+        onOpenChange={setShowKeyboardHelp}
+        shortcuts={keyboardShortcuts}
+      />
+
+      {/* Quick Capture Widget */}
+      <QuickCaptureWidget onNoteCaptured={loadNotes} />
     </div>
   );
 };

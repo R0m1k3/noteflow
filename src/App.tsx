@@ -75,7 +75,7 @@ const App = () => {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider defaultTheme="light" storageKey="notes-theme">
+      <ThemeProvider defaultTheme="system" storageKey="notes-theme">
         <TooltipProvider>
           <BrowserRouter>
             <Routes>

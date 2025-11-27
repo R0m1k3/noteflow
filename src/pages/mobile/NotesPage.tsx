@@ -5,17 +5,33 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { MobileFAB } from "@/components/mobile/MobileFAB";
 import { MobileCard } from "@/components/mobile/MobileCard";
-import { Plus, Search, CheckSquare, Image as ImageIcon, Paperclip, Tag as TagIcon, FileText } from "lucide-react";
+import { Plus, Search, CheckSquare, Image as ImageIcon, Paperclip, Tag as TagIcon, FileText, LayoutGrid, List } from "lucide-react";
 import NotesService, { Note } from "@/services/NotesService";
 import { showError, showSuccess } from "@/utils/toast";
+import { TemplateSelector } from "@/components/TemplateSelector";
+import type { NoteTemplate } from "@/utils/noteTemplates";
+import { AdvancedSearch, type SearchFilters, type TagOption } from "@/components/AdvancedSearch";
+import { KanbanBoard } from "@/components/KanbanBoard";
+import TagsService from "@/services/TagsService";
 
 const NOTES_PER_PAGE = 10;
 
 export default function NotesPage() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchFilters, setSearchFilters] = useState<SearchFilters>({
+    tags: [],
+    dateFrom: undefined,
+    dateTo: undefined,
+    hasTodos: undefined,
+    hasImages: undefined,
+    hasFiles: undefined,
+    priority: undefined
+  });
   const [showArchived, setShowArchived] = useState(false);
   const [page, setPage] = useState(0);
+  const [templateSelectorOpen, setTemplateSelectorOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
   const navigate = useNavigate();
 
   const loadNotes = async () => {
@@ -31,13 +47,71 @@ export default function NotesPage() {
     loadNotes();
   }, []);
 
+  // Extract unique tags from all notes
+  const availableTags: TagOption[] = Array.from(
+    new Map(
+      notes.flatMap(note =>
+        (note.tags || []).map(tag => [tag.name, { id: tag.id!, name: tag.name }])
+      )
+    ).values()
+  ).sort((a, b) => a.name.localeCompare(b.name));
+
   const filteredNotes = notes
     .filter(note => {
-      const matchArchived = showArchived ? note.archived : !note.archived;
-      const matchSearch = searchQuery === "" ||
-        note.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        note.content?.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchArchived && matchSearch;
+      // Archived filter
+      if (showArchived ? !note.archived : note.archived) return false;
+
+      // Text search
+      if (searchQuery !== "" &&
+        !(note.title?.toLowerCase().includes(searchQuery.toLowerCase())) &&
+        !(note.content?.toLowerCase().includes(searchQuery.toLowerCase()))) {
+        return false;
+      }
+
+      // Tags filter
+      if (searchFilters.tags.length > 0) {
+        const noteTags = (note.tags || []).map(t => t.name);
+        if (!searchFilters.tags.some(filterTag => noteTags.includes(filterTag))) {
+          return false;
+        }
+      }
+
+      // Date range filter
+      if (searchFilters.dateFrom || searchFilters.dateTo) {
+        const noteDate = new Date(note.updated_at || note.created_at || 0);
+        if (searchFilters.dateFrom) {
+          const fromDate = new Date(searchFilters.dateFrom);
+          fromDate.setHours(0, 0, 0, 0);
+          if (noteDate < fromDate) return false;
+        }
+        if (searchFilters.dateTo) {
+          const toDate = new Date(searchFilters.dateTo);
+          toDate.setHours(23, 59, 59, 999);
+          if (noteDate > toDate) return false;
+        }
+      }
+
+      // Has todos filter
+      if (searchFilters.hasTodos && (!note.todos || note.todos.length === 0)) {
+        return false;
+      }
+
+      // Has images filter
+      if (searchFilters.hasImages && (!note.images || note.images.length === 0)) {
+        return false;
+      }
+
+      // Has files filter
+      if (searchFilters.hasFiles && (!note.files || note.files.length === 0)) {
+        return false;
+      }
+
+      // Priority filter
+      if (searchFilters.priority && !note.priority) {
+        return false;
+      }
+
+      return true;
     })
     .sort((a, b) => {
       if (a.priority && !b.priority) return -1;
@@ -48,10 +122,24 @@ export default function NotesPage() {
   const totalPages = Math.ceil(filteredNotes.length / NOTES_PER_PAGE);
   const paginatedNotes = filteredNotes.slice(page * NOTES_PER_PAGE, (page + 1) * NOTES_PER_PAGE);
 
-  const handleCreateNote = async () => {
+  const handleCreateNote = () => {
+    setTemplateSelectorOpen(true);
+  };
+
+  const handleCreateNoteFromTemplate = async (template: NoteTemplate) => {
     try {
-      const newNote = await NotesService.createNote("Nouvelle note", "");
-      navigate(`/mobile/notes/${newNote.id}`);
+      const title = template.name === "Note vide" ? "Nouvelle note" : template.name;
+      const newNote = await NotesService.createNote(title, template.content);
+      if (newNote) {
+        // Add todos if template has any
+        if (template.todos && template.todos.length > 0) {
+          for (const todo of template.todos) {
+            await NotesService.addTodo(newNote.id!, todo.text);
+          }
+        }
+        showSuccess("Note créée depuis le template");
+        navigate(`/mobile/notes/${newNote.id}`);
+      }
     } catch (error) {
       showError("Erreur lors de la création de la note");
     }
@@ -89,6 +177,16 @@ export default function NotesPage() {
           />
         </div>
 
+        {/* Advanced Filters */}
+        <AdvancedSearch
+          filters={searchFilters}
+          onFiltersChange={(newFilters) => {
+            setSearchFilters(newFilters);
+            setPage(0);
+          }}
+          availableTags={availableTags}
+        />
+
         {/* Filter Tabs */}
         <div className="flex gap-2">
           <Button
@@ -114,9 +212,32 @@ export default function NotesPage() {
             Archivées ({notes.filter(n => n.archived).length})
           </Button>
         </div>
+
+        {/* View Mode Toggle */}
+        <div className="flex gap-1 border rounded-md p-1">
+          <Button
+            variant={viewMode === 'list' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setViewMode('list')}
+            className="flex-1 gap-2"
+          >
+            <List className="h-4 w-4" />
+            Liste
+          </Button>
+          <Button
+            variant={viewMode === 'kanban' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setViewMode('kanban')}
+            className="flex-1 gap-2"
+          >
+            <LayoutGrid className="h-4 w-4" />
+            Kanban
+          </Button>
+        </div>
       </div>
 
-      {/* Notes List */}
+      {/* Notes View - List or Kanban */}
+      {viewMode === 'list' ? (
       <div className="p-4 space-y-3">
         {paginatedNotes.length > 0 ? (
           paginatedNotes.map(note => (
@@ -209,35 +330,76 @@ export default function NotesPage() {
             )}
           </div>
         )}
-      </div>
 
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-4 px-4 pb-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setPage(p => Math.max(0, p - 1))}
-            disabled={page === 0}
-          >
-            ‹ Précédent
-          </Button>
-          <span className="text-sm text-muted-foreground">
-            {page + 1} / {totalPages}
-          </span>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
-            disabled={page === totalPages - 1}
-          >
-            Suivant ›
-          </Button>
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-center gap-4 px-4 pb-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setPage(p => Math.max(0, p - 1))}
+              disabled={page === 0}
+            >
+              ‹ Précédent
+            </Button>
+            <span className="text-sm text-muted-foreground">
+              {page + 1} / {totalPages}
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+              disabled={page === totalPages - 1}
+            >
+              Suivant ›
+            </Button>
+          </div>
+        )}
+      </div>
+      ) : (
+        /* Kanban View */
+        <div className="p-2 overflow-x-auto">
+          <KanbanBoard
+            notes={filteredNotes}
+            onNoteClick={(note) => navigate(`/mobile/notes/${note.id}`)}
+            onCreateNote={(columnId) => {
+              setTemplateSelectorOpen(true);
+            }}
+            onMoveNote={async (noteId, newStatus) => {
+              const note = notes.find(n => n.id === noteId);
+              if (!note) return;
+
+              // Remove old status tags
+              const oldStatusTags = note.tags?.filter(tag =>
+                ['backlog', 'todo', 'in_progress', 'review', 'done'].includes(tag.name.toLowerCase())
+              ) || [];
+
+              for (const tag of oldStatusTags) {
+                if (tag.id && note.id) {
+                  await TagsService.deleteTag(note.id, tag.id);
+                }
+              }
+
+              // Add new status tag
+              if (note.id) {
+                await TagsService.addTag(note.id, newStatus);
+                await loadNotes();
+                showSuccess(`Note déplacée vers ${newStatus}`);
+              }
+            }}
+          />
         </div>
       )}
 
       {/* FAB */}
       <MobileFAB icon={Plus} onClick={handleCreateNote} label="Créer une note" />
+
+      {/* Template Selector */}
+      <TemplateSelector
+        open={templateSelectorOpen}
+        onOpenChange={setTemplateSelectorOpen}
+        onSelectTemplate={handleCreateNoteFromTemplate}
+      />
     </div>
   );
 }
