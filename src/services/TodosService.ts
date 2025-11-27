@@ -33,9 +33,13 @@ class TodosService {
     }
   }
 
-  async createTodo(text: string, priority?: boolean): Promise<Todo> {
+  async createTodo(text: string, priority?: boolean, dueDate?: string): Promise<Todo> {
     try {
-      const response = await axios.post(this.baseURL, { text, priority: priority || false, completed: false }, this.getAuthHeader());
+      const payload: any = { text, priority: priority || false, completed: false };
+      if (dueDate) {
+        payload.due_date = dueDate;
+      }
+      const response = await axios.post(this.baseURL, payload, this.getAuthHeader());
       return response.data;
     } catch (error) {
       console.error('Error creating todo:', error);
