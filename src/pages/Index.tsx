@@ -15,7 +15,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { RichTextEditor } from "@/components/RichTextEditor";
 import {
   PlusCircle, Search, User, LogOut, Settings, ChevronDown, Plus, Archive, Trash2,
-  Image as ImageIcon, CheckSquare, FileText, Rss, ExternalLink, RefreshCw, Key, Zap, Paperclip, X, Edit, Calendar as CalendarIcon, Tag as TagIcon, MessageSquare, Send, Check, ChevronsUpDown, Star, Activity, FileDown, LayoutGrid, List
+  Image as ImageIcon, CheckSquare, FileText, Rss, ExternalLink, RefreshCw, Key, Zap, Paperclip, X, Edit, Calendar as CalendarIcon, Tag as TagIcon, MessageSquare, Send, Check, ChevronsUpDown, Star, Activity, FileDown, LayoutGrid, List, Sparkles
 } from "lucide-react";
 import AuthService from "@/services/AuthService";
 import AdminService from "@/services/AdminService";
@@ -39,6 +39,7 @@ import type { NoteTemplate } from "@/utils/noteTemplates";
 import { AdvancedSearch, type SearchFilters, type TagOption } from "@/components/AdvancedSearch";
 import { PomodoroTimer } from "@/components/PomodoroTimer";
 import { KanbanBoard } from "@/components/KanbanBoard";
+import { getSmartTagSuggestions } from "@/utils/smartTags";
 
 // ===== FONCTIONS UTILITAIRES TIMEZONE EUROPE/PARIS =====
 
@@ -1602,6 +1603,34 @@ const Index = () => {
                     ))}
                   </div>
                 )}
+
+                {/* Smart Tag Suggestions */}
+                {openNote && (() => {
+                  const existingTags = noteTags.map(t => t.tag);
+                  const suggestions = getSmartTagSuggestions(openNote, notes, existingTags);
+
+                  return suggestions.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Sparkles className="h-3 w-3" />
+                        Suggestions de tags
+                      </p>
+                      <div className="flex gap-2 flex-wrap">
+                        {suggestions.map((suggestion) => (
+                          <Badge
+                            key={suggestion}
+                            variant="outline"
+                            className="text-xs px-2 py-1 gap-1 cursor-pointer hover:bg-primary hover:text-primary-foreground transition-colors"
+                            onClick={() => confirmAddTag(suggestion)}
+                          >
+                            <Plus className="h-3 w-3" />
+                            {suggestion}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 {/* Todos */}
                 {openNote.todos && openNote.todos.length > 0 && (
