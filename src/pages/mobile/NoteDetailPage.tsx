@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import NotesService, { Note } from "@/services/NotesService";
 import { showError, showSuccess } from "@/utils/toast";
+import { compressImage, formatFileSize } from "@/utils/imageCompression";
 
 export default function NoteDetailPage() {
   const { id } = useParams();
@@ -119,18 +120,28 @@ export default function NoteDetailPage() {
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || !e.target.files[0] || !note?.id) return;
 
-    const file = e.target.files[0];
-
-    // Vérifier la taille du fichier (5MB max)
-    const maxSize = 5 * 1024 * 1024; // 5MB
-    if (file.size > maxSize) {
-      showError("L'image est trop grande (max 5MB)");
-      e.target.value = '';
-      return;
-    }
+    const originalFile = e.target.files[0];
+    const originalSize = formatFileSize(originalFile.size);
 
     try {
-      const image = await NotesService.uploadImage(note.id, file);
+      // Compresser l'image avant l'upload
+      const compressedFile = await compressImage(originalFile);
+      const compressedSize = formatFileSize(compressedFile.size);
+
+      // Afficher un message si l'image a été compressée
+      if (compressedFile.size < originalFile.size) {
+        showSuccess(`Image compressée: ${originalSize} → ${compressedSize}`);
+      }
+
+      // Vérifier la taille finale (5MB max après compression)
+      const maxSize = 5 * 1024 * 1024; // 5MB
+      if (compressedFile.size > maxSize) {
+        showError("L'image est trop grande même après compression (max 5MB)");
+        e.target.value = '';
+        return;
+      }
+
+      const image = await NotesService.uploadImage(note.id, compressedFile);
       if (image) {
         const updatedImages = [...(note.images || []), image];
         setNote({ ...note, images: updatedImages });
@@ -139,7 +150,7 @@ export default function NoteDetailPage() {
         showError("Erreur lors de l'upload de l'image");
       }
     } catch (error) {
-      showError("Erreur lors de l'upload");
+      showError(error instanceof Error ? error.message : "Erreur lors de l'upload");
     }
     e.target.value = '';
   };
