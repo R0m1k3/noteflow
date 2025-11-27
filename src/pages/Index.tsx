@@ -36,6 +36,7 @@ import { ModeToggle } from "@/components/mode-toggle";
 import { downloadNoteAsMarkdown, downloadAllNotesAsMarkdown, downloadTodosAsMarkdown } from "@/utils/markdownExport";
 import { TemplateSelector } from "@/components/TemplateSelector";
 import type { NoteTemplate } from "@/utils/noteTemplates";
+import { AdvancedSearch, type SearchFilters, type TagOption } from "@/components/AdvancedSearch";
 
 // ===== FONCTIONS UTILITAIRES TIMEZONE EUROPE/PARIS =====
 
@@ -115,6 +116,15 @@ const Index = () => {
   const [user, setUser] = useState<UserType | null>(null);
   const [showAdmin, setShowAdmin] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchFilters, setSearchFilters] = useState<SearchFilters>({
+    tags: [],
+    dateFrom: undefined,
+    dateTo: undefined,
+    hasTodos: undefined,
+    hasImages: undefined,
+    hasFiles: undefined,
+    priority: undefined
+  });
   const [notes, setNotes] = useState<Note[]>([]);
   const [openNote, setOpenNote] = useState<Note | null>(null);
   const [users, setUsers] = useState<UserType[]>([]);
@@ -828,12 +838,71 @@ const Index = () => {
     }
   };
 
-  const filteredNotes = notes.filter(note =>
-    (showArchived ? note.archived : !note.archived) &&
-    (searchQuery === "" ||
-      (note.title && note.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (note.content && note.content.toLowerCase().includes(searchQuery.toLowerCase())))
-  );
+  // Extract unique tags from all notes
+  const availableTags: TagOption[] = Array.from(
+    new Map(
+      notes.flatMap(note =>
+        (note.tags || []).map(tag => [tag.name, { id: tag.id!, name: tag.name }])
+      )
+    ).values()
+  ).sort((a, b) => a.name.localeCompare(b.name));
+
+  const filteredNotes = notes.filter(note => {
+    // Archived filter
+    if (showArchived ? !note.archived : note.archived) return false;
+
+    // Text search
+    if (searchQuery !== "" &&
+      !(note.title && note.title.toLowerCase().includes(searchQuery.toLowerCase())) &&
+      !(note.content && note.content.toLowerCase().includes(searchQuery.toLowerCase()))) {
+      return false;
+    }
+
+    // Tags filter
+    if (searchFilters.tags.length > 0) {
+      const noteTags = (note.tags || []).map(t => t.name);
+      if (!searchFilters.tags.some(filterTag => noteTags.includes(filterTag))) {
+        return false;
+      }
+    }
+
+    // Date range filter
+    if (searchFilters.dateFrom || searchFilters.dateTo) {
+      const noteDate = new Date(note.updated_at || note.created_at || 0);
+      if (searchFilters.dateFrom) {
+        const fromDate = new Date(searchFilters.dateFrom);
+        fromDate.setHours(0, 0, 0, 0);
+        if (noteDate < fromDate) return false;
+      }
+      if (searchFilters.dateTo) {
+        const toDate = new Date(searchFilters.dateTo);
+        toDate.setHours(23, 59, 59, 999);
+        if (noteDate > toDate) return false;
+      }
+    }
+
+    // Has todos filter
+    if (searchFilters.hasTodos && (!note.todos || note.todos.length === 0)) {
+      return false;
+    }
+
+    // Has images filter
+    if (searchFilters.hasImages && (!note.images || note.images.length === 0)) {
+      return false;
+    }
+
+    // Has files filter
+    if (searchFilters.hasFiles && (!note.files || note.files.length === 0)) {
+      return false;
+    }
+
+    // Priority filter
+    if (searchFilters.priority && !note.priority) {
+      return false;
+    }
+
+    return true;
+  });
 
   // Pagination for notes
   const totalNotesPages = Math.ceil(filteredNotes.length / NOTES_PER_PAGE);
@@ -845,7 +914,7 @@ const Index = () => {
   // Reset page when changing filters or search
   useEffect(() => {
     setNotesPage(0);
-  }, [showArchived, searchQuery]);
+  }, [showArchived, searchQuery, searchFilters]);
 
   useEffect(() => {
     setTodosActivePage(0);
@@ -1143,14 +1212,21 @@ const Index = () => {
                     </div>
                   </div>
 
-                  <div className="relative w-96">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                    <Input
-                      type="search"
-                      placeholder="Rechercher dans les notes..."
-                      className="pl-10 h-12 text-base"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
+                  <div className="flex items-center gap-2">
+                    <div className="relative w-96">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                      <Input
+                        type="search"
+                        placeholder="Rechercher dans les notes..."
+                        className="pl-10 h-12 text-base"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                      />
+                    </div>
+                    <AdvancedSearch
+                      filters={searchFilters}
+                      onFiltersChange={setSearchFilters}
+                      availableTags={availableTags}
                     />
                   </div>
                 </div>

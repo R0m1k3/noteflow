@@ -10,12 +10,22 @@ import NotesService, { Note } from "@/services/NotesService";
 import { showError, showSuccess } from "@/utils/toast";
 import { TemplateSelector } from "@/components/TemplateSelector";
 import type { NoteTemplate } from "@/utils/noteTemplates";
+import { AdvancedSearch, type SearchFilters, type TagOption } from "@/components/AdvancedSearch";
 
 const NOTES_PER_PAGE = 10;
 
 export default function NotesPage() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchFilters, setSearchFilters] = useState<SearchFilters>({
+    tags: [],
+    dateFrom: undefined,
+    dateTo: undefined,
+    hasTodos: undefined,
+    hasImages: undefined,
+    hasFiles: undefined,
+    priority: undefined
+  });
   const [showArchived, setShowArchived] = useState(false);
   const [page, setPage] = useState(0);
   const [templateSelectorOpen, setTemplateSelectorOpen] = useState(false);
@@ -34,13 +44,71 @@ export default function NotesPage() {
     loadNotes();
   }, []);
 
+  // Extract unique tags from all notes
+  const availableTags: TagOption[] = Array.from(
+    new Map(
+      notes.flatMap(note =>
+        (note.tags || []).map(tag => [tag.name, { id: tag.id!, name: tag.name }])
+      )
+    ).values()
+  ).sort((a, b) => a.name.localeCompare(b.name));
+
   const filteredNotes = notes
     .filter(note => {
-      const matchArchived = showArchived ? note.archived : !note.archived;
-      const matchSearch = searchQuery === "" ||
-        note.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        note.content?.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchArchived && matchSearch;
+      // Archived filter
+      if (showArchived ? !note.archived : note.archived) return false;
+
+      // Text search
+      if (searchQuery !== "" &&
+        !(note.title?.toLowerCase().includes(searchQuery.toLowerCase())) &&
+        !(note.content?.toLowerCase().includes(searchQuery.toLowerCase()))) {
+        return false;
+      }
+
+      // Tags filter
+      if (searchFilters.tags.length > 0) {
+        const noteTags = (note.tags || []).map(t => t.name);
+        if (!searchFilters.tags.some(filterTag => noteTags.includes(filterTag))) {
+          return false;
+        }
+      }
+
+      // Date range filter
+      if (searchFilters.dateFrom || searchFilters.dateTo) {
+        const noteDate = new Date(note.updated_at || note.created_at || 0);
+        if (searchFilters.dateFrom) {
+          const fromDate = new Date(searchFilters.dateFrom);
+          fromDate.setHours(0, 0, 0, 0);
+          if (noteDate < fromDate) return false;
+        }
+        if (searchFilters.dateTo) {
+          const toDate = new Date(searchFilters.dateTo);
+          toDate.setHours(23, 59, 59, 999);
+          if (noteDate > toDate) return false;
+        }
+      }
+
+      // Has todos filter
+      if (searchFilters.hasTodos && (!note.todos || note.todos.length === 0)) {
+        return false;
+      }
+
+      // Has images filter
+      if (searchFilters.hasImages && (!note.images || note.images.length === 0)) {
+        return false;
+      }
+
+      // Has files filter
+      if (searchFilters.hasFiles && (!note.files || note.files.length === 0)) {
+        return false;
+      }
+
+      // Priority filter
+      if (searchFilters.priority && !note.priority) {
+        return false;
+      }
+
+      return true;
     })
     .sort((a, b) => {
       if (a.priority && !b.priority) return -1;
@@ -105,6 +173,16 @@ export default function NotesPage() {
             }}
           />
         </div>
+
+        {/* Advanced Filters */}
+        <AdvancedSearch
+          filters={searchFilters}
+          onFiltersChange={(newFilters) => {
+            setSearchFilters(newFilters);
+            setPage(0);
+          }}
+          availableTags={availableTags}
+        />
 
         {/* Filter Tabs */}
         <div className="flex gap-2">
