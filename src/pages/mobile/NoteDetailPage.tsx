@@ -118,12 +118,25 @@ export default function NoteDetailPage() {
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || !e.target.files[0] || !note?.id) return;
+
+    const file = e.target.files[0];
+
+    // Vérifier la taille du fichier (5MB max)
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    if (file.size > maxSize) {
+      showError("L'image est trop grande (max 5MB)");
+      e.target.value = '';
+      return;
+    }
+
     try {
-      const image = await NotesService.uploadImage(note.id, e.target.files[0]);
+      const image = await NotesService.uploadImage(note.id, file);
       if (image) {
         const updatedImages = [...(note.images || []), image];
         setNote({ ...note, images: updatedImages });
         showSuccess("Image ajoutée");
+      } else {
+        showError("Erreur lors de l'upload de l'image");
       }
     } catch (error) {
       showError("Erreur lors de l'upload");
@@ -228,7 +241,7 @@ export default function NoteDetailPage() {
           <input
             id="image-upload"
             type="file"
-            accept="image/*"
+            accept="image/jpeg,image/png,image/webp,image/gif"
             className="hidden"
             onChange={handleImageUpload}
           />
