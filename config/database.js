@@ -1,399 +1,363 @@
-// Configuration et initialisation de la base de données SQLite
-const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
+// Configuration et initialisation de la base de données PostgreSQL
+const { Pool, types } = require('pg');
 const bcrypt = require('bcrypt');
 const logger = require('./logger');
+const timezoneLogger = require('../services/timezone-logger');
 
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, '../data/notes.db');
+// IMPORTANT: Parser personnalisé pour TIMESTAMPTZ
+// DOIT être appelé AVANT le Pool pour être pris en compte !
+// Types TIMESTAMP(TZ) PostgreSQL :
+// - 1082 = DATE
+// - 1114 = TIMESTAMP WITHOUT TIME ZONE
+// - 1184 = TIMESTAMP WITH TIME ZONE (TIMESTAMPTZ)
 
-// Créer une connexion à la base de données
-const db = new sqlite3.Database(DB_PATH, (err) => {
-  if (err) {
-    logger.error('Erreur lors de la connexion à la base de données:', err);
-    process.exit(1);
+// Parser pour TIMESTAMPTZ (1184)
+types.setTypeParser(1184, function (stringValue) {
+  if (!stringValue) return null;
+
+  const originalValue = stringValue;
+  let result;
+
+  // Si déjà au format ISO avec Z ou timezone (+HH:MM ou +HH)
+  if (stringValue.includes('Z') || stringValue.match(/[+-]\d{2}(:\d{2})?$/)) {
+    result = new Date(stringValue).toISOString();
+    timezoneLogger.log('PARSER', `[1184 TIMESTAMPTZ] Input avec TZ: "${originalValue}" → Output: "${result}"`);
+  } else {
+    // Si format "YYYY-MM-DD HH:MM:SS" sans timezone
+    // Avec timezone=UTC, on sait que c'est en UTC
+    const isoString = stringValue.replace(' ', 'T') + 'Z';
+    result = new Date(isoString).toISOString();
+    timezoneLogger.log('PARSER', `[1184 TIMESTAMPTZ] Input sans TZ: "${originalValue}" → ISO+Z: "${isoString}" → Output: "${result}"`);
   }
-  logger.info(`Base de données connectée: ${DB_PATH}`);
+
+  return result;
 });
 
-// Activer les clés étrangères
-db.run('PRAGMA foreign_keys = ON');
+// Parser pour TIMESTAMP WITHOUT TIME ZONE (1114)
+// IMPORTANT: Les valeurs TIMESTAMP sont stockées en heure locale (Europe/Paris)
+// mais PostgreSQL les retourne sans fuseau horaire.
+// Exemple: Google envoie "2025-11-17T10:20:00+01:00" → PG stocke "2025-11-17 10:20:00"
+// On doit interpréter cette heure comme UTC (car PG a converti lors de l'insertion)
+types.setTypeParser(1114, function (stringValue) {
+  if (!stringValue) return null;
+
+  // PostgreSQL retourne "YYYY-MM-DD HH:MM:SS" sans fuseau horaire
+  // Cette valeur doit être traitée comme UTC car PostgreSQL stocke en UTC en interne
+  const isoString = stringValue.replace(' ', 'T') + 'Z';
+  const result = new Date(isoString).toISOString();
+  timezoneLogger.log('PARSER', `[1114 TIMESTAMP] Input: "${stringValue}" → Output: "${result}"`);
+  return result;
+});
+
+// Configuration PostgreSQL depuis DATABASE_URL ou variables d'environnement
+const DATABASE_URL = process.env.DATABASE_URL ||
+  `postgresql://${process.env.PGUSER || 'noteflow'}:${process.env.PGPASSWORD || 'noteflow_secure_password_change_me'}@${process.env.PGHOST || 'localhost'}:${process.env.PGPORT || '5499'}/${process.env.PGDATABASE || 'noteflow'}`;
+
+// Créer le pool de connexions PostgreSQL
+const pool = new Pool({
+  connectionString: DATABASE_URL,
+  max: 20, // Maximum de connexions dans le pool
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000,
+  // IMPORTANT: Forcer le timezone à UTC pour toutes les connexions
+  // Cela garantit que PostgreSQL renvoie toujours les dates en UTC
+  options: '-c timezone=UTC'
+});
+
+// Gestion des erreurs du pool
+pool.on('error', (err) => {
+  logger.error('Erreur PostgreSQL pool:', err);
+});
+
+// Test de connexion
+pool.connect((err, client, release) => {
+  if (err) {
+    logger.error('Erreur lors de la connexion à PostgreSQL:', err);
+    process.exit(1);
+  }
+  release();
+  logger.info(`✓ PostgreSQL connecté: ${DATABASE_URL.replace(/:[^:]*@/, ':***@')}`);
+});
 
 /**
  * Initialiser la base de données avec les tables nécessaires
  */
-function initDatabase() {
-  return new Promise((resolve, reject) => {
-    db.serialize(async () => {
-      try {
-        // Table users
-        db.run(`
-          CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            password_hash TEXT NOT NULL,
-            is_admin BOOLEAN DEFAULT 0,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-          )
-        `);
+async function initDatabase() {
+  const client = await pool.connect();
 
-        // Table notes
-        db.run(`
-          CREATE TABLE IF NOT EXISTS notes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            title TEXT NOT NULL,
-            content TEXT,
-            image_filename TEXT,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-          )
-        `);
+  try {
+    await client.query('BEGIN');
 
-        // Table note_todos (todos dans les notes)
-        db.run(`
-          CREATE TABLE IF NOT EXISTS note_todos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            note_id INTEGER NOT NULL,
-            text TEXT NOT NULL,
-            completed BOOLEAN DEFAULT 0,
-            position INTEGER DEFAULT 0,
-            FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE
-          )
-        `);
+    // Table users
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        username VARCHAR(255) UNIQUE NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        is_admin BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
 
-        // Table global_todos (sidebar permanente)
-        db.run(`
-          CREATE TABLE IF NOT EXISTS global_todos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            text TEXT NOT NULL,
-            completed BOOLEAN DEFAULT 0,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-          )
-        `);
+    // Table notes
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS notes (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        content TEXT,
+        image_filename TEXT,
+        archived BOOLEAN DEFAULT FALSE,
+        archived_at TIMESTAMP,
+        priority INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
 
-        // Table note_images (images attachées aux notes)
-        db.run(`
-          CREATE TABLE IF NOT EXISTS note_images (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            note_id INTEGER NOT NULL,
-            filename TEXT NOT NULL,
-            original_name TEXT,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE
-          )
-        `);
+    // Table note_todos
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS note_todos (
+        id SERIAL PRIMARY KEY,
+        note_id INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+        text TEXT NOT NULL,
+        completed BOOLEAN DEFAULT FALSE,
+        priority BOOLEAN DEFAULT FALSE,
+        position INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        completed_at TIMESTAMP
+      )
+    `);
 
-        // Table note_files (fichiers attachés aux notes)
-        db.run(`
-          CREATE TABLE IF NOT EXISTS note_files (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            note_id INTEGER NOT NULL,
-            filename TEXT NOT NULL,
-            original_name TEXT NOT NULL,
-            file_size INTEGER,
-            mime_type TEXT,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE
-          )
-        `);
+    // Table global_todos
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS global_todos (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        text TEXT NOT NULL,
+        completed BOOLEAN DEFAULT FALSE,
+        priority BOOLEAN DEFAULT FALSE,
+        in_progress INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        completed_at TIMESTAMP
+      )
+    `);
 
-        // Table settings (paramètres globaux)
-        db.run(`
-          CREATE TABLE IF NOT EXISTS settings (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            key TEXT UNIQUE NOT NULL,
-            value TEXT,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-          )
-        `);
+    // Table note_images
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS note_images (
+        id SERIAL PRIMARY KEY,
+        note_id INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+        filename TEXT NOT NULL,
+        original_name TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
 
-        // Table rss_feeds (flux RSS)
-        db.run(`
-          CREATE TABLE IF NOT EXISTS rss_feeds (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            url TEXT UNIQUE NOT NULL,
-            title TEXT,
-            description TEXT,
-            enabled BOOLEAN DEFAULT 1,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            last_fetched_at DATETIME
-          )
-        `);
+    // Table note_files
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS note_files (
+        id SERIAL PRIMARY KEY,
+        note_id INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+        filename TEXT NOT NULL,
+        original_name TEXT NOT NULL,
+        file_size INTEGER,
+        mime_type TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
 
-        // Table rss_articles (articles des flux RSS)
-        db.run(`
-          CREATE TABLE IF NOT EXISTS rss_articles (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            feed_id INTEGER NOT NULL,
-            title TEXT NOT NULL,
-            link TEXT UNIQUE NOT NULL,
-            description TEXT,
-            pub_date DATETIME,
-            content TEXT,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (feed_id) REFERENCES rss_feeds(id) ON DELETE CASCADE
-          )
-        `);
+    // Table settings
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS settings (
+        id SERIAL PRIMARY KEY,
+        key VARCHAR(255) UNIQUE NOT NULL,
+        value TEXT,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
 
-        // Table rss_summaries (résumés générés)
-        db.run(`
-          CREATE TABLE IF NOT EXISTS rss_summaries (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            summary TEXT NOT NULL,
-            model TEXT,
-            articles_count INTEGER DEFAULT 0,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-          )
-        `);
+    // Table rss_feeds
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS rss_feeds (
+        id SERIAL PRIMARY KEY,
+        url TEXT UNIQUE NOT NULL,
+        title TEXT,
+        description TEXT,
+        enabled BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_fetched_at TIMESTAMP
+      )
+    `);
 
-        // Table calendar_events (événements Google Calendar)
-        db.run(`
-          CREATE TABLE IF NOT EXISTS calendar_events (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            google_event_id TEXT UNIQUE NOT NULL,
-            user_id INTEGER NOT NULL,
-            title TEXT NOT NULL,
-            description TEXT,
-            start_time DATETIME NOT NULL,
-            end_time DATETIME NOT NULL,
-            location TEXT,
-            color_id TEXT,
-            html_link TEXT,
-            synced_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-          )
-        `);
+    // Table rss_articles
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS rss_articles (
+        id SERIAL PRIMARY KEY,
+        feed_id INTEGER NOT NULL REFERENCES rss_feeds(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        link TEXT UNIQUE NOT NULL,
+        description TEXT,
+        pub_date TIMESTAMP,
+        content TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
 
-        // Table note_tags (tags pour les notes)
-        db.run(`
-          CREATE TABLE IF NOT EXISTS note_tags (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            note_id INTEGER NOT NULL,
-            tag TEXT NOT NULL,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE,
-            UNIQUE(note_id, tag)
-          )
-        `);
+    // Table rss_summaries
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS rss_summaries (
+        id SERIAL PRIMARY KEY,
+        summary TEXT NOT NULL,
+        model TEXT,
+        articles_count INTEGER DEFAULT 0,
+        feed_title TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
 
-        // Table google_oauth_tokens (tokens OAuth pour Google Calendar)
-        db.run(`
-          CREATE TABLE IF NOT EXISTS google_oauth_tokens (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            access_token TEXT NOT NULL,
-            refresh_token TEXT,
-            token_type TEXT DEFAULT 'Bearer',
-            expiry_date INTEGER,
-            scope TEXT,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-            UNIQUE(user_id)
-          )
-        `);
+    // Table calendar_events
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS calendar_events (
+        id SERIAL PRIMARY KEY,
+        google_event_id VARCHAR(255) UNIQUE NOT NULL,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        description TEXT,
+        start_time TIMESTAMPTZ NOT NULL,
+        end_time TIMESTAMPTZ NOT NULL,
+        location TEXT,
+        color_id TEXT,
+        html_link TEXT,
+        all_day BOOLEAN DEFAULT FALSE,
+        synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
 
-        // Créer les index pour la performance
-        db.run('CREATE INDEX IF NOT EXISTS idx_notes_user ON notes(user_id)');
-        db.run('CREATE INDEX IF NOT EXISTS idx_note_todos ON note_todos(note_id)');
-        db.run('CREATE INDEX IF NOT EXISTS idx_global_todos_user ON global_todos(user_id)');
-        db.run('CREATE INDEX IF NOT EXISTS idx_note_images ON note_images(note_id)');
-        db.run('CREATE INDEX IF NOT EXISTS idx_note_files ON note_files(note_id)');
-        db.run('CREATE INDEX IF NOT EXISTS idx_note_tags ON note_tags(note_id)');
-        db.run('CREATE INDEX IF NOT EXISTS idx_note_tags_tag ON note_tags(tag)');
-        db.run('CREATE INDEX IF NOT EXISTS idx_settings_key ON settings(key)');
-        db.run('CREATE INDEX IF NOT EXISTS idx_rss_articles_feed ON rss_articles(feed_id)');
-        db.run('CREATE INDEX IF NOT EXISTS idx_rss_articles_date ON rss_articles(pub_date)');
-        db.run('CREATE INDEX IF NOT EXISTS idx_calendar_events_user ON calendar_events(user_id)');
-        db.run('CREATE INDEX IF NOT EXISTS idx_calendar_events_start ON calendar_events(start_time)');
+    // Table note_tags
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS note_tags (
+        id SERIAL PRIMARY KEY,
+        note_id INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+        tag VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(note_id, tag)
+      )
+    `);
 
-        logger.info('✓ Tables de base de données créées avec succès');
+    // Table google_oauth_tokens
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS google_oauth_tokens (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+        access_token TEXT NOT NULL,
+        refresh_token TEXT,
+        token_type VARCHAR(50) DEFAULT 'Bearer',
+        expiry_date BIGINT,
+        scope TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
 
-        // Migrations automatiques
-        // Migration pour rss_summaries - ajouter feed_title
-        db.all("PRAGMA table_info(rss_summaries)", (err, columns) => {
-          if (err) {
-            logger.error('Erreur lors de la vérification de la structure de la table rss_summaries:', err);
-            return;
-          }
+    // Créer les index pour la performance
+    await client.query('CREATE INDEX IF NOT EXISTS idx_notes_user ON notes(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_notes_priority ON notes(priority DESC, updated_at DESC)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_note_todos ON note_todos(note_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_global_todos_user ON global_todos(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_note_images ON note_images(note_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_note_files ON note_files(note_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_note_tags ON note_tags(note_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_note_tags_tag ON note_tags(tag)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_settings_key ON settings(key)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_rss_articles_feed ON rss_articles(feed_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_rss_articles_date ON rss_articles(pub_date DESC)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_calendar_events_user ON calendar_events(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_calendar_events_start ON calendar_events(start_time)');
 
-          const hasFeedTitle = columns.some(col => col.name === 'feed_title');
+    logger.info('✓ Tables PostgreSQL créées avec succès');
 
-          if (!hasFeedTitle) {
-            logger.info('Migration: Ajout de la colonne feed_title à rss_summaries...');
-            db.run('ALTER TABLE rss_summaries ADD COLUMN feed_title TEXT', (err) => {
-              if (err) {
-                logger.error('Erreur lors de l\'ajout de la colonne feed_title:', err);
-              } else {
-                logger.info('✓ Colonne feed_title ajoutée avec succès');
-              }
-            });
-          }
-        });
+    // Créer l'utilisateur admin par défaut si la table est vide
+    const usersCount = await client.query('SELECT COUNT(*) as count FROM users');
 
-        db.all("PRAGMA table_info(notes)", (err, columns) => {
-          if (err) {
-            logger.error('Erreur lors de la vérification de la structure de la table notes:', err);
-            return;
-          }
+    if (usersCount.rows[0].count === '0') {
+      const defaultPassword = 'admin';
+      const passwordHash = await bcrypt.hash(defaultPassword, 12);
 
-          const hasImageFilename = columns.some(col => col.name === 'image_filename');
-          const hasArchived = columns.some(col => col.name === 'archived');
-          const hasPriority = columns.some(col => col.name === 'priority');
+      await client.query(
+        'INSERT INTO users (username, password_hash, is_admin) VALUES ($1, $2, $3)',
+        ['admin', passwordHash, true]
+      );
 
-          if (!hasImageFilename) {
-            logger.info('Migration: Ajout de la colonne image_filename...');
-            db.run('ALTER TABLE notes ADD COLUMN image_filename TEXT', (err) => {
-              if (err) {
-                logger.error('Erreur lors de l\'ajout de la colonne image_filename:', err);
-              } else {
-                logger.info('✓ Colonne image_filename ajoutée avec succès');
-              }
-            });
-          }
+      logger.info('✓ Utilisateur admin créé (username: admin, password: admin)');
+      logger.warn('⚠️  IMPORTANT: Changez le mot de passe admin en production!');
+    } else {
+      logger.info('✓ Base de données déjà initialisée');
+    }
 
-          if (!hasArchived) {
-            logger.info('Migration: Ajout de la colonne archived...');
-            db.run('ALTER TABLE notes ADD COLUMN archived BOOLEAN DEFAULT 0', (err) => {
-              if (err) {
-                logger.error('Erreur lors de l\'ajout de la colonne archived:', err);
-              } else {
-                logger.info('✓ Colonne archived ajoutée avec succès');
-              }
-            });
-          }
-
-          if (!hasPriority) {
-            logger.info('Migration: Ajout de la colonne priority...');
-            db.run('ALTER TABLE notes ADD COLUMN priority INTEGER DEFAULT 0', (err) => {
-              if (err) {
-                logger.error('Erreur lors de l\'ajout de la colonne priority:', err);
-              } else {
-                logger.info('✓ Colonne priority ajoutée avec succès');
-                // Créer l'index pour la performance
-                db.run('CREATE INDEX IF NOT EXISTS idx_notes_priority ON notes(priority DESC, updated_at DESC)', (indexErr) => {
-                  if (indexErr) {
-                    logger.error('Erreur lors de la création de l\'index priority:', indexErr);
-                  } else {
-                    logger.info('✓ Index priority créé avec succès');
-                  }
-                });
-              }
-            });
-          }
-        });
-
-        // Migration pour calendar_events - ajouter all_day
-        db.all("PRAGMA table_info(calendar_events)", (err, columns) => {
-          if (err) {
-            logger.error('Erreur lors de la vérification de la structure de la table calendar_events:', err);
-            return;
-          }
-
-          const hasAllDay = columns.some(col => col.name === 'all_day');
-
-          if (!hasAllDay) {
-            logger.info('Migration: Ajout de la colonne all_day à calendar_events...');
-            db.run('ALTER TABLE calendar_events ADD COLUMN all_day BOOLEAN DEFAULT 0', (err) => {
-              if (err) {
-                logger.error('Erreur lors de l\'ajout de la colonne all_day:', err);
-              } else {
-                logger.info('✓ Colonne all_day ajoutée avec succès');
-              }
-            });
-          }
-        });
-
-        // Créer l'utilisateur admin par défaut si la table est vide
-        db.get('SELECT COUNT(*) as count FROM users', async (err, row) => {
-          if (err) {
-            logger.error('Erreur lors de la vérification des utilisateurs:', err);
-            reject(err);
-            return;
-          }
-
-          if (row.count === 0) {
-            // Créer l'utilisateur admin par défaut
-            const defaultPassword = 'admin';
-            const passwordHash = await bcrypt.hash(defaultPassword, 12);
-
-            db.run(
-              'INSERT INTO users (username, password_hash, is_admin) VALUES (?, ?, ?)',
-              ['admin', passwordHash, 1],
-              (err) => {
-                if (err) {
-                  logger.error('Erreur lors de la création de l\'utilisateur admin:', err);
-                  reject(err);
-                } else {
-                  logger.info('✓ Utilisateur admin créé (username: admin, password: admin)');
-                  logger.warn('⚠️  IMPORTANT: Changez le mot de passe admin en production!');
-                  resolve();
-                }
-              }
-            );
-          } else {
-            logger.info('✓ Base de données déjà initialisée');
-            resolve();
-          }
-        });
-      } catch (error) {
-        logger.error('Erreur lors de l\'initialisation de la base de données:', error);
-        reject(error);
-      }
-    });
-  });
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    logger.error('Erreur lors de l\'initialisation de la base de données:', error);
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 /**
  * Exécuter une requête avec promesse
  */
-function runQuery(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    db.run(sql, params, function(err) {
-      if (err) {
-        reject(err);
-      } else {
-        resolve({ id: this.lastID, changes: this.changes });
-      }
-    });
-  });
+async function runQuery(sql, params = []) {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(sql, params);
+    return {
+      id: result.rows[0]?.id || result.rowCount,
+      changes: result.rowCount
+    };
+  } catch (error) {
+    logger.error('Erreur runQuery:', error);
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 /**
  * Récupérer une seule ligne
  */
-function getOne(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    db.get(sql, params, (err, row) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(row);
-      }
-    });
-  });
+async function getOne(sql, params = []) {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(sql, params);
+    return result.rows[0] || null;
+  } catch (error) {
+    logger.error('Erreur getOne:', error);
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 /**
  * Récupérer toutes les lignes
  */
-function getAll(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    db.all(sql, params, (err, rows) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(rows);
-      }
-    });
-  });
+async function getAll(sql, params = []) {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(sql, params);
+    return result.rows;
+  } catch (error) {
+    logger.error('Erreur getAll:', error);
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 module.exports = {
-  db,
+  pool,
   initDatabase,
   runQuery,
   getOne,
