@@ -1414,9 +1414,14 @@ const Index = () => {
                               <Checkbox
                                 checked={todo.completed}
                                 onCheckedChange={async () => {
-                                  const updatedTodos = [...(openNote.todos || [])];
-                                  updatedTodos[index] = { ...todo, completed: !todo.completed };
-                                  await handleUpdateNote({ todos: updatedTodos });
+                                  if (!todo.id) return;
+                                  const success = await NotesService.toggleTodo(todo.id, !todo.completed);
+                                  if (success) {
+                                    const updatedTodos = [...(openNote.todos || [])];
+                                    updatedTodos[index] = { ...todo, completed: !todo.completed };
+                                    setOpenNote({ ...openNote, todos: updatedTodos });
+                                    setNotes(prev => prev.map(note => note.id === openNote.id ? { ...note, todos: updatedTodos } : note));
+                                  }
                                 }}
                               />
                               <span className={todo.completed ? "line-through text-muted-foreground flex-1 text-sm" : "flex-1 text-sm"}>
@@ -1427,9 +1432,14 @@ const Index = () => {
                                 size="icon"
                                 className="h-6 w-6"
                                 onClick={async () => {
-                                  const updatedTodos = [...(openNote.todos || [])];
-                                  updatedTodos.splice(index, 1);
-                                  await handleUpdateNote({ todos: updatedTodos });
+                                  if (!todo.id) return;
+                                  const success = await NotesService.deleteTodo(todo.id);
+                                  if (success) {
+                                    const updatedTodos = openNote.todos.filter((_, i) => i !== index);
+                                    setOpenNote({ ...openNote, todos: updatedTodos });
+                                    setNotes(prev => prev.map(note => note.id === openNote.id ? { ...note, todos: updatedTodos } : note));
+                                    showSuccess("Tâche supprimée");
+                                  }
                                 }}
                               >
                                 <Trash2 className="h-3 w-3" />
@@ -2215,9 +2225,13 @@ const Index = () => {
         label="Tâche"
         placeholder="Entrez la tâche..."
         onConfirm={async (text) => {
-          if (openNote) {
-            const updatedTodos = [...(openNote.todos || []), { text, completed: false }];
-            await handleUpdateNote({ todos: updatedTodos });
+          if (openNote?.id) {
+            const newTodo = await NotesService.addTodo(openNote.id, text);
+            if (newTodo) {
+              const updatedTodos = [...(openNote.todos || []), newTodo];
+              setOpenNote({ ...openNote, todos: updatedTodos });
+              setNotes(prev => prev.map(note => note.id === openNote.id ? { ...note, todos: updatedTodos } : note));
+            }
           }
         }}
         confirmText="Ajouter"
