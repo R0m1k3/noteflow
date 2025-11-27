@@ -37,6 +37,7 @@ import { downloadNoteAsMarkdown, downloadAllNotesAsMarkdown, downloadTodosAsMark
 import { TemplateSelector } from "@/components/TemplateSelector";
 import type { NoteTemplate } from "@/utils/noteTemplates";
 import { AdvancedSearch, type SearchFilters, type TagOption } from "@/components/AdvancedSearch";
+import { PomodoroTimer } from "@/components/PomodoroTimer";
 
 // ===== FONCTIONS UTILITAIRES TIMEZONE EUROPE/PARIS =====
 
@@ -1740,8 +1741,13 @@ const Index = () => {
             )}
           </div>
 
-          {/* Right Column: Todos & RSS Boxes side by side */}
-          <div className="grid grid-cols-2 gap-6">
+          {/* Right Column: Pomodoro Timer, Todos & RSS */}
+          <div className="space-y-6">
+            {/* Pomodoro Timer */}
+            <PomodoroTimer />
+
+            {/* Todos & RSS Boxes side by side */}
+            <div className="grid grid-cols-2 gap-6">
             {/* Todos Box */}
             <Card className="shadow-lg">
               <CardHeader className="pb-3">
@@ -1970,6 +1976,7 @@ const Index = () => {
               </CardContent>
             </Card>
 
+          </div>
           </div>
         </div>
       </div>
