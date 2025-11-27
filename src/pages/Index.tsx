@@ -15,7 +15,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { RichTextEditor } from "@/components/RichTextEditor";
 import {
   PlusCircle, Search, User, LogOut, Settings, ChevronDown, Plus, Archive, Trash2,
-  Image as ImageIcon, CheckSquare, FileText, Rss, ExternalLink, RefreshCw, Key, Zap, Paperclip, X, Edit, Calendar as CalendarIcon, Tag as TagIcon, MessageSquare, Send, Check, ChevronsUpDown, Star, Activity
+  Image as ImageIcon, CheckSquare, FileText, Rss, ExternalLink, RefreshCw, Key, Zap, Paperclip, X, Edit, Calendar as CalendarIcon, Tag as TagIcon, MessageSquare, Send, Check, ChevronsUpDown, Star, Activity, FileDown
 } from "lucide-react";
 import AuthService from "@/services/AuthService";
 import AdminService from "@/services/AdminService";
@@ -33,6 +33,7 @@ import { InputModal } from "@/components/modals/InputModal";
 import { AddUserModal } from "@/components/modals/AddUserModal";
 import { compressImage, formatFileSize } from "@/utils/imageCompression";
 import { ModeToggle } from "@/components/mode-toggle";
+import { downloadNoteAsMarkdown, downloadAllNotesAsMarkdown, downloadTodosAsMarkdown } from "@/utils/markdownExport";
 
 // ===== FONCTIONS UTILITAIRES TIMEZONE EUROPE/PARIS =====
 
@@ -1278,6 +1279,19 @@ const Index = () => {
                   <div></div>
 
                   <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => {
+                        if (openNote) {
+                          downloadNoteAsMarkdown(openNote);
+                          showSuccess("Note exportée en Markdown");
+                        }
+                      }}
+                      title="Exporter en Markdown"
+                    >
+                      <FileDown className="h-4 w-4" />
+                    </Button>
                     <Button
                       variant="outline"
                       size="icon"
