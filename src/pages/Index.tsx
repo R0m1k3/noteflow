@@ -857,14 +857,25 @@ const Index = () => {
     ).values()
   ).sort((a, b) => a.name.localeCompare(b.name));
 
+  // Debug logging
+  console.log('=== NOTES FILTER DEBUG ===');
+  console.log('Total notes:', notes.length);
+  console.log('Show archived:', showArchived);
+  console.log('Search query:', searchQuery);
+  console.log('Search filters:', searchFilters);
+
   const filteredNotes = notes.filter(note => {
     // Archived filter
-    if (showArchived ? !note.archived : note.archived) return false;
+    if (showArchived ? !note.archived : note.archived) {
+      console.log('Note filtered by archived status:', note.id, note.title);
+      return false;
+    }
 
     // Text search
     if (searchQuery !== "" &&
       !(note.title && note.title.toLowerCase().includes(searchQuery.toLowerCase())) &&
       !(note.content && note.content.toLowerCase().includes(searchQuery.toLowerCase()))) {
+      console.log('Note filtered by search query:', note.id, note.title);
       return false;
     }
 
@@ -872,6 +883,7 @@ const Index = () => {
     if (searchFilters.tags.length > 0) {
       const noteTags = (note.tags || []).map(t => t.name);
       if (!searchFilters.tags.some(filterTag => noteTags.includes(filterTag))) {
+        console.log('Note filtered by tags:', note.id, note.title);
         return false;
       }
     }
@@ -882,37 +894,50 @@ const Index = () => {
       if (searchFilters.dateFrom) {
         const fromDate = new Date(searchFilters.dateFrom);
         fromDate.setHours(0, 0, 0, 0);
-        if (noteDate < fromDate) return false;
+        if (noteDate < fromDate) {
+          console.log('Note filtered by dateFrom:', note.id, note.title);
+          return false;
+        }
       }
       if (searchFilters.dateTo) {
         const toDate = new Date(searchFilters.dateTo);
         toDate.setHours(23, 59, 59, 999);
-        if (noteDate > toDate) return false;
+        if (noteDate > toDate) {
+          console.log('Note filtered by dateTo:', note.id, note.title);
+          return false;
+        }
       }
     }
 
     // Has todos filter
     if (searchFilters.hasTodos && (!note.todos || note.todos.length === 0)) {
+      console.log('Note filtered by hasTodos:', note.id, note.title);
       return false;
     }
 
     // Has images filter
     if (searchFilters.hasImages && (!note.images || note.images.length === 0)) {
+      console.log('Note filtered by hasImages:', note.id, note.title);
       return false;
     }
 
     // Has files filter
     if (searchFilters.hasFiles && (!note.files || note.files.length === 0)) {
+      console.log('Note filtered by hasFiles:', note.id, note.title);
       return false;
     }
 
     // Priority filter
     if (searchFilters.priority && !note.priority) {
+      console.log('Note filtered by priority:', note.id, note.title);
       return false;
     }
 
     return true;
   });
+
+  console.log('Filtered notes:', filteredNotes.length);
+  console.log('========================');
 
   // Pagination for notes
   const totalNotesPages = Math.ceil(filteredNotes.length / NOTES_PER_PAGE);
@@ -1275,6 +1300,15 @@ const Index = () => {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <h2 className="text-2xl font-semibold">Mes Notes</h2>
+
+                    {/* DEBUG PANEL - TEMPORARY */}
+                    <div className="bg-red-100 border border-red-400 rounded p-2 text-xs">
+                      <div><strong>DEBUG:</strong> Total: {notes.length} | Filtered: {filteredNotes.length}</div>
+                      <div>Archived: {showArchived ? 'YES' : 'NO'} | Query: '{searchQuery}'</div>
+                      <div>Tags: {searchFilters.tags.length} | Dates: {searchFilters.dateFrom ? 'FROM' : ''} {searchFilters.dateTo ? 'TO' : ''}</div>
+                      <div>hasTodos: {String(searchFilters.hasTodos)} | hasImages: {String(searchFilters.hasImages)} | hasFiles: {String(searchFilters.hasFiles)} | priority: {String(searchFilters.priority)}</div>
+                    </div>
+
                     <div className="flex gap-2">
                       <Button
                         variant={!showArchived ? "default" : "outline"}
