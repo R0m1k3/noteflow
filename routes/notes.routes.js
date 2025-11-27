@@ -414,7 +414,7 @@ router.post('/:id/todos',
 
       const result = await runQuery(`
         INSERT INTO note_todos (note_id, text, position)
-        VALUES ($1, $2, (SELECT COALESCE(MAX(position), FALSE) + 1 FROM note_todos WHERE note_id = $3))
+        VALUES ($1, $2, (SELECT COALESCE(MAX(position), 0) + 1 FROM note_todos WHERE note_id = $3))
         RETURNING *
       `, [req.params.id, text, req.params.id]);
 
