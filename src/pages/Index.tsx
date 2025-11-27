@@ -1335,17 +1335,29 @@ const Index = () => {
                   <input
                     id="image-upload"
                     type="file"
-                    accept="image/*"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
                     className="hidden"
                     onChange={async (e) => {
                       if (e.target.files && e.target.files[0] && openNote?.id) {
+                        const file = e.target.files[0];
+
+                        // Vérifier la taille du fichier (5MB max)
+                        const maxSize = 5 * 1024 * 1024; // 5MB
+                        if (file.size > maxSize) {
+                          showError("L'image est trop grande (max 5MB)");
+                          e.target.value = '';
+                          return;
+                        }
+
                         try {
-                          const image = await NotesService.uploadImage(openNote.id, e.target.files[0]);
+                          const image = await NotesService.uploadImage(openNote.id, file);
                           if (image) {
                             const updatedImages = [...(openNote.images || []), image];
                             setOpenNote({ ...openNote, images: updatedImages });
-                            await handleUpdateNote({ images: updatedImages });
+                            setNotes(prev => prev.map(note => note.id === openNote.id ? { ...note, images: updatedImages } : note));
                             showSuccess("Image ajoutée");
+                          } else {
+                            showError("Erreur lors de l'upload de l'image");
                           }
                         } catch (error) {
                           showError("Erreur lors de l'upload de l'image");
