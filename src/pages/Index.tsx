@@ -255,7 +255,10 @@ const Index = () => {
 
   const loadNotes = async () => {
     try {
+      console.log('[DEBUG] Fetching notes from API...');
       const fetchedNotes = await NotesService.getNotes();
+      console.log('[DEBUG] Notes fetched:', fetchedNotes.length, 'notes');
+      console.log('[DEBUG] Notes data:', fetchedNotes);
       if (Array.isArray(fetchedNotes)) {
         setNotes(fetchedNotes);
       }
