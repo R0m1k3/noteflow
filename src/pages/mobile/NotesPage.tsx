@@ -5,12 +5,14 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { MobileFAB } from "@/components/mobile/MobileFAB";
 import { MobileCard } from "@/components/mobile/MobileCard";
-import { Plus, Search, CheckSquare, Image as ImageIcon, Paperclip, Tag as TagIcon, FileText } from "lucide-react";
+import { Plus, Search, CheckSquare, Image as ImageIcon, Paperclip, Tag as TagIcon, FileText, LayoutGrid, List } from "lucide-react";
 import NotesService, { Note } from "@/services/NotesService";
 import { showError, showSuccess } from "@/utils/toast";
 import { TemplateSelector } from "@/components/TemplateSelector";
 import type { NoteTemplate } from "@/utils/noteTemplates";
 import { AdvancedSearch, type SearchFilters, type TagOption } from "@/components/AdvancedSearch";
+import { KanbanBoard } from "@/components/KanbanBoard";
+import TagsService from "@/services/TagsService";
 
 const NOTES_PER_PAGE = 10;
 
@@ -29,6 +31,7 @@ export default function NotesPage() {
   const [showArchived, setShowArchived] = useState(false);
   const [page, setPage] = useState(0);
   const [templateSelectorOpen, setTemplateSelectorOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
   const navigate = useNavigate();
 
   const loadNotes = async () => {
@@ -209,9 +212,32 @@ export default function NotesPage() {
             Archivées ({notes.filter(n => n.archived).length})
           </Button>
         </div>
+
+        {/* View Mode Toggle */}
+        <div className="flex gap-1 border rounded-md p-1">
+          <Button
+            variant={viewMode === 'list' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setViewMode('list')}
+            className="flex-1 gap-2"
+          >
+            <List className="h-4 w-4" />
+            Liste
+          </Button>
+          <Button
+            variant={viewMode === 'kanban' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setViewMode('kanban')}
+            className="flex-1 gap-2"
+          >
+            <LayoutGrid className="h-4 w-4" />
+            Kanban
+          </Button>
+        </div>
       </div>
 
-      {/* Notes List */}
+      {/* Notes View - List or Kanban */}
+      {viewMode === 'list' ? (
       <div className="p-4 space-y-3">
         {paginatedNotes.length > 0 ? (
           paginatedNotes.map(note => (
@@ -304,30 +330,64 @@ export default function NotesPage() {
             )}
           </div>
         )}
-      </div>
 
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-4 px-4 pb-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setPage(p => Math.max(0, p - 1))}
-            disabled={page === 0}
-          >
-            ‹ Précédent
-          </Button>
-          <span className="text-sm text-muted-foreground">
-            {page + 1} / {totalPages}
-          </span>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
-            disabled={page === totalPages - 1}
-          >
-            Suivant ›
-          </Button>
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-center gap-4 px-4 pb-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setPage(p => Math.max(0, p - 1))}
+              disabled={page === 0}
+            >
+              ‹ Précédent
+            </Button>
+            <span className="text-sm text-muted-foreground">
+              {page + 1} / {totalPages}
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+              disabled={page === totalPages - 1}
+            >
+              Suivant ›
+            </Button>
+          </div>
+        )}
+      </div>
+      ) : (
+        /* Kanban View */
+        <div className="p-2 overflow-x-auto">
+          <KanbanBoard
+            notes={filteredNotes}
+            onNoteClick={(note) => navigate(`/mobile/notes/${note.id}`)}
+            onCreateNote={(columnId) => {
+              setTemplateSelectorOpen(true);
+            }}
+            onMoveNote={async (noteId, newStatus) => {
+              const note = notes.find(n => n.id === noteId);
+              if (!note) return;
+
+              // Remove old status tags
+              const oldStatusTags = note.tags?.filter(tag =>
+                ['backlog', 'todo', 'in_progress', 'review', 'done'].includes(tag.name.toLowerCase())
+              ) || [];
+
+              for (const tag of oldStatusTags) {
+                if (tag.id && note.id) {
+                  await TagsService.deleteTag(note.id, tag.id);
+                }
+              }
+
+              // Add new status tag
+              if (note.id) {
+                await TagsService.addTag(note.id, newStatus);
+                await loadNotes();
+                showSuccess(`Note déplacée vers ${newStatus}`);
+              }
+            }}
+          />
         </div>
       )}
 
