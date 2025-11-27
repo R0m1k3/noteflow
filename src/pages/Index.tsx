@@ -41,6 +41,9 @@ import { PomodoroTimer } from "@/components/PomodoroTimer";
 import { KanbanBoard } from "@/components/KanbanBoard";
 import { getSmartTagSuggestions } from "@/utils/smartTags";
 import { QuickCaptureWidget } from "@/components/QuickCaptureWidget";
+import { StatsDashboard } from "@/components/StatsDashboard";
+import { KeyboardShortcutsHelp } from "@/components/KeyboardShortcutsHelp";
+import { useKeyboardShortcuts, type KeyboardShortcut } from "@/hooks/useKeyboardShortcuts";
 
 // ===== FONCTIONS UTILITAIRES TIMEZONE EUROPE/PARIS =====
 
@@ -170,6 +173,8 @@ const Index = () => {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [addEventModal, setAddEventModal] = useState(false);
   const [editEventModal, setEditEventModal] = useState<{ open: boolean, event?: CalendarEvent }>({ open: false });
+  const [showKeyboardHelp, setShowKeyboardHelp] = useState(false);
+  const [showStatsDashboard, setShowStatsDashboard] = useState(false);
 
   // Pagination states
   const [notesPage, setNotesPage] = useState(0);
@@ -934,6 +939,72 @@ const Index = () => {
     setCalendarPage(0);
   }, [calendarEvents.length]);
 
+  // Define keyboard shortcuts
+  const keyboardShortcuts: KeyboardShortcut[] = [
+    {
+      key: 'n',
+      ctrl: true,
+      description: 'Nouvelle note',
+      handler: () => !showAdmin && handleCreateNote()
+    },
+    {
+      key: 'k',
+      ctrl: true,
+      description: 'Rechercher',
+      handler: () => {
+        const searchInput = document.querySelector('input[type="search"]') as HTMLInputElement;
+        if (searchInput) searchInput.focus();
+      }
+    },
+    {
+      key: 'q',
+      ctrl: true,
+      description: 'Capture rapide',
+      handler: () => {
+        const captureButton = document.querySelector('[title="Capture rapide (Ctrl+Q)"]') as HTMLButtonElement;
+        if (captureButton) captureButton.click();
+      }
+    },
+    {
+      key: 'Escape',
+      description: 'Fermer note/modal',
+      handler: () => {
+        if (openNote) setOpenNote(null);
+        else if (showAdmin) setShowAdmin(false);
+        else if (showKeyboardHelp) setShowKeyboardHelp(false);
+      },
+      preventDefault: false
+    },
+    {
+      key: '?',
+      shift: true,
+      description: 'Aide raccourcis',
+      handler: () => setShowKeyboardHelp(true)
+    },
+    {
+      key: 'e',
+      ctrl: true,
+      description: 'Archiver note',
+      handler: async () => {
+        if (openNote?.id) {
+          await handleUpdateNote({ archived: !openNote.archived });
+        }
+      }
+    },
+    {
+      key: 's',
+      ctrl: true,
+      description: 'Sauvegarder (auto)',
+      handler: () => {
+        // Note: Auto-save is handled by the editor
+        showSuccess('Auto-save actif');
+      }
+    }
+  ];
+
+  // Register keyboard shortcuts
+  useKeyboardShortcuts(keyboardShortcuts, !showAdmin);
+
   // Pagination for todos
   const activeTodos = todos.filter(t => !t.completed);
   const completedTodos = todos.filter(t => t.completed);
@@ -1191,6 +1262,9 @@ const Index = () => {
                 )}
               </CardContent>
             </Card>
+
+            {/* Statistics Dashboard */}
+            <StatsDashboard notes={notes} todos={todos} />
           </div>
 
           {/* Middle Column: Notes or Open Note */}
@@ -3067,6 +3141,13 @@ const Index = () => {
           </div>
         </div>
       )}
+
+      {/* Keyboard Shortcuts Help Modal */}
+      <KeyboardShortcutsHelp
+        open={showKeyboardHelp}
+        onOpenChange={setShowKeyboardHelp}
+        shortcuts={keyboardShortcuts}
+      />
 
       {/* Quick Capture Widget */}
       <QuickCaptureWidget onNoteCaptured={loadNotes} />
