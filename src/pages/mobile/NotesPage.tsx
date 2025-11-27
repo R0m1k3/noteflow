@@ -8,6 +8,8 @@ import { MobileCard } from "@/components/mobile/MobileCard";
 import { Plus, Search, CheckSquare, Image as ImageIcon, Paperclip, Tag as TagIcon, FileText } from "lucide-react";
 import NotesService, { Note } from "@/services/NotesService";
 import { showError, showSuccess } from "@/utils/toast";
+import { TemplateSelector } from "@/components/TemplateSelector";
+import type { NoteTemplate } from "@/utils/noteTemplates";
 
 const NOTES_PER_PAGE = 10;
 
@@ -16,6 +18,7 @@ export default function NotesPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showArchived, setShowArchived] = useState(false);
   const [page, setPage] = useState(0);
+  const [templateSelectorOpen, setTemplateSelectorOpen] = useState(false);
   const navigate = useNavigate();
 
   const loadNotes = async () => {
@@ -48,10 +51,24 @@ export default function NotesPage() {
   const totalPages = Math.ceil(filteredNotes.length / NOTES_PER_PAGE);
   const paginatedNotes = filteredNotes.slice(page * NOTES_PER_PAGE, (page + 1) * NOTES_PER_PAGE);
 
-  const handleCreateNote = async () => {
+  const handleCreateNote = () => {
+    setTemplateSelectorOpen(true);
+  };
+
+  const handleCreateNoteFromTemplate = async (template: NoteTemplate) => {
     try {
-      const newNote = await NotesService.createNote("Nouvelle note", "");
-      navigate(`/mobile/notes/${newNote.id}`);
+      const title = template.name === "Note vide" ? "Nouvelle note" : template.name;
+      const newNote = await NotesService.createNote(title, template.content);
+      if (newNote) {
+        // Add todos if template has any
+        if (template.todos && template.todos.length > 0) {
+          for (const todo of template.todos) {
+            await NotesService.addTodo(newNote.id!, todo.text);
+          }
+        }
+        showSuccess("Note créée depuis le template");
+        navigate(`/mobile/notes/${newNote.id}`);
+      }
     } catch (error) {
       showError("Erreur lors de la création de la note");
     }
@@ -238,6 +255,13 @@ export default function NotesPage() {
 
       {/* FAB */}
       <MobileFAB icon={Plus} onClick={handleCreateNote} label="Créer une note" />
+
+      {/* Template Selector */}
+      <TemplateSelector
+        open={templateSelectorOpen}
+        onOpenChange={setTemplateSelectorOpen}
+        onSelectTemplate={handleCreateNoteFromTemplate}
+      />
     </div>
   );
 }

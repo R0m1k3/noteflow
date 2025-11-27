@@ -34,6 +34,8 @@ import { AddUserModal } from "@/components/modals/AddUserModal";
 import { compressImage, formatFileSize } from "@/utils/imageCompression";
 import { ModeToggle } from "@/components/mode-toggle";
 import { downloadNoteAsMarkdown, downloadAllNotesAsMarkdown, downloadTodosAsMarkdown } from "@/utils/markdownExport";
+import { TemplateSelector } from "@/components/TemplateSelector";
+import type { NoteTemplate } from "@/utils/noteTemplates";
 
 // ===== FONCTIONS UTILITAIRES TIMEZONE EUROPE/PARIS =====
 
@@ -147,6 +149,7 @@ const Index = () => {
   const [addUserModal, setAddUserModal] = useState(false);
   const [deleteUserModal, setDeleteUserModal] = useState<{ open: boolean, userId?: number }>({ open: false });
   const [changePasswordModal, setChangePasswordModal] = useState<{ open: boolean, userId?: number }>({ open: false });
+  const [templateSelectorOpen, setTemplateSelectorOpen] = useState(false);
   const [addNoteTodoModal, setAddNoteTodoModal] = useState(false);
   const [addTagModal, setAddTagModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -410,12 +413,32 @@ const Index = () => {
     navigate("/login");
   };
 
-  const handleCreateNote = async () => {
+  const handleCreateNote = () => {
+    setTemplateSelectorOpen(true);
+  };
+
+  const handleCreateNoteFromTemplate = async (template: NoteTemplate) => {
     try {
-      const newNote = await NotesService.createNote("Nouvelle note");
+      const title = template.name === "Note vide" ? "Nouvelle note" : template.name;
+      const newNote = await NotesService.createNote(title, template.content);
       if (newNote) {
-        setNotes([newNote, ...notes]);
-        setOpenNote(newNote);
+        // Add todos if template has any
+        if (template.todos && template.todos.length > 0) {
+          for (const todo of template.todos) {
+            await NotesService.addTodo(newNote.id!, todo.text);
+          }
+          // Reload note to get the todos
+          const notes = await NotesService.getNotes();
+          const updatedNote = notes.find(n => n.id === newNote.id);
+          if (updatedNote) {
+            setNotes([updatedNote, ...notes.filter(n => n.id !== newNote.id)]);
+            setOpenNote(updatedNote);
+          }
+        } else {
+          setNotes([newNote, ...notes]);
+          setOpenNote(newNote);
+        }
+        showSuccess("Note créée depuis le template");
       }
     } catch (error) {
       showError("Erreur lors de la création de la note");
@@ -2285,6 +2308,13 @@ const Index = () => {
         placeholder="Entrez le nom du tag..."
         onConfirm={confirmAddTag}
         confirmText="Ajouter"
+      />
+
+      {/* Template Selector */}
+      <TemplateSelector
+        open={templateSelectorOpen}
+        onOpenChange={setTemplateSelectorOpen}
+        onSelectTemplate={handleCreateNoteFromTemplate}
       />
 
       {/* Add Event Modal */}
