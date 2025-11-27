@@ -80,28 +80,40 @@ export default function NoteDetailPage() {
   };
 
   const handleAddTodo = async () => {
-    if (!note || !todoText.trim()) return;
-    const newTodo = { text: todoText, completed: false };
-    const updatedTodos = [...(note.todos || []), newTodo];
-    await updateNote({ todos: updatedTodos });
-    setTodoText("");
-    setAddTodoModal(false);
-    showSuccess("Tâche ajoutée");
+    if (!note?.id || !todoText.trim()) return;
+    const newTodo = await NotesService.addTodo(note.id, todoText.trim());
+    if (newTodo) {
+      const updatedTodos = [...(note.todos || []), newTodo];
+      setNote({ ...note, todos: updatedTodos });
+      setTodoText("");
+      setAddTodoModal(false);
+    }
   };
 
   const handleToggleTodo = async (index: number) => {
     if (!note?.todos) return;
-    const updatedTodos = [...note.todos];
-    updatedTodos[index] = { ...updatedTodos[index], completed: !updatedTodos[index].completed };
-    await updateNote({ todos: updatedTodos });
+    const todo = note.todos[index];
+    if (!todo.id) return;
+
+    const success = await NotesService.toggleTodo(todo.id, !todo.completed);
+    if (success) {
+      const updatedTodos = [...note.todos];
+      updatedTodos[index] = { ...updatedTodos[index], completed: !updatedTodos[index].completed };
+      setNote({ ...note, todos: updatedTodos });
+    }
   };
 
   const handleDeleteTodo = async (index: number) => {
     if (!note?.todos) return;
-    const updatedTodos = [...note.todos];
-    updatedTodos.splice(index, 1);
-    await updateNote({ todos: updatedTodos });
-    showSuccess("Tâche supprimée");
+    const todo = note.todos[index];
+    if (!todo.id) return;
+
+    const success = await NotesService.deleteTodo(todo.id);
+    if (success) {
+      const updatedTodos = note.todos.filter((_, i) => i !== index);
+      setNote({ ...note, todos: updatedTodos });
+      showSuccess("Tâche supprimée");
+    }
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
