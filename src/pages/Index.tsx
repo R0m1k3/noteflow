@@ -40,6 +40,7 @@ import { AdvancedSearch, type SearchFilters, type TagOption } from "@/components
 import { PomodoroTimer } from "@/components/PomodoroTimer";
 import { KanbanBoard } from "@/components/KanbanBoard";
 import { getSmartTagSuggestions } from "@/utils/smartTags";
+import { QuickCaptureWidget } from "@/components/QuickCaptureWidget";
 
 // ===== FONCTIONS UTILITAIRES TIMEZONE EUROPE/PARIS =====
 
@@ -3066,6 +3067,9 @@ const Index = () => {
           </div>
         </div>
       )}
+
+      {/* Quick Capture Widget */}
+      <QuickCaptureWidget onNoteCaptured={loadNotes} />
     </div>
   );
 };
