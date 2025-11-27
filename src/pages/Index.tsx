@@ -15,7 +15,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { RichTextEditor } from "@/components/RichTextEditor";
 import {
   PlusCircle, Search, User, LogOut, Settings, ChevronDown, Plus, Archive, Trash2,
-  Image as ImageIcon, CheckSquare, FileText, Rss, ExternalLink, RefreshCw, Key, Zap, Paperclip, X, Edit, Calendar as CalendarIcon, Tag as TagIcon, MessageSquare, Send, Check, ChevronsUpDown, Star, Activity, FileDown
+  Image as ImageIcon, CheckSquare, FileText, Rss, ExternalLink, RefreshCw, Key, Zap, Paperclip, X, Edit, Calendar as CalendarIcon, Tag as TagIcon, MessageSquare, Send, Check, ChevronsUpDown, Star, Activity, FileDown, LayoutGrid, List
 } from "lucide-react";
 import AuthService from "@/services/AuthService";
 import AdminService from "@/services/AdminService";
@@ -38,6 +38,7 @@ import { TemplateSelector } from "@/components/TemplateSelector";
 import type { NoteTemplate } from "@/utils/noteTemplates";
 import { AdvancedSearch, type SearchFilters, type TagOption } from "@/components/AdvancedSearch";
 import { PomodoroTimer } from "@/components/PomodoroTimer";
+import { KanbanBoard } from "@/components/KanbanBoard";
 
 // ===== FONCTIONS UTILITAIRES TIMEZONE EUROPE/PARIS =====
 
@@ -136,6 +137,7 @@ const Index = () => {
   const [settings, setSettings] = useState<AppSettings>({});
   const [adminTab, setAdminTab] = useState("users");
   const [showArchived, setShowArchived] = useState(false);
+  const [notesViewMode, setNotesViewMode] = useState<'list' | 'kanban'>('list');
   const [noteTags, setNoteTags] = useState<Tag[]>([]);
   const [openRouterModels, setOpenRouterModels] = useState<OpenRouterModel[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
@@ -1229,11 +1231,35 @@ const Index = () => {
                       onFiltersChange={setSearchFilters}
                       availableTags={availableTags}
                     />
+
+                    {/* View Mode Toggle */}
+                    <div className="flex gap-1 border rounded-md p-1">
+                      <Button
+                        variant={notesViewMode === 'list' ? 'default' : 'ghost'}
+                        size="sm"
+                        onClick={() => setNotesViewMode('list')}
+                        className="gap-2"
+                      >
+                        <List className="h-4 w-4" />
+                        Liste
+                      </Button>
+                      <Button
+                        variant={notesViewMode === 'kanban' ? 'default' : 'ghost'}
+                        size="sm"
+                        onClick={() => setNotesViewMode('kanban')}
+                        className="gap-2"
+                      >
+                        <LayoutGrid className="h-4 w-4" />
+                        Kanban
+                      </Button>
+                    </div>
                   </div>
                 </div>
 
-                {/* Notes Grid - 1 column for better visibility */}
-                <div className="grid grid-cols-1 gap-4">
+                {/* Notes View - List or Kanban */}
+                {notesViewMode === 'list' ? (
+                  <>
+                  <div className="grid grid-cols-1 gap-4">
                   {filteredNotes.length > 0 ? (
                     paginatedNotes.map(note => (
                       <Card
@@ -1370,6 +1396,41 @@ const Index = () => {
                       Suivant
                     </Button>
                   </div>
+                )}
+                </>
+                ) : (
+                  /* Kanban View */
+                  <KanbanBoard
+                    notes={filteredNotes}
+                    onNoteClick={handleOpenNote}
+                    onCreateNote={(columnId) => {
+                      setTemplateSelectorOpen(true);
+                      // TODO: Set initial tag based on columnId
+                    }}
+                    onMoveNote={async (noteId, newStatus) => {
+                      // Move note to new column by updating its status tag
+                      const note = notes.find(n => n.id === noteId);
+                      if (!note) return;
+
+                      // Remove old status tags
+                      const oldStatusTags = note.tags?.filter(tag =>
+                        ['backlog', 'todo', 'in_progress', 'review', 'done'].includes(tag.name.toLowerCase())
+                      ) || [];
+
+                      for (const tag of oldStatusTags) {
+                        if (tag.id && note.id) {
+                          await TagsService.deleteTag(note.id, tag.id);
+                        }
+                      }
+
+                      // Add new status tag
+                      if (note.id) {
+                        await TagsService.addTag(note.id, newStatus);
+                        await loadNotes(); // Refresh notes
+                        showSuccess(`Note déplacée vers ${newStatus}`);
+                      }
+                    }}
+                  />
                 )}
               </>
             ) : (
