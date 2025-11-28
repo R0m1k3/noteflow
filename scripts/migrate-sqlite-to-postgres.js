@@ -69,6 +69,16 @@ function getSqliteData(tableName) {
   });
 }
 
+// Colonnes booléennes connues (pour conversion 0/1 → FALSE/TRUE)
+const BOOLEAN_COLUMNS = {
+  users: ['is_admin'],
+  notes: ['archived'],
+  note_todos: ['completed', 'priority'],
+  global_todos: ['completed', 'priority'],
+  rss_feeds: ['enabled'],
+  calendar_events: ['all_day']
+};
+
 /**
  * Insérer les données dans PostgreSQL
  */
@@ -80,6 +90,7 @@ async function insertPostgresData(tableName, rows) {
 
   const client = await pgPool.connect();
   let inserted = 0;
+  const booleanCols = BOOLEAN_COLUMNS[tableName] || [];
 
   try {
     await client.query('BEGIN');
@@ -87,10 +98,18 @@ async function insertPostgresData(tableName, rows) {
     for (const row of rows) {
       // Convertir les noms de colonnes et valeurs
       const columns = Object.keys(row);
-      const values = Object.values(row).map(val => {
+      const values = columns.map((col, idx) => {
+        const val = Object.values(row)[idx];
+
         // Convertir les valeurs SQLite vers PostgreSQL
         if (val === null) return null;
         if (typeof val === 'boolean') return val;
+
+        // Convertir les colonnes booléennes: 0/1 → FALSE/TRUE
+        if (booleanCols.includes(col) && (val === 0 || val === 1)) {
+          return val === 1;
+        }
+
         if (typeof val === 'number') return val;
         // Dates
         if (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}/.test(val)) {
