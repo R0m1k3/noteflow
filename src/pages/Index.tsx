@@ -3378,13 +3378,22 @@ const Index = () => {
         todos={todos}
       />
 
-      {/* Pomodoro Timer Modal */}
-      <PomodoroModal
-        open={showPomodoroModal}
-        onOpenChange={setShowPomodoroModal}
-      >
+      {/* Pomodoro Timer - Always mounted in hidden div to keep timer running */}
+      <div style={{ position: 'absolute', left: '-9999px', top: '-9999px' }}>
         <PomodoroTimer onStateChange={handlePomodoroStateChange} />
-      </PomodoroModal>
+      </div>
+
+      {/* Pomodoro Timer Modal - Shows timer controls when opened */}
+      <Dialog open={showPomodoroModal} onOpenChange={setShowPomodoroModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-2xl">Pomodoro Timer</DialogTitle>
+          </DialogHeader>
+          <div className="mt-4">
+            <PomodoroTimer onStateChange={handlePomodoroStateChange} />
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Quick Capture Widget */}
       <QuickCaptureWidget onNoteCaptured={loadNotes} />
