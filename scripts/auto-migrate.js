@@ -185,6 +185,55 @@ async function autoMigrate() {
       await client.query(`CREATE INDEX IF NOT EXISTS idx_global_todos_priority ON global_todos(priority DESC, created_at DESC)`);
       await client.query(`CREATE INDEX IF NOT EXISTS idx_note_todos_priority ON note_todos(priority DESC, position)`);
 
+      // Migration 4: Support des subtasks (parent_id, level)
+      logger.info('  Vérification: support des subtasks (parent_id, level)...');
+
+      const noteTodosParentIdExists = await client.query(`
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_name='note_todos' AND column_name='parent_id'
+      `);
+
+      if (noteTodosParentIdExists.rows.length === 0) {
+        logger.info('  → Ajout du champ parent_id à note_todos');
+        await client.query(`ALTER TABLE note_todos ADD COLUMN parent_id INTEGER REFERENCES note_todos(id) ON DELETE CASCADE`);
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_note_todos_parent_id ON note_todos(parent_id)`);
+      }
+
+      const noteTodosLevelExists = await client.query(`
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_name='note_todos' AND column_name='level'
+      `);
+
+      if (noteTodosLevelExists.rows.length === 0) {
+        logger.info('  → Ajout du champ level à note_todos');
+        await client.query(`ALTER TABLE note_todos ADD COLUMN level INTEGER DEFAULT 0`);
+      }
+
+      const globalTodosParentIdExists = await client.query(`
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_name='global_todos' AND column_name='parent_id'
+      `);
+
+      if (globalTodosParentIdExists.rows.length === 0) {
+        logger.info('  → Ajout du champ parent_id à global_todos');
+        await client.query(`ALTER TABLE global_todos ADD COLUMN parent_id INTEGER REFERENCES global_todos(id) ON DELETE CASCADE`);
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_global_todos_parent_id ON global_todos(parent_id)`);
+      }
+
+      const globalTodosLevelExists = await client.query(`
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_name='global_todos' AND column_name='level'
+      `);
+
+      if (globalTodosLevelExists.rows.length === 0) {
+        logger.info('  → Ajout du champ level à global_todos');
+        await client.query(`ALTER TABLE global_todos ADD COLUMN level INTEGER DEFAULT 0`);
+      }
+
       await client.query('COMMIT');
 
       logger.info('✅ Migrations automatiques terminées avec succès');
