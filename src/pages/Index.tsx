@@ -1,4 +1,5 @@
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, useId } from "react";
+import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -38,6 +39,7 @@ import { TemplateSelector } from "@/components/TemplateSelector";
 import type { NoteTemplate } from "@/utils/noteTemplates";
 import { AdvancedSearch, type SearchFilters, type TagOption } from "@/components/AdvancedSearch";
 import { PomodoroModal } from "@/components/PomodoroModal";
+import { PomodoroTimer } from "@/components/PomodoroTimer";
 import { KanbanBoard } from "@/components/KanbanBoard";
 import { getSmartTagSuggestions } from "@/utils/smartTags";
 import { QuickCaptureWidget } from "@/components/QuickCaptureWidget";
@@ -3217,8 +3219,9 @@ const Index = () => {
       <PomodoroModal
         open={showPomodoroModal}
         onOpenChange={setShowPomodoroModal}
-        onTimerStateChange={handlePomodoroStateChange}
-      />
+      >
+        <PomodoroTimer onStateChange={handlePomodoroStateChange} />
+      </PomodoroModal>
 
       {/* Quick Capture Widget */}
       <QuickCaptureWidget onNoteCaptured={loadNotes} />
