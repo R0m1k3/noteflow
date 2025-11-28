@@ -16,7 +16,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { RichTextEditor } from "@/components/RichTextEditor";
 import {
   PlusCircle, Search, User, LogOut, Settings, ChevronDown, Plus, Archive, Trash2,
-  Image as ImageIcon, CheckSquare, FileText, Rss, ExternalLink, RefreshCw, Key, Zap, Paperclip, X, Edit, Calendar as CalendarIcon, Tag as TagIcon, MessageSquare, Send, Check, ChevronsUpDown, Star, Activity, FileDown, LayoutGrid, List, Sparkles, BarChart3, Clock
+  Image as ImageIcon, CheckSquare, FileText, Rss, ExternalLink, RefreshCw, Key, Zap, Paperclip, X, Edit, Calendar as CalendarIcon, Tag as TagIcon, MessageSquare, Send, Check, ChevronsUpDown, Star, Activity, FileDown, LayoutGrid, List, Sparkles, BarChart3, Clock, HelpCircle
 } from "lucide-react";
 import AuthService from "@/services/AuthService";
 import AdminService from "@/services/AdminService";
@@ -1017,12 +1017,6 @@ const Index = () => {
       preventDefault: false
     },
     {
-      key: '?',
-      shift: true,
-      description: 'Aide raccourcis',
-      handler: () => setShowKeyboardHelp(true)
-    },
-    {
       key: 'e',
       ctrl: true,
       description: 'Archiver note',
@@ -1156,6 +1150,15 @@ const Index = () => {
                     {formatPomodoroTime(pomodoroTimeLeft)}
                   </span>
                 )}
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowKeyboardHelp(true)}
+                title="Aide - Raccourcis clavier"
+              >
+                <HelpCircle className="h-5 w-5" />
               </Button>
 
               <ModeToggle />
