@@ -22,6 +22,13 @@ export function useKeyboardShortcuts(
     if (!enabled) return;
 
     const handleKeyDown = (event: KeyboardEvent) => {
+      // Ignore keyboard shortcuts when typing in input fields, textareas, or contentEditable elements
+      // UNLESS the shortcut has a modifier key (Ctrl, Alt, Meta)
+      const target = event.target as HTMLElement;
+      const isInputField = target.tagName === 'INPUT' ||
+                          target.tagName === 'TEXTAREA' ||
+                          target.isContentEditable;
+
       for (const shortcut of shortcuts) {
         const keyMatch = event.key.toLowerCase() === shortcut.key.toLowerCase();
         const ctrlMatch = shortcut.ctrl ? (event.ctrlKey || event.metaKey) : !event.ctrlKey && !event.metaKey;
@@ -30,6 +37,12 @@ export function useKeyboardShortcuts(
         const metaMatch = shortcut.meta ? event.metaKey : !event.metaKey;
 
         if (keyMatch && ctrlMatch && altMatch && shiftMatch && metaMatch) {
+          // Skip shortcuts without modifiers when user is typing in input fields
+          const hasModifier = shortcut.ctrl || shortcut.alt || shortcut.meta;
+          if (isInputField && !hasModifier) {
+            continue;
+          }
+
           if (shortcut.preventDefault !== false) {
             event.preventDefault();
           }
