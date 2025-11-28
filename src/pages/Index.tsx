@@ -1626,7 +1626,7 @@ const Index = () => {
                 <Input
                   type="text"
                   placeholder="Titre de la note"
-                  className="text-2xl font-semibold border-none shadow-none h-auto px-0 focus-visible:ring-0"
+                  className="text-2xl font-semibold"
                   value={openNote?.title || ""}
                   onChange={(e) => handleUpdateNote({ title: e.target.value })}
                 />
