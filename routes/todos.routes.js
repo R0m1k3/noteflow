@@ -150,7 +150,7 @@ router.put('/:id',
       if (in_progress !== undefined) {
         paramCount++;
         updates.push(`in_progress = $${paramCount}`);
-        params.push(in_progress); // BOOLEAN instead of 0/1
+        params.push(in_progress ? 1 : 0); // global_todos.in_progress is INTEGER not BOOLEAN
       }
 
       if (updates.length > 0) {
@@ -240,12 +240,12 @@ router.patch('/:id/in-progress', async (req, res) => {
         return res.status(404).json({ error: 'Todo non trouvé' });
       }
 
-      const newInProgress = !todo.in_progress; // BOOLEAN instead of 0/1
+      const newInProgress = todo.in_progress ? 0 : 1; // global_todos.in_progress is INTEGER not BOOLEAN
       await runQuery('UPDATE global_todos SET in_progress = $1 WHERE id = $2', [newInProgress, req.params.id]);
 
       logger.info(`Todo global ${newInProgress ? 'marqué en cours' : 'démarqué en cours'} (ID: ${req.params.id}) par ${req.user.username}`);
 
-      res.json({ message: 'Statut en cours modifié avec succès', in_progress: newInProgress });
+      res.json({ message: 'Statut en cours modifié avec succès', in_progress: newInProgress === 1 });
     } catch (inProgressError) {
       // Si le champ in_progress n'existe pas encore
       if (inProgressError.message && inProgressError.message.includes('in_progress')) {

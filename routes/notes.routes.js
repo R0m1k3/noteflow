@@ -972,7 +972,7 @@ router.patch('/:id/priority', async (req, res) => {
       return res.status(404).json({ error: 'Note non trouvée' });
     }
 
-    await runQuery('UPDATE notes SET priority = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [priority, req.params.id]); // BOOLEAN instead of 0/1
+    await runQuery('UPDATE notes SET priority = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [priority ? 1 : 0, req.params.id]); // notes.priority is INTEGER not BOOLEAN
 
     logger.info(`Priorité de la note ${req.params.id} modifiée: ${priority}`);
     res.json({ message: 'Priorité modifiée avec succès', priority });
