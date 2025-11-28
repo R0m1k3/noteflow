@@ -6,7 +6,29 @@ Erreur 500 sur `/api/notes` - Les notes ne s'affichent pas
 ## Cause
 Les données booléennes dans PostgreSQL sont stockées en INTEGER (0/1) au lieu de BOOLEAN (TRUE/FALSE)
 
-## Solution - À exécuter sur note.ffnancy.fr
+## ✅ Solution AUTOMATIQUE (Recommandée)
+
+La correction se fait **automatiquement au démarrage de Docker** !
+
+### Déploiement avec Docker
+```bash
+cd /chemin/vers/noteflow
+git pull origin claude/fix-notes-sync-issue-01AMeEdrKQErsM7bvhKkqEEF
+docker-compose down
+docker-compose up -d --build
+```
+
+Le conteneur Docker va automatiquement:
+1. Attendre que PostgreSQL soit prêt
+2. Exécuter les migrations de schéma
+3. **Corriger automatiquement les types booléens** ✨
+4. Démarrer le serveur
+
+C'est tout ! Les notes s'afficheront correctement après le redémarrage.
+
+---
+
+## Solution manuelle (Si vous n'utilisez pas Docker)
 
 ### Étape 1 : Déployer le nouveau code
 ```bash
@@ -16,21 +38,12 @@ git pull origin claude/fix-notes-sync-issue-01AMeEdrKQErsM7bvhKkqEEF
 
 ### Étape 2 : Exécuter le script de correction
 ```bash
-# Assurez-vous que DATABASE_URL est configuré dans .env
+# Option A: Script Node.js
 node scripts/fix-boolean-data.js
-```
 
-Ce script va:
-- Vérifier les types des colonnes booléennes
-- Convertir automatiquement les colonnes INTEGER en BOOLEAN
-- Migrer les données: 0 → FALSE, 1 → TRUE
-- Corriger ces tables:
-  * users.is_admin
-  * notes.archived
-  * note_todos.completed, note_todos.priority
-  * global_todos.completed, global_todos.priority
-  * rss_feeds.enabled
-  * calendar_events.all_day
+# Option B: Script SQL (plus rapide)
+psql -U noteflow -d noteflow -f scripts/fix-postgres-boolean-types.sql
+```
 
 ### Étape 3 : Redémarrer le serveur
 ```bash
