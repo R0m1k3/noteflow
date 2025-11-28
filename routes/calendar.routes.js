@@ -853,7 +853,7 @@ router.put('/events/:id', authenticateToken, async (req, res) => {
       endTimeUTC,
       location || null,
       response.data.htmlLink || null,
-      isAllDay ? 1 : 0,
+      isAllDay, // BOOLEAN instead of 0/1
       req.params.id
     ]);
 

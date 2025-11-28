@@ -140,17 +140,17 @@ router.put('/:id',
       if (completed !== undefined) {
         paramCount++;
         updates.push(`completed = $${paramCount}`);
-        params.push(completed ? 1 : 0);
+        params.push(completed); // BOOLEAN instead of 0/1
       }
       if (priority !== undefined) {
         paramCount++;
         updates.push(`priority = $${paramCount}`);
-        params.push(priority ? 1 : 0);
+        params.push(priority); // BOOLEAN instead of 0/1
       }
       if (in_progress !== undefined) {
         paramCount++;
         updates.push(`in_progress = $${paramCount}`);
-        params.push(in_progress ? 1 : 0);
+        params.push(in_progress); // BOOLEAN instead of 0/1
       }
 
       if (updates.length > 0) {
@@ -179,12 +179,12 @@ router.patch('/:id/toggle', async (req, res) => {
       return res.status(404).json({ error: 'Todo non trouvé' });
     }
 
-    const newCompleted = todo.completed ? 0 : 1;
+    const newCompleted = !todo.completed; // BOOLEAN instead of 0/1
     await runQuery('UPDATE global_todos SET completed = $1 WHERE id = $2', [newCompleted, req.params.id]);
 
     logger.info(`Todo global ${newCompleted ? 'complété' : 'réouvert'} (ID: ${req.params.id}) par ${req.user.username}`);
 
-    res.json({ message: 'Todo modifié avec succès', completed: newCompleted === 1 });
+    res.json({ message: 'Todo modifié avec succès', completed: newCompleted });
   } catch (error) {
     logger.error('Erreur lors du toggle du todo:', error);
     res.status(500).json({ error: 'Erreur serveur' });
@@ -204,12 +204,12 @@ router.patch('/:id/priority', async (req, res) => {
         return res.status(404).json({ error: 'Todo non trouvé' });
       }
 
-      const newPriority = todo.priority ? 0 : 1;
+      const newPriority = !todo.priority; // BOOLEAN instead of 0/1
       await runQuery('UPDATE global_todos SET priority = $1 WHERE id = $2', [newPriority, req.params.id]);
 
       logger.info(`Todo global ${newPriority ? 'marqué prioritaire' : 'démarqué prioritaire'} (ID: ${req.params.id}) par ${req.user.username}`);
 
-      res.json({ message: 'Priorité modifiée avec succès', priority: newPriority === 1 });
+      res.json({ message: 'Priorité modifiée avec succès', priority: newPriority });
     } catch (priorityError) {
       // Si le champ priority n'existe pas encore, retourner un message d'erreur explicite
       if (priorityError.message && priorityError.message.includes('priority')) {
@@ -240,12 +240,12 @@ router.patch('/:id/in-progress', async (req, res) => {
         return res.status(404).json({ error: 'Todo non trouvé' });
       }
 
-      const newInProgress = todo.in_progress ? 0 : 1;
+      const newInProgress = !todo.in_progress; // BOOLEAN instead of 0/1
       await runQuery('UPDATE global_todos SET in_progress = $1 WHERE id = $2', [newInProgress, req.params.id]);
 
       logger.info(`Todo global ${newInProgress ? 'marqué en cours' : 'démarqué en cours'} (ID: ${req.params.id}) par ${req.user.username}`);
 
-      res.json({ message: 'Statut en cours modifié avec succès', in_progress: newInProgress === 1 });
+      res.json({ message: 'Statut en cours modifié avec succès', in_progress: newInProgress });
     } catch (inProgressError) {
       // Si le champ in_progress n'existe pas encore
       if (inProgressError.message && inProgressError.message.includes('in_progress')) {
