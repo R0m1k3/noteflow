@@ -120,6 +120,23 @@ interface UserType {
   is_admin: boolean;
 }
 
+// Function to clean HTML content and decode entities
+const cleanHtmlContent = (html: string): string => {
+  if (!html) return '';
+
+  // Create a temporary div to decode HTML entities
+  const temp = document.createElement('div');
+  temp.innerHTML = html;
+
+  // Get text content (removes HTML tags and decodes entities)
+  let text = temp.textContent || temp.innerText || '';
+
+  // Remove any remaining HTML entity artifacts
+  text = text.replace(/&[a-z]+;?/gi, ' ').replace(/\s+/g, ' ').trim();
+
+  return text;
+};
+
 const Index = () => {
   const [user, setUser] = useState<UserType | null>(null);
   const [showAdmin, setShowAdmin] = useState(false);
@@ -1398,7 +1415,7 @@ const Index = () => {
                             {note.title || "Sans titre"}
                           </h3>
                           <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
-                            {note.content ? note.content.replace(/<[^>]*>/g, '') : "Note vide"}
+                            {note.content ? cleanHtmlContent(note.content) : "Note vide"}
                           </p>
                           <div className="flex gap-2 flex-wrap mb-2">
                             {note.todos && note.todos.length > 0 && (
