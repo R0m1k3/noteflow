@@ -15,7 +15,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { RichTextEditor } from "@/components/RichTextEditor";
 import {
   PlusCircle, Search, User, LogOut, Settings, ChevronDown, Plus, Archive, Trash2,
-  Image as ImageIcon, CheckSquare, FileText, Rss, ExternalLink, RefreshCw, Key, Zap, Paperclip, X, Edit, Calendar as CalendarIcon, Tag as TagIcon, MessageSquare, Send, Check, ChevronsUpDown, Star, Activity, FileDown, LayoutGrid, List, Sparkles
+  Image as ImageIcon, CheckSquare, FileText, Rss, ExternalLink, RefreshCw, Key, Zap, Paperclip, X, Edit, Calendar as CalendarIcon, Tag as TagIcon, MessageSquare, Send, Check, ChevronsUpDown, Star, Activity, FileDown, LayoutGrid, List, Sparkles, BarChart3
 } from "lucide-react";
 import AuthService from "@/services/AuthService";
 import AdminService from "@/services/AdminService";
@@ -37,11 +37,12 @@ import { downloadNoteAsMarkdown, downloadAllNotesAsMarkdown, downloadTodosAsMark
 import { TemplateSelector } from "@/components/TemplateSelector";
 import type { NoteTemplate } from "@/utils/noteTemplates";
 import { AdvancedSearch, type SearchFilters, type TagOption } from "@/components/AdvancedSearch";
-import { PomodoroTimer } from "@/components/PomodoroTimer";
+import { PomodoroModal } from "@/components/PomodoroModal";
 import { KanbanBoard } from "@/components/KanbanBoard";
 import { getSmartTagSuggestions } from "@/utils/smartTags";
 import { QuickCaptureWidget } from "@/components/QuickCaptureWidget";
 import { StatsDashboard } from "@/components/StatsDashboard";
+import { StatsModal } from "@/components/StatsModal";
 import { KeyboardShortcutsHelp } from "@/components/KeyboardShortcutsHelp";
 import { useKeyboardShortcuts, type KeyboardShortcut } from "@/hooks/useKeyboardShortcuts";
 
@@ -119,6 +120,23 @@ interface UserType {
   is_admin: boolean;
 }
 
+// Function to clean HTML content and decode entities
+const cleanHtmlContent = (html: string): string => {
+  if (!html) return '';
+
+  // Create a temporary div to decode HTML entities
+  const temp = document.createElement('div');
+  temp.innerHTML = html;
+
+  // Get text content (removes HTML tags and decodes entities)
+  let text = temp.textContent || temp.innerText || '';
+
+  // Remove any remaining HTML entity artifacts
+  text = text.replace(/&[a-z]+;?/gi, ' ').replace(/\s+/g, ' ').trim();
+
+  return text;
+};
+
 const Index = () => {
   const [user, setUser] = useState<UserType | null>(null);
   const [showAdmin, setShowAdmin] = useState(false);
@@ -175,6 +193,12 @@ const Index = () => {
   const [editEventModal, setEditEventModal] = useState<{ open: boolean, event?: CalendarEvent }>({ open: false });
   const [showKeyboardHelp, setShowKeyboardHelp] = useState(false);
   const [showStatsDashboard, setShowStatsDashboard] = useState(false);
+  const [showPomodoroModal, setShowPomodoroModal] = useState(false);
+
+  // Pomodoro timer states
+  const [pomodoroRunning, setPomodoroRunning] = useState(false);
+  const [pomodoroTimeLeft, setPomodoroTimeLeft] = useState(25 * 60);
+  const [pomodoroMode, setPomodoroMode] = useState<'work' | 'shortBreak' | 'longBreak'>('work');
 
   // Pagination states
   const [notesPage, setNotesPage] = useState(0);
@@ -252,6 +276,20 @@ const Index = () => {
 
     return () => clearInterval(interval);
   }, []);
+
+  // Handle Pomodoro timer state changes
+  const handlePomodoroStateChange = (isRunning: boolean, timeLeft: number, mode: 'work' | 'shortBreak' | 'longBreak') => {
+    setPomodoroRunning(isRunning);
+    setPomodoroTimeLeft(timeLeft);
+    setPomodoroMode(mode);
+  };
+
+  // Format time for Pomodoro display
+  const formatPomodoroTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
 
   const loadNotes = async () => {
     try {
@@ -1093,6 +1131,30 @@ const Index = () => {
                 Nouvelle Note
               </Button>
 
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowStatsDashboard(true)}
+                title="Statistiques"
+              >
+                <BarChart3 className="h-5 w-5" />
+              </Button>
+
+              <Button
+                variant={pomodoroRunning ? "default" : "ghost"}
+                size="icon"
+                onClick={() => setShowPomodoroModal(true)}
+                title="Pomodoro Timer"
+                className="relative"
+              >
+                <Clock className="h-5 w-5" />
+                {pomodoroRunning && (
+                  <span className="absolute -bottom-1 -right-1 text-[10px] font-mono bg-primary text-primary-foreground px-1 rounded">
+                    {formatPomodoroTime(pomodoroTimeLeft)}
+                  </span>
+                )}
+              </Button>
+
               <ModeToggle />
 
               {user && (
@@ -1262,9 +1324,6 @@ const Index = () => {
                 )}
               </CardContent>
             </Card>
-
-            {/* Statistics Dashboard */}
-            <StatsDashboard notes={notes} todos={todos} />
           </div>
 
           {/* Middle Column: Notes or Open Note */}
@@ -1391,7 +1450,7 @@ const Index = () => {
                             {note.title || "Sans titre"}
                           </h3>
                           <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
-                            {note.content ? note.content.replace(/<[^>]*>/g, '') : "Note vide"}
+                            {note.content ? cleanHtmlContent(note.content) : "Note vide"}
                           </p>
                           <div className="flex gap-2 flex-wrap mb-2">
                             {note.todos && note.todos.length > 0 && (
@@ -1906,11 +1965,8 @@ const Index = () => {
             )}
           </div>
 
-          {/* Right Column: Pomodoro Timer, Todos & RSS */}
+          {/* Right Column: Todos & RSS */}
           <div className="space-y-6">
-            {/* Pomodoro Timer */}
-            <PomodoroTimer />
-
             {/* Todos & RSS Boxes side by side */}
             <div className="grid grid-cols-2 gap-6">
             {/* Todos Box */}
@@ -3147,6 +3203,21 @@ const Index = () => {
         open={showKeyboardHelp}
         onOpenChange={setShowKeyboardHelp}
         shortcuts={keyboardShortcuts}
+      />
+
+      {/* Statistics Modal */}
+      <StatsModal
+        open={showStatsDashboard}
+        onOpenChange={setShowStatsDashboard}
+        notes={notes}
+        todos={todos}
+      />
+
+      {/* Pomodoro Timer Modal */}
+      <PomodoroModal
+        open={showPomodoroModal}
+        onOpenChange={setShowPomodoroModal}
+        onTimerStateChange={handlePomodoroStateChange}
       />
 
       {/* Quick Capture Widget */}
