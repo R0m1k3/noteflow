@@ -3,8 +3,13 @@
 ## Problème actuel
 Erreur 500 sur `/api/notes` - Les notes ne s'affichent pas
 
-## Cause
-Les données booléennes dans PostgreSQL sont stockées en INTEGER (0/1) au lieu de BOOLEAN (TRUE/FALSE)
+## Causes identifiées
+
+### 1. Colonnes manquantes (PRINCIPAL)
+Les colonnes `parent_id` et `level` ajoutées pendant les phases 1-5 pour le support des subtasks n'existaient pas dans la base PostgreSQL de production.
+
+### 2. Types booléens incorrects (SECONDAIRE)
+Les données booléennes migrées de SQLite sont stockées en INTEGER (0/1) au lieu de BOOLEAN (TRUE/FALSE).
 
 ## ✅ Solution AUTOMATIQUE (Recommandée)
 
@@ -20,11 +25,16 @@ docker-compose up -d --build
 
 Le conteneur Docker va automatiquement:
 1. Attendre que PostgreSQL soit prêt
-2. Exécuter les migrations de schéma
-3. **Corriger automatiquement les types booléens** ✨
+2. **Exécuter les migrations de schéma** ✨
+   - Ajouter les colonnes `parent_id` et `level` pour les subtasks
+   - Ajouter tous les autres champs manquants
+3. **Corriger automatiquement les types booléens**
+   - Convertir INTEGER → BOOLEAN pour les champs concernés
 4. Démarrer le serveur
 
 C'est tout ! Les notes s'afficheront correctement après le redémarrage.
+
+**Note:** Les migrations sont idempotentes et ne causeront aucune perte de données.
 
 ---
 
