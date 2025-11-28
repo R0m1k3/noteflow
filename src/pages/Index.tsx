@@ -37,7 +37,7 @@ import { downloadNoteAsMarkdown, downloadAllNotesAsMarkdown, downloadTodosAsMark
 import { TemplateSelector } from "@/components/TemplateSelector";
 import type { NoteTemplate } from "@/utils/noteTemplates";
 import { AdvancedSearch, type SearchFilters, type TagOption } from "@/components/AdvancedSearch";
-import { PomodoroTimer } from "@/components/PomodoroTimer";
+import { PomodoroModal } from "@/components/PomodoroModal";
 import { KanbanBoard } from "@/components/KanbanBoard";
 import { getSmartTagSuggestions } from "@/utils/smartTags";
 import { QuickCaptureWidget } from "@/components/QuickCaptureWidget";
@@ -193,6 +193,12 @@ const Index = () => {
   const [editEventModal, setEditEventModal] = useState<{ open: boolean, event?: CalendarEvent }>({ open: false });
   const [showKeyboardHelp, setShowKeyboardHelp] = useState(false);
   const [showStatsDashboard, setShowStatsDashboard] = useState(false);
+  const [showPomodoroModal, setShowPomodoroModal] = useState(false);
+
+  // Pomodoro timer states
+  const [pomodoroRunning, setPomodoroRunning] = useState(false);
+  const [pomodoroTimeLeft, setPomodoroTimeLeft] = useState(25 * 60);
+  const [pomodoroMode, setPomodoroMode] = useState<'work' | 'shortBreak' | 'longBreak'>('work');
 
   // Pagination states
   const [notesPage, setNotesPage] = useState(0);
@@ -270,6 +276,20 @@ const Index = () => {
 
     return () => clearInterval(interval);
   }, []);
+
+  // Handle Pomodoro timer state changes
+  const handlePomodoroStateChange = (isRunning: boolean, timeLeft: number, mode: 'work' | 'shortBreak' | 'longBreak') => {
+    setPomodoroRunning(isRunning);
+    setPomodoroTimeLeft(timeLeft);
+    setPomodoroMode(mode);
+  };
+
+  // Format time for Pomodoro display
+  const formatPomodoroTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
 
   const loadNotes = async () => {
     try {
@@ -1120,6 +1140,21 @@ const Index = () => {
                 <BarChart3 className="h-5 w-5" />
               </Button>
 
+              <Button
+                variant={pomodoroRunning ? "default" : "ghost"}
+                size="icon"
+                onClick={() => setShowPomodoroModal(true)}
+                title="Pomodoro Timer"
+                className="relative"
+              >
+                <Clock className="h-5 w-5" />
+                {pomodoroRunning && (
+                  <span className="absolute -bottom-1 -right-1 text-[10px] font-mono bg-primary text-primary-foreground px-1 rounded">
+                    {formatPomodoroTime(pomodoroTimeLeft)}
+                  </span>
+                )}
+              </Button>
+
               <ModeToggle />
 
               {user && (
@@ -1930,11 +1965,8 @@ const Index = () => {
             )}
           </div>
 
-          {/* Right Column: Pomodoro Timer, Todos & RSS */}
+          {/* Right Column: Todos & RSS */}
           <div className="space-y-6">
-            {/* Pomodoro Timer */}
-            <PomodoroTimer />
-
             {/* Todos & RSS Boxes side by side */}
             <div className="grid grid-cols-2 gap-6">
             {/* Todos Box */}
@@ -3179,6 +3211,13 @@ const Index = () => {
         onOpenChange={setShowStatsDashboard}
         notes={notes}
         todos={todos}
+      />
+
+      {/* Pomodoro Timer Modal */}
+      <PomodoroModal
+        open={showPomodoroModal}
+        onOpenChange={setShowPomodoroModal}
+        onTimerStateChange={handlePomodoroStateChange}
       />
 
       {/* Quick Capture Widget */}

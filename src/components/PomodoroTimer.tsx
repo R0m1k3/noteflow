@@ -15,7 +15,11 @@ const TIMER_DURATIONS = {
 
 const SESSIONS_BEFORE_LONG_BREAK = 4;
 
-export function PomodoroTimer() {
+interface PomodoroTimerProps {
+  onStateChange?: (isRunning: boolean, timeLeft: number, mode: TimerMode) => void;
+}
+
+export function PomodoroTimer({ onStateChange }: PomodoroTimerProps = {}) {
   const [mode, setMode] = useState<TimerMode>('work');
   const [timeLeft, setTimeLeft] = useState(TIMER_DURATIONS.work);
   const [isRunning, setIsRunning] = useState(false);
@@ -63,6 +67,13 @@ export function PomodoroTimer() {
       console.error('Audio play failed:', e);
     }
   };
+
+  // Notify parent component of state changes
+  useEffect(() => {
+    if (onStateChange) {
+      onStateChange(isRunning, timeLeft, mode);
+    }
+  }, [isRunning, timeLeft, mode, onStateChange]);
 
   useEffect(() => {
     if (isRunning && timeLeft > 0) {
