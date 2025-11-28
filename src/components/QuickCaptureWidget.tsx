@@ -68,7 +68,7 @@ export function QuickCaptureWidget({ onNoteCaptured }: QuickCaptureWidgetProps) 
     <>
       {/* Floating Action Button */}
       <Button
-        className="fixed bottom-24 right-4 h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-all z-50"
+        className="fixed bottom-24 right-4 h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-all z-40"
         onClick={() => setOpen(true)}
         title="Capture rapide (Ctrl+Q)"
       >
