@@ -126,6 +126,8 @@ async function initDatabase() {
         completed BOOLEAN DEFAULT FALSE,
         priority BOOLEAN DEFAULT FALSE,
         position INTEGER DEFAULT 0,
+        parent_id INTEGER REFERENCES note_todos(id) ON DELETE CASCADE,
+        level INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         completed_at TIMESTAMP
       )
@@ -140,6 +142,8 @@ async function initDatabase() {
         completed BOOLEAN DEFAULT FALSE,
         priority BOOLEAN DEFAULT FALSE,
         in_progress INTEGER DEFAULT 0,
+        parent_id INTEGER REFERENCES global_todos(id) ON DELETE CASCADE,
+        level INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         completed_at TIMESTAMP
       )
