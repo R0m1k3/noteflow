@@ -15,7 +15,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { RichTextEditor } from "@/components/RichTextEditor";
 import {
   PlusCircle, Search, User, LogOut, Settings, ChevronDown, Plus, Archive, Trash2,
-  Image as ImageIcon, CheckSquare, FileText, Rss, ExternalLink, RefreshCw, Key, Zap, Paperclip, X, Edit, Calendar as CalendarIcon, Tag as TagIcon, MessageSquare, Send, Check, ChevronsUpDown, Star, Activity, FileDown, LayoutGrid, List, Sparkles
+  Image as ImageIcon, CheckSquare, FileText, Rss, ExternalLink, RefreshCw, Key, Zap, Paperclip, X, Edit, Calendar as CalendarIcon, Tag as TagIcon, MessageSquare, Send, Check, ChevronsUpDown, Star, Activity, FileDown, LayoutGrid, List, Sparkles, BarChart3
 } from "lucide-react";
 import AuthService from "@/services/AuthService";
 import AdminService from "@/services/AdminService";
@@ -42,6 +42,7 @@ import { KanbanBoard } from "@/components/KanbanBoard";
 import { getSmartTagSuggestions } from "@/utils/smartTags";
 import { QuickCaptureWidget } from "@/components/QuickCaptureWidget";
 import { StatsDashboard } from "@/components/StatsDashboard";
+import { StatsModal } from "@/components/StatsModal";
 import { KeyboardShortcutsHelp } from "@/components/KeyboardShortcutsHelp";
 import { useKeyboardShortcuts, type KeyboardShortcut } from "@/hooks/useKeyboardShortcuts";
 
@@ -1093,6 +1094,15 @@ const Index = () => {
                 Nouvelle Note
               </Button>
 
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowStatsDashboard(true)}
+                title="Statistiques"
+              >
+                <BarChart3 className="h-5 w-5" />
+              </Button>
+
               <ModeToggle />
 
               {user && (
@@ -1262,9 +1272,6 @@ const Index = () => {
                 )}
               </CardContent>
             </Card>
-
-            {/* Statistics Dashboard */}
-            <StatsDashboard notes={notes} todos={todos} />
           </div>
 
           {/* Middle Column: Notes or Open Note */}
@@ -3147,6 +3154,14 @@ const Index = () => {
         open={showKeyboardHelp}
         onOpenChange={setShowKeyboardHelp}
         shortcuts={keyboardShortcuts}
+      />
+
+      {/* Statistics Modal */}
+      <StatsModal
+        open={showStatsDashboard}
+        onOpenChange={setShowStatsDashboard}
+        notes={notes}
+        todos={todos}
       />
 
       {/* Quick Capture Widget */}
