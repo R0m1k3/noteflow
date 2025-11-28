@@ -39,22 +39,52 @@ export function PomodoroTimer({ onStateChange }: PomodoroTimerProps = {}) {
   });
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Save state to localStorage whenever it changes
+  // Save state to localStorage whenever it changes and dispatch custom event
   useEffect(() => {
     localStorage.setItem('pomodoroMode', mode);
+    window.dispatchEvent(new CustomEvent('pomodoroStateChange'));
   }, [mode]);
 
   useEffect(() => {
     localStorage.setItem('pomodoroTimeLeft', timeLeft.toString());
+    window.dispatchEvent(new CustomEvent('pomodoroStateChange'));
   }, [timeLeft]);
 
   useEffect(() => {
     localStorage.setItem('pomodoroIsRunning', isRunning.toString());
+    window.dispatchEvent(new CustomEvent('pomodoroStateChange'));
   }, [isRunning]);
 
   useEffect(() => {
     localStorage.setItem('pomodoroSessionsCompleted', sessionsCompleted.toString());
+    window.dispatchEvent(new CustomEvent('pomodoroStateChange'));
   }, [sessionsCompleted]);
+
+  // Listen for localStorage changes from other instances
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const savedMode = localStorage.getItem('pomodoroMode') as TimerMode;
+      const savedTimeLeft = localStorage.getItem('pomodoroTimeLeft');
+      const savedIsRunning = localStorage.getItem('pomodoroIsRunning');
+      const savedSessions = localStorage.getItem('pomodoroSessionsCompleted');
+
+      if (savedMode && savedMode !== mode) {
+        setMode(savedMode);
+      }
+      if (savedTimeLeft && parseInt(savedTimeLeft) !== timeLeft) {
+        setTimeLeft(parseInt(savedTimeLeft));
+      }
+      if (savedIsRunning && (savedIsRunning === 'true') !== isRunning) {
+        setIsRunning(savedIsRunning === 'true');
+      }
+      if (savedSessions && parseInt(savedSessions) !== sessionsCompleted) {
+        setSessionsCompleted(parseInt(savedSessions));
+      }
+    };
+
+    window.addEventListener('pomodoroStateChange', handleStorageChange);
+    return () => window.removeEventListener('pomodoroStateChange', handleStorageChange);
+  }, [mode, timeLeft, isRunning, sessionsCompleted]);
 
   // Function to play notification sound using Web Audio API
   const playNotificationSound = () => {
