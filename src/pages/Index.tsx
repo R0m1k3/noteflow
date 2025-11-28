@@ -217,6 +217,7 @@ const Index = () => {
 
   // Chatbox states
   const [chatOpen, setChatOpen] = useState(false);
+  const [chatExpandedModal, setChatExpandedModal] = useState(false);
   const [chatMessages, setChatMessages] = useState<Array<{ role: string; content: string }>>([]);
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
@@ -2981,13 +2982,14 @@ const Index = () => {
       {/* AI Chatbox */}
       {!chatOpen ? (
         <Button
-          className="fixed bottom-4 right-4 h-14 w-14 rounded-full shadow-lg"
+          className="fixed bottom-4 right-4 h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-all z-40"
           onClick={() => setChatOpen(true)}
+          title="Assistant IA"
         >
           <MessageSquare className="h-6 w-6" />
         </Button>
       ) : (
-        <Card className="fixed bottom-4 right-4 w-96 h-[600px] shadow-2xl flex flex-col">
+        <Card className="fixed bottom-4 right-4 w-96 h-[600px] shadow-2xl flex flex-col z-50">
           <CardHeader className="pb-3 border-b">
             <div className="flex items-center justify-between">
               <CardTitle className="text-lg flex items-center gap-2">
@@ -2998,8 +3000,20 @@ const Index = () => {
                 <Button
                   variant="ghost"
                   size="sm"
+                  onClick={() => {
+                    setChatExpandedModal(true);
+                    setChatOpen(false);
+                  }}
+                  title="Agrandir"
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={handleClearChat}
                   disabled={chatMessages.length === 0}
+                  title="Effacer la conversation"
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
@@ -3007,6 +3021,7 @@ const Index = () => {
                   variant="ghost"
                   size="sm"
                   onClick={() => setChatOpen(false)}
+                  title="Fermer"
                 >
                   <X className="h-4 w-4" />
                 </Button>
@@ -3174,6 +3189,154 @@ const Index = () => {
           </div>
         </Card>
       )}
+
+      {/* Expanded Chat Modal */}
+      <Dialog open={chatExpandedModal} onOpenChange={setChatExpandedModal}>
+        <DialogContent className="max-w-4xl h-[80vh] flex flex-col p-0">
+          <DialogHeader className="px-6 pt-6 pb-3 border-b">
+            <div className="flex items-center justify-between">
+              <DialogTitle className="text-xl flex items-center gap-2">
+                <MessageSquare className="h-6 w-6" />
+                Assistant IA
+              </DialogTitle>
+              <div className="flex gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleClearChat}
+                  disabled={chatMessages.length === 0}
+                  title="Effacer la conversation"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            <div className="mt-3 flex gap-2">
+              <Popover open={modelSelectorOpen} onOpenChange={setModelSelectorOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={modelSelectorOpen}
+                    className="flex-1 justify-between text-xs h-9"
+                    disabled={chatLoading || loadingModels}
+                  >
+                    <span className="truncate">
+                      {loadingModels ? (
+                        "Chargement des modèles..."
+                      ) : openRouterModels.length === 0 ? (
+                        user?.is_admin ? "Configurer clé API OpenRouter" : "Aucun modèle IA configuré"
+                      ) : selectedModel ? (
+                        openRouterModels.find(m => m.id === selectedModel)?.name || selectedModel
+                      ) : (
+                        "Sélectionner un modèle"
+                      )}
+                    </span>
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[500px] p-0">
+                  <Command>
+                    <CommandInput placeholder="Rechercher un modèle..." />
+                    <CommandEmpty>Aucun modèle trouvé.</CommandEmpty>
+                    <CommandList>
+                      <CommandGroup>
+                        {openRouterModels.map((model) => (
+                          <CommandItem
+                            key={model.id}
+                            value={model.id}
+                            onSelect={(currentValue) => {
+                              setSelectedModel(currentValue);
+                              setModelSelectorOpen(false);
+                            }}
+                          >
+                            <Check
+                              className={`mr-2 h-4 w-4 ${selectedModel === model.id ? "opacity-100" : "opacity-0"
+                                }`}
+                            />
+                            <div className="flex flex-col">
+                              <span className="font-medium">{model.name}</span>
+                              <span className="text-xs text-muted-foreground">{model.id}</span>
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+            {chatMessages.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-center">
+                <MessageSquare className="h-16 w-16 text-muted-foreground mb-4" />
+                <h3 className="text-lg font-semibold mb-2">Bienvenue dans l'Assistant IA</h3>
+                <p className="text-sm text-muted-foreground max-w-md">
+                  Posez vos questions et obtenez des réponses intelligentes grâce à l'IA.
+                  {openRouterModels.length === 0 && user?.is_admin && (
+                    <span className="block mt-2">Configurez une clé API OpenRouter dans les paramètres.</span>
+                  )}
+                </p>
+              </div>
+            ) : (
+              chatMessages.map((msg, idx) => (
+                <div
+                  key={idx}
+                  className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div
+                    className={`max-w-[80%] rounded-lg px-4 py-3 ${msg.role === 'user'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted'
+                      }`}
+                  >
+                    <div className="whitespace-pre-wrap">{msg.content}</div>
+                  </div>
+                </div>
+              ))
+            )}
+            {chatLoading && (
+              <div className="flex justify-start">
+                <div className="bg-muted rounded-lg px-4 py-3">
+                  <div className="flex gap-1">
+                    <span className="animate-bounce">●</span>
+                    <span className="animate-bounce delay-100">●</span>
+                    <span className="animate-bounce delay-200">●</span>
+                  </div>
+                </div>
+              </div>
+            )}
+            <div ref={chatEndRef} />
+          </div>
+
+          <div className="border-t px-6 py-4">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSendMessage();
+              }}
+              className="flex gap-2"
+            >
+              <Input
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                placeholder="Posez une question..."
+                disabled={chatLoading || !selectedModel}
+                className="flex-1"
+              />
+              <Button
+                type="submit"
+                size="icon"
+                disabled={chatLoading || !chatInput.trim() || !selectedModel}
+              >
+                <Send className="h-4 w-4" />
+              </Button>
+            </form>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Image modal for fullscreen view */}
       {selectedImage && (
