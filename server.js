@@ -1,4 +1,7 @@
 // Serveur Express principal pour l'application NoteFlow
+// Load environment variables from .env file
+require('dotenv').config();
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
