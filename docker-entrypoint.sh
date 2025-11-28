@@ -84,6 +84,29 @@ echo "🔄 Migration des timezones du calendrier..."
 node scripts/migrate-calendar-timezone.js 2>/dev/null || echo "  ℹ️  Migration timezone déjà effectuée ou non nécessaire"
 
 echo ""
+echo "🔧 Correction des types booléens PostgreSQL..."
+# Exécuter le script SQL de correction des types booléens
+if [ -f "/app/scripts/fix-postgres-boolean-types.sql" ]; then
+    # Extraire les informations de connexion depuis DATABASE_URL
+    PGHOST=$(echo $DATABASE_URL | sed -n 's/.*@\([^:]*\):.*/\1/p')
+    PGPORT=$(echo $DATABASE_URL | sed -n 's/.*:\([0-9]*\)\/.*/\1/p')
+    PGUSER=$(echo $DATABASE_URL | sed -n 's/.*\/\/\([^:]*\):.*/\1/p')
+    PGPASSWORD=$(echo $DATABASE_URL | sed -n 's/.*:\/\/[^:]*:\([^@]*\)@.*/\1/p')
+    PGDATABASE=$(echo $DATABASE_URL | sed -n 's/.*\/\([^?]*\).*/\1/p')
+
+    export PGHOST PGPORT PGUSER PGPASSWORD PGDATABASE
+
+    # Exécuter le script SQL
+    if psql -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$PGDATABASE" -f /app/scripts/fix-postgres-boolean-types.sql > /dev/null 2>&1; then
+        echo "  ✅ Types booléens corrigés"
+    else
+        echo "  ℹ️  Correction des types booléens déjà effectuée ou non nécessaire"
+    fi
+else
+    echo "  ⚠️  Script de correction non trouvé"
+fi
+
+echo ""
 echo "========================================"
 echo "🚀 Démarrage du serveur NoteFlow..."
 echo ""
