@@ -2981,8 +2981,9 @@ const Index = () => {
       {/* AI Chatbox */}
       {!chatOpen ? (
         <Button
-          className="fixed bottom-4 right-4 h-14 w-14 rounded-full shadow-lg"
+          className="fixed bottom-4 right-4 h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-all z-40"
           onClick={() => setChatOpen(true)}
+          title="Assistant IA"
         >
           <MessageSquare className="h-6 w-6" />
         </Button>
