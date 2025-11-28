@@ -45,7 +45,7 @@ router.use(authenticateToken);
 router.get('/', async (req, res) => {
   try {
     const showArchived = req.query.archived === 'true';
-    const archivedFilter = showArchived ? 1 : 0;
+    const archivedFilter = showArchived; // BOOLEAN instead of 0/1
 
     const notes = await getAll(`
       SELECT
@@ -274,7 +274,7 @@ router.put('/:id/archive', async (req, res) => {
 
     await runQuery(
       'UPDATE notes SET archived = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
-      [archived ? 1 : 0, req.params.id]
+      [archived, req.params.id] // BOOLEAN instead of 0/1
     );
 
     logger.info(`Note ${archived ? 'archivée' : 'désarchivée'}: ${req.params.id}`);
@@ -488,7 +488,7 @@ router.put('/todos/:todoId',
       if (completed !== undefined) {
         paramCount++;
         updates.push(`completed = $${paramCount}`);
-        params.push(completed ? 1 : 0);
+        params.push(completed); // BOOLEAN instead of 0/1
       }
       if (position !== undefined) {
         paramCount++;
@@ -972,7 +972,7 @@ router.patch('/:id/priority', async (req, res) => {
       return res.status(404).json({ error: 'Note non trouvée' });
     }
 
-    await runQuery('UPDATE notes SET priority = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [priority ? 1 : 0, req.params.id]);
+    await runQuery('UPDATE notes SET priority = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [priority, req.params.id]); // BOOLEAN instead of 0/1
 
     logger.info(`Priorité de la note ${req.params.id} modifiée: ${priority}`);
     res.json({ message: 'Priorité modifiée avec succès', priority });
