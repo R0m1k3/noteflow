@@ -20,11 +20,41 @@ interface PomodoroTimerProps {
 }
 
 export function PomodoroTimer({ onStateChange }: PomodoroTimerProps = {}) {
-  const [mode, setMode] = useState<TimerMode>('work');
-  const [timeLeft, setTimeLeft] = useState(TIMER_DURATIONS.work);
-  const [isRunning, setIsRunning] = useState(false);
-  const [sessionsCompleted, setSessionsCompleted] = useState(0);
+  // Load initial state from localStorage
+  const [mode, setMode] = useState<TimerMode>(() => {
+    const saved = localStorage.getItem('pomodoroMode');
+    return (saved as TimerMode) || 'work';
+  });
+  const [timeLeft, setTimeLeft] = useState(() => {
+    const saved = localStorage.getItem('pomodoroTimeLeft');
+    return saved ? parseInt(saved) : TIMER_DURATIONS.work;
+  });
+  const [isRunning, setIsRunning] = useState(() => {
+    const saved = localStorage.getItem('pomodoroIsRunning');
+    return saved === 'true';
+  });
+  const [sessionsCompleted, setSessionsCompleted] = useState(() => {
+    const saved = localStorage.getItem('pomodoroSessionsCompleted');
+    return saved ? parseInt(saved) : 0;
+  });
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Save state to localStorage whenever it changes
+  useEffect(() => {
+    localStorage.setItem('pomodoroMode', mode);
+  }, [mode]);
+
+  useEffect(() => {
+    localStorage.setItem('pomodoroTimeLeft', timeLeft.toString());
+  }, [timeLeft]);
+
+  useEffect(() => {
+    localStorage.setItem('pomodoroIsRunning', isRunning.toString());
+  }, [isRunning]);
+
+  useEffect(() => {
+    localStorage.setItem('pomodoroSessionsCompleted', sessionsCompleted.toString());
+  }, [sessionsCompleted]);
 
   // Function to play notification sound using Web Audio API
   const playNotificationSound = () => {
