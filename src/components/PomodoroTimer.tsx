@@ -73,6 +73,33 @@ export function PomodoroTimer({ onStateChange }: PomodoroTimerProps = {}) {
     window.dispatchEvent(new CustomEvent('pomodoroStateChange'));
   }, [endTime]);
 
+  // Restore timer state on mount if it was running
+  useEffect(() => {
+    // Clean up invalid states on mount
+    if (isRunning && endTime === null) {
+      // If running but no endTime, stop the timer
+      setIsRunning(false);
+      setTimeLeft(TIMER_DURATIONS[mode]);
+    } else if (endTime !== null && isRunning) {
+      // Recalculate remaining time based on endTime
+      const now = Date.now();
+      const remaining = Math.max(0, Math.ceil((endTime - now) / 1000));
+
+      if (remaining > 0) {
+        setTimeLeft(remaining);
+      } else {
+        // Timer expired while page was closed/reloaded
+        setIsRunning(false);
+        setEndTime(null);
+        setTimeLeft(0);
+      }
+    } else if (endTime !== null && !isRunning) {
+      // If paused with an endTime, clean up the endTime
+      setEndTime(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run only on mount
+
   // Listen for localStorage changes from other instances
   useEffect(() => {
     const handleStorageChange = () => {
