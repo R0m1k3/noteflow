@@ -37,6 +37,10 @@ export function PomodoroTimer({ onStateChange }: PomodoroTimerProps = {}) {
     const saved = localStorage.getItem('pomodoroSessionsCompleted');
     return saved ? parseInt(saved) : 0;
   });
+  const [endTime, setEndTime] = useState<number | null>(() => {
+    const saved = localStorage.getItem('pomodoroEndTime');
+    return saved ? parseInt(saved) : null;
+  });
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Save state to localStorage whenever it changes and dispatch custom event
@@ -60,6 +64,42 @@ export function PomodoroTimer({ onStateChange }: PomodoroTimerProps = {}) {
     window.dispatchEvent(new CustomEvent('pomodoroStateChange'));
   }, [sessionsCompleted]);
 
+  useEffect(() => {
+    if (endTime !== null) {
+      localStorage.setItem('pomodoroEndTime', endTime.toString());
+    } else {
+      localStorage.removeItem('pomodoroEndTime');
+    }
+    window.dispatchEvent(new CustomEvent('pomodoroStateChange'));
+  }, [endTime]);
+
+  // Restore timer state on mount if it was running
+  useEffect(() => {
+    // Clean up invalid states on mount
+    if (isRunning && endTime === null) {
+      // If running but no endTime, stop the timer
+      setIsRunning(false);
+      setTimeLeft(TIMER_DURATIONS[mode]);
+    } else if (endTime !== null && isRunning) {
+      // Recalculate remaining time based on endTime
+      const now = Date.now();
+      const remaining = Math.max(0, Math.ceil((endTime - now) / 1000));
+
+      if (remaining > 0) {
+        setTimeLeft(remaining);
+      } else {
+        // Timer expired while page was closed/reloaded
+        setIsRunning(false);
+        setEndTime(null);
+        setTimeLeft(0);
+      }
+    } else if (endTime !== null && !isRunning) {
+      // If paused with an endTime, clean up the endTime
+      setEndTime(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run only on mount
+
   // Listen for localStorage changes from other instances
   useEffect(() => {
     const handleStorageChange = () => {
@@ -67,6 +107,7 @@ export function PomodoroTimer({ onStateChange }: PomodoroTimerProps = {}) {
       const savedTimeLeft = localStorage.getItem('pomodoroTimeLeft');
       const savedIsRunning = localStorage.getItem('pomodoroIsRunning');
       const savedSessions = localStorage.getItem('pomodoroSessionsCompleted');
+      const savedEndTime = localStorage.getItem('pomodoroEndTime');
 
       if (savedMode && savedMode !== mode) {
         setMode(savedMode);
@@ -80,11 +121,15 @@ export function PomodoroTimer({ onStateChange }: PomodoroTimerProps = {}) {
       if (savedSessions && parseInt(savedSessions) !== sessionsCompleted) {
         setSessionsCompleted(parseInt(savedSessions));
       }
+      const newEndTime = savedEndTime ? parseInt(savedEndTime) : null;
+      if (newEndTime !== endTime) {
+        setEndTime(newEndTime);
+      }
     };
 
     window.addEventListener('pomodoroStateChange', handleStorageChange);
     return () => window.removeEventListener('pomodoroStateChange', handleStorageChange);
-  }, [mode, timeLeft, isRunning, sessionsCompleted]);
+  }, [mode, timeLeft, isRunning, sessionsCompleted, endTime]);
 
   // Function to play notification sound using Web Audio API
   const playNotificationSound = () => {
@@ -137,6 +182,7 @@ export function PomodoroTimer({ onStateChange }: PomodoroTimerProps = {}) {
 
   const handleTimerComplete = useCallback(() => {
     setIsRunning(false);
+    setEndTime(null);
 
     // Play notification sound
     playNotificationSound();
@@ -163,18 +209,19 @@ export function PomodoroTimer({ onStateChange }: PomodoroTimerProps = {}) {
     }
   }, [mode, sessionsCompleted]);
 
-  // Manage timer interval
+  // Manage timer interval - using timestamps for accuracy across tab switches
   useEffect(() => {
-    if (isRunning) {
+    if (isRunning && endTime) {
       intervalRef.current = setInterval(() => {
-        setTimeLeft(prev => {
-          if (prev <= 1) {
-            handleTimerComplete();
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
+        const now = Date.now();
+        const remaining = Math.max(0, Math.ceil((endTime - now) / 1000));
+
+        setTimeLeft(remaining);
+
+        if (remaining <= 0) {
+          handleTimerComplete();
+        }
+      }, 100); // Check every 100ms for better accuracy
     } else {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
@@ -188,18 +235,24 @@ export function PomodoroTimer({ onStateChange }: PomodoroTimerProps = {}) {
         intervalRef.current = null;
       }
     };
-  }, [isRunning, handleTimerComplete]);
+  }, [isRunning, endTime, handleTimerComplete]);
 
   const handleStart = () => {
+    const now = Date.now();
+    const newEndTime = now + (timeLeft * 1000);
+    setEndTime(newEndTime);
     setIsRunning(true);
   };
 
   const handlePause = () => {
     setIsRunning(false);
+    setEndTime(null);
+    // timeLeft is already updated by the interval
   };
 
   const handleReset = () => {
     setIsRunning(false);
+    setEndTime(null);
     setTimeLeft(TIMER_DURATIONS[mode]);
   };
 
@@ -207,6 +260,7 @@ export function PomodoroTimer({ onStateChange }: PomodoroTimerProps = {}) {
     setMode(newMode);
     setTimeLeft(TIMER_DURATIONS[newMode]);
     setIsRunning(false);
+    setEndTime(null);
   };
 
   const formatTime = (seconds: number): string => {
