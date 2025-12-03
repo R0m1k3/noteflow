@@ -8,8 +8,6 @@ import { MobileCard } from "@/components/mobile/MobileCard";
 import { Plus, Search, CheckSquare, Image as ImageIcon, Paperclip, Tag as TagIcon, FileText, LayoutGrid, List } from "lucide-react";
 import NotesService, { Note } from "@/services/NotesService";
 import { showError, showSuccess } from "@/utils/toast";
-import { TemplateSelector } from "@/components/TemplateSelector";
-import type { NoteTemplate } from "@/utils/noteTemplates";
 import { AdvancedSearch, type SearchFilters, type TagOption } from "@/components/AdvancedSearch";
 import { KanbanBoard } from "@/components/KanbanBoard";
 import TagsService from "@/services/TagsService";
@@ -30,7 +28,6 @@ export default function NotesPage() {
   });
   const [showArchived, setShowArchived] = useState(false);
   const [page, setPage] = useState(0);
-  const [templateSelectorOpen, setTemplateSelectorOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
   const navigate = useNavigate();
 
@@ -122,22 +119,11 @@ export default function NotesPage() {
   const totalPages = Math.ceil(filteredNotes.length / NOTES_PER_PAGE);
   const paginatedNotes = filteredNotes.slice(page * NOTES_PER_PAGE, (page + 1) * NOTES_PER_PAGE);
 
-  const handleCreateNote = () => {
-    setTemplateSelectorOpen(true);
-  };
-
-  const handleCreateNoteFromTemplate = async (template: NoteTemplate) => {
+  const handleCreateNote = async () => {
     try {
-      const title = template.name === "Note vide" ? "Nouvelle note" : template.name;
-      const newNote = await NotesService.createNote(title, template.content);
+      const newNote = await NotesService.createNote("Nouvelle note", "");
       if (newNote) {
-        // Add todos if template has any
-        if (template.todos && template.todos.length > 0) {
-          for (const todo of template.todos) {
-            await NotesService.addTodo(newNote.id!, todo.text);
-          }
-        }
-        showSuccess("Note créée depuis le template");
+        showSuccess("Note créée");
         navigate(`/mobile/notes/${newNote.id}`);
       }
     } catch (error) {
@@ -238,124 +224,123 @@ export default function NotesPage() {
 
       {/* Notes View - List or Kanban */}
       {viewMode === 'list' ? (
-      <div className="p-4 space-y-3">
-        {paginatedNotes.length > 0 ? (
-          paginatedNotes.map(note => (
-            <MobileCard
-              key={note.id}
-              onClick={() => navigate(`/mobile/notes/${note.id}`)}
-            >
-              <div className="relative">
-                {/* Priority Button */}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className={`absolute -top-1 -right-1 h-8 w-8 ${
-                    note.priority ? 'opacity-100' : 'opacity-50'
-                  }`}
-                  onClick={(e) => handleTogglePriority(note, e)}
-                >
-                  <span className={`text-lg font-bold ${note.priority ? 'text-red-500' : 'text-muted-foreground'}`}>
-                    !
-                  </span>
-                </Button>
+        <div className="p-4 space-y-3">
+          {paginatedNotes.length > 0 ? (
+            paginatedNotes.map(note => (
+              <MobileCard
+                key={note.id}
+                onClick={() => navigate(`/mobile/notes/${note.id}`)}
+              >
+                <div className="relative">
+                  {/* Priority Button */}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className={`absolute -top-1 -right-1 h-8 w-8 ${note.priority ? 'opacity-100' : 'opacity-50'
+                      }`}
+                    onClick={(e) => handleTogglePriority(note, e)}
+                  >
+                    <span className={`text-lg font-bold ${note.priority ? 'text-red-500' : 'text-muted-foreground'}`}>
+                      !
+                    </span>
+                  </Button>
 
-                <h3 className="font-semibold mb-2 line-clamp-1 pr-8">
-                  {note.title || "Sans titre"}
-                </h3>
+                  <h3 className="font-semibold mb-2 line-clamp-1 pr-8">
+                    {note.title || "Sans titre"}
+                  </h3>
 
-                <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
-                  {note.content ? note.content.replace(/<[^>]*>/g, '') : "Note vide"}
-                </p>
+                  <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
+                    {note.content ? note.content.replace(/<[^>]*>/g, '') : "Note vide"}
+                  </p>
 
-                {/* Badges */}
-                <div className="flex gap-2 flex-wrap mb-2">
-                  {note.todos && note.todos.length > 0 && (
-                    <Badge variant="secondary" className="text-xs">
-                      <CheckSquare className="h-3 w-3 mr-1" />
-                      {note.todos.length}
-                    </Badge>
-                  )}
-                  {note.images && note.images.length > 0 && (
-                    <Badge variant="secondary" className="text-xs">
-                      <ImageIcon className="h-3 w-3 mr-1" />
-                      {note.images.length}
-                    </Badge>
-                  )}
-                  {note.files && note.files.length > 0 && (
-                    <Badge variant="secondary" className="text-xs">
-                      <Paperclip className="h-3 w-3 mr-1" />
-                      {note.files.length}
-                    </Badge>
-                  )}
-                  {note.tags && note.tags.length > 0 && (
-                    note.tags.slice(0, 2).map((tag) => (
-                      <Badge key={tag.id} variant="outline" className="text-xs">
-                        <TagIcon className="h-3 w-3 mr-1" />
-                        {tag.name}
+                  {/* Badges */}
+                  <div className="flex gap-2 flex-wrap mb-2">
+                    {note.todos && note.todos.length > 0 && (
+                      <Badge variant="secondary" className="text-xs">
+                        <CheckSquare className="h-3 w-3 mr-1" />
+                        {note.todos.length}
                       </Badge>
-                    ))
-                  )}
-                  {note.tags && note.tags.length > 2 && (
-                    <Badge variant="outline" className="text-xs">
-                      +{note.tags.length - 2}
-                    </Badge>
+                    )}
+                    {note.images && note.images.length > 0 && (
+                      <Badge variant="secondary" className="text-xs">
+                        <ImageIcon className="h-3 w-3 mr-1" />
+                        {note.images.length}
+                      </Badge>
+                    )}
+                    {note.files && note.files.length > 0 && (
+                      <Badge variant="secondary" className="text-xs">
+                        <Paperclip className="h-3 w-3 mr-1" />
+                        {note.files.length}
+                      </Badge>
+                    )}
+                    {note.tags && note.tags.length > 0 && (
+                      note.tags.slice(0, 2).map((tag) => (
+                        <Badge key={tag.id} variant="outline" className="text-xs">
+                          <TagIcon className="h-3 w-3 mr-1" />
+                          {tag.name}
+                        </Badge>
+                      ))
+                    )}
+                    {note.tags && note.tags.length > 2 && (
+                      <Badge variant="outline" className="text-xs">
+                        +{note.tags.length - 2}
+                      </Badge>
+                    )}
+                  </div>
+
+                  {/* Date */}
+                  {note.updated_at && (
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(note.updated_at).toLocaleDateString('fr-FR', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric'
+                      })}
+                    </p>
                   )}
                 </div>
+              </MobileCard>
+            ))
+          ) : (
+            <div className="text-center py-16">
+              <FileText className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
+              <p className="text-muted-foreground mb-4">
+                {searchQuery ? "Aucune note trouvée" : "Aucune note"}
+              </p>
+              {!searchQuery && (
+                <Button onClick={handleCreateNote} size="lg">
+                  <Plus className="h-5 w-5 mr-2" />
+                  Créer votre première note
+                </Button>
+              )}
+            </div>
+          )}
 
-                {/* Date */}
-                {note.updated_at && (
-                  <p className="text-xs text-muted-foreground">
-                    {new Date(note.updated_at).toLocaleDateString('fr-FR', {
-                      day: '2-digit',
-                      month: '2-digit',
-                      year: 'numeric'
-                    })}
-                  </p>
-                )}
-              </div>
-            </MobileCard>
-          ))
-        ) : (
-          <div className="text-center py-16">
-            <FileText className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
-            <p className="text-muted-foreground mb-4">
-              {searchQuery ? "Aucune note trouvée" : "Aucune note"}
-            </p>
-            {!searchQuery && (
-              <Button onClick={handleCreateNote} size="lg">
-                <Plus className="h-5 w-5 mr-2" />
-                Créer votre première note
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-4 px-4 pb-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setPage(p => Math.max(0, p - 1))}
+                disabled={page === 0}
+              >
+                ‹ Précédent
               </Button>
-            )}
-          </div>
-        )}
-
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-center gap-4 px-4 pb-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setPage(p => Math.max(0, p - 1))}
-              disabled={page === 0}
-            >
-              ‹ Précédent
-            </Button>
-            <span className="text-sm text-muted-foreground">
-              {page + 1} / {totalPages}
-            </span>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
-              disabled={page === totalPages - 1}
-            >
-              Suivant ›
-            </Button>
-          </div>
-        )}
-      </div>
+              <span className="text-sm text-muted-foreground">
+                {page + 1} / {totalPages}
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+                disabled={page === totalPages - 1}
+              >
+                Suivant ›
+              </Button>
+            </div>
+          )}
+        </div>
       ) : (
         /* Kanban View */
         <div className="p-2 overflow-x-auto">
@@ -363,7 +348,7 @@ export default function NotesPage() {
             notes={filteredNotes}
             onNoteClick={(note) => navigate(`/mobile/notes/${note.id}`)}
             onCreateNote={(columnId) => {
-              setTemplateSelectorOpen(true);
+              handleCreateNote();
             }}
             onMoveNote={async (noteId, newStatus) => {
               const note = notes.find(n => n.id === noteId);
@@ -393,13 +378,6 @@ export default function NotesPage() {
 
       {/* FAB */}
       <MobileFAB icon={Plus} onClick={handleCreateNote} label="Créer une note" />
-
-      {/* Template Selector */}
-      <TemplateSelector
-        open={templateSelectorOpen}
-        onOpenChange={setTemplateSelectorOpen}
-        onSelectTemplate={handleCreateNoteFromTemplate}
-      />
     </div>
   );
 }
