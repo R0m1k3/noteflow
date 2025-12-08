@@ -159,6 +159,7 @@ const Index = () => {
   const [rssFeeds, setRssFeeds] = useState<RssFeed[]>([]);
   const [rssArticles, setRssArticles] = useState<RssArticle[]>([]);
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
+  const [counts, setCounts] = useState({ active: 0, archived: 0 });
   const [settings, setSettings] = useState<AppSettings>({});
   const [adminTab, setAdminTab] = useState("users");
   const [showArchived, setShowArchived] = useState(false);
@@ -303,10 +304,15 @@ const Index = () => {
 
   const loadNotes = async () => {
     try {
-      const fetchedNotes = await NotesService.getNotes(showArchived);
+      const [fetchedNotes, fetchedCounts] = await Promise.all([
+        NotesService.getNotes(showArchived),
+        NotesService.getCounts()
+      ]);
+
       if (Array.isArray(fetchedNotes)) {
         setNotes(fetchedNotes);
       }
+      setCounts(fetchedCounts);
     } catch (error) {
       console.error("Erreur lors du chargement des notes:", error);
     }
@@ -1352,13 +1358,13 @@ const Index = () => {
                         variant={!showArchived ? "default" : "outline"}
                         onClick={() => setShowArchived(false)}
                       >
-                        Actives ({notes.filter(n => !n.archived).length})
+                        Actives ({counts.active})
                       </Button>
                       <Button
                         variant={showArchived ? "default" : "outline"}
                         onClick={() => setShowArchived(true)}
                       >
-                        Archivées ({notes.filter(n => n.archived).length})
+                        Archivées ({counts.archived})
                       </Button>
                     </div>
                   </div>
@@ -1407,145 +1413,145 @@ const Index = () => {
                 {/* Notes View - List or Kanban */}
                 {notesViewMode === 'list' ? (
                   <>
-                  <div className="grid grid-cols-1 gap-4">
-                  {filteredNotes.length > 0 ? (
-                    paginatedNotes.map(note => (
-                      <Card
-                        key={note.id}
-                        className="cursor-pointer hover:shadow-md transition-all group relative"
-                        onClick={() => handleOpenNote(note)}
-                      >
-                        <CardContent className="p-4">
-                          {/* Priority icon */}
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className={`absolute top-2 right-2 h-6 w-6 transition-opacity ${note.priority ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                              }`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const newPriority = !note.priority;
-                              if (note.id) {
-                                NotesService.togglePriority(note.id, newPriority);
-                                setNotes(notes.map(n => n.id === note.id ? { ...n, priority: newPriority } : n));
-                              }
-                            }}
+                    <div className="grid grid-cols-1 gap-4">
+                      {filteredNotes.length > 0 ? (
+                        paginatedNotes.map(note => (
+                          <Card
+                            key={note.id}
+                            className="cursor-pointer hover:shadow-md transition-all group relative"
+                            onClick={() => handleOpenNote(note)}
                           >
-                            {note.priority ? (
-                              <span className="text-red-500 text-lg font-bold">!</span>
-                            ) : (
-                              <span className="text-muted-foreground text-lg">!</span>
-                            )}
-                          </Button>
+                            <CardContent className="p-4">
+                              {/* Priority icon */}
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className={`absolute top-2 right-2 h-6 w-6 transition-opacity ${note.priority ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                                  }`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const newPriority = !note.priority;
+                                  if (note.id) {
+                                    NotesService.togglePriority(note.id, newPriority);
+                                    setNotes(notes.map(n => n.id === note.id ? { ...n, priority: newPriority } : n));
+                                  }
+                                }}
+                              >
+                                {note.priority ? (
+                                  <span className="text-red-500 text-lg font-bold">!</span>
+                                ) : (
+                                  <span className="text-muted-foreground text-lg">!</span>
+                                )}
+                              </Button>
 
-                          {/* Archive icon */}
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className={`absolute top-2 right-10 h-6 w-6 transition-opacity ${note.archived ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                              }`}
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              if (note.id) {
-                                const newArchived = !note.archived;
-                                const success = await NotesService.archiveNote(note.id, newArchived);
-                                if (success) {
-                                  setNotes(notes.map(n => n.id === note.id ? { ...n, archived: newArchived } : n));
-                                }
-                              }
-                            }}
-                            title={note.archived ? "Désarchiver" : "Archiver"}
-                          >
-                            <Archive className="h-4 w-4 text-muted-foreground" />
-                          </Button>
+                              {/* Archive icon */}
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className={`absolute top-2 right-10 h-6 w-6 transition-opacity ${note.archived ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                                  }`}
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  if (note.id) {
+                                    const newArchived = !note.archived;
+                                    const success = await NotesService.archiveNote(note.id, newArchived);
+                                    if (success) {
+                                      setNotes(notes.map(n => n.id === note.id ? { ...n, archived: newArchived } : n));
+                                    }
+                                  }
+                                }}
+                                title={note.archived ? "Désarchiver" : "Archiver"}
+                              >
+                                <Archive className="h-4 w-4 text-muted-foreground" />
+                              </Button>
 
-                          <h3 className="font-semibold text-base mb-2 line-clamp-1 pr-8">
-                            {note.title || "Sans titre"}
-                          </h3>
-                          <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
-                            {note.content ? cleanHtmlContent(note.content) : "Note vide"}
+                              <h3 className="font-semibold text-base mb-2 line-clamp-1 pr-8">
+                                {note.title || "Sans titre"}
+                              </h3>
+                              <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
+                                {note.content ? cleanHtmlContent(note.content) : "Note vide"}
+                              </p>
+                              <div className="flex gap-2 flex-wrap mb-2">
+                                {note.todos && note.todos.length > 0 && (
+                                  <Badge variant="secondary">
+                                    <CheckSquare className="h-3 w-3 mr-1" />
+                                    {note.todos.length}
+                                  </Badge>
+                                )}
+                                {note.images && note.images.length > 0 && (
+                                  <Badge variant="secondary">
+                                    <ImageIcon className="h-3 w-3 mr-1" />
+                                    {note.images.length}
+                                  </Badge>
+                                )}
+                                {note.files && note.files.length > 0 && (
+                                  <Badge variant="secondary">
+                                    <Paperclip className="h-3 w-3 mr-1" />
+                                    {note.files.length}
+                                  </Badge>
+                                )}
+                                {note.tags && note.tags.length > 0 && (
+                                  note.tags.map((tag) => (
+                                    <Badge key={tag.id} variant="outline" className="text-xs">
+                                      <TagIcon className="h-3 w-3 mr-1" />
+                                      {tag.name}
+                                    </Badge>
+                                  ))
+                                )}
+                              </div>
+                              {note.updated_at && (
+                                <p className="text-xs text-muted-foreground">
+                                  Modifiée le {new Date(note.updated_at).toLocaleDateString('fr-FR', {
+                                    day: '2-digit',
+                                    month: '2-digit',
+                                    year: 'numeric'
+                                  })}
+                                </p>
+                              )}
+                            </CardContent>
+                          </Card>
+                        ))
+                      ) : (
+                        <div className="col-span-1 text-center py-16">
+                          <FileText className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
+                          <p className="text-muted-foreground text-lg mb-4">
+                            {searchQuery ? "Aucune note trouvée" : "Aucune note"}
                           </p>
-                          <div className="flex gap-2 flex-wrap mb-2">
-                            {note.todos && note.todos.length > 0 && (
-                              <Badge variant="secondary">
-                                <CheckSquare className="h-3 w-3 mr-1" />
-                                {note.todos.length}
-                              </Badge>
-                            )}
-                            {note.images && note.images.length > 0 && (
-                              <Badge variant="secondary">
-                                <ImageIcon className="h-3 w-3 mr-1" />
-                                {note.images.length}
-                              </Badge>
-                            )}
-                            {note.files && note.files.length > 0 && (
-                              <Badge variant="secondary">
-                                <Paperclip className="h-3 w-3 mr-1" />
-                                {note.files.length}
-                              </Badge>
-                            )}
-                            {note.tags && note.tags.length > 0 && (
-                              note.tags.map((tag) => (
-                                <Badge key={tag.id} variant="outline" className="text-xs">
-                                  <TagIcon className="h-3 w-3 mr-1" />
-                                  {tag.name}
-                                </Badge>
-                              ))
-                            )}
-                          </div>
-                          {note.updated_at && (
-                            <p className="text-xs text-muted-foreground">
-                              Modifiée le {new Date(note.updated_at).toLocaleDateString('fr-FR', {
-                                day: '2-digit',
-                                month: '2-digit',
-                                year: 'numeric'
-                              })}
-                            </p>
+                          {!searchQuery && (
+                            <Button onClick={handleCreateNote} size="lg">
+                              <Plus className="h-5 w-5 mr-2" />
+                              Créer votre première note
+                            </Button>
                           )}
-                        </CardContent>
-                      </Card>
-                    ))
-                  ) : (
-                    <div className="col-span-1 text-center py-16">
-                      <FileText className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
-                      <p className="text-muted-foreground text-lg mb-4">
-                        {searchQuery ? "Aucune note trouvée" : "Aucune note"}
-                      </p>
-                      {!searchQuery && (
-                        <Button onClick={handleCreateNote} size="lg">
-                          <Plus className="h-5 w-5 mr-2" />
-                          Créer votre première note
-                        </Button>
+                        </div>
                       )}
                     </div>
-                  )}
-                </div>
 
-                {/* Pagination pour les notes */}
-                {totalNotesPages > 1 && (
-                  <div className="flex items-center justify-center gap-2 mt-6">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setNotesPage(p => Math.max(0, p - 1))}
-                      disabled={notesPage === 0}
-                    >
-                      Précédent
-                    </Button>
-                    <span className="text-sm text-muted-foreground">
-                      Page {notesPage + 1} sur {totalNotesPages}
-                    </span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setNotesPage(p => Math.min(totalNotesPages - 1, p + 1))}
-                      disabled={notesPage >= totalNotesPages - 1}
-                    >
-                      Suivant
-                    </Button>
-                  </div>
-                )}
-                </>
+                    {/* Pagination pour les notes */}
+                    {totalNotesPages > 1 && (
+                      <div className="flex items-center justify-center gap-2 mt-6">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setNotesPage(p => Math.max(0, p - 1))}
+                          disabled={notesPage === 0}
+                        >
+                          Précédent
+                        </Button>
+                        <span className="text-sm text-muted-foreground">
+                          Page {notesPage + 1} sur {totalNotesPages}
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setNotesPage(p => Math.min(totalNotesPages - 1, p + 1))}
+                          disabled={notesPage >= totalNotesPages - 1}
+                        >
+                          Suivant
+                        </Button>
+                      </div>
+                    )}
+                  </>
                 ) : (
                   /* Kanban View */
                   <KanbanBoard
@@ -1982,235 +1988,235 @@ const Index = () => {
           <div className="space-y-6">
             {/* Todos & RSS Boxes side by side */}
             <div className="grid grid-cols-2 gap-6">
-            {/* Todos Box */}
-            <Card className="shadow-lg">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-xl flex items-center gap-2">
-                    <CheckSquare className="h-5 w-5" />
-                    Tâches
-                  </CardTitle>
-                  <Button size="sm" variant="outline" onClick={() => setAddTodoModal(true)}>
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <Tabs defaultValue="active" className="w-full">
-                  <TabsList className="grid grid-cols-2 w-full mb-3">
-                    <TabsTrigger value="active" className="text-xs">Actives ({todos.filter(t => !t.completed).length})</TabsTrigger>
-                    <TabsTrigger value="completed" className="text-xs">Complétées ({todos.filter(t => t.completed).length})</TabsTrigger>
-                  </TabsList>
-
-                  <TabsContent value="active" className="mt-0">
-                    <div className="space-y-1.5 max-h-[calc(100vh-400px)] overflow-y-auto">
-                      {activeTodos.length > 0 ? (
-                        paginatedActiveTodos.map(todo => (
-                          <div key={todo.id} className="flex items-center gap-2 p-2 border rounded hover:bg-accent/50 transition-colors group">
-                            <Checkbox
-                              checked={false}
-                              onCheckedChange={() => todo.id && handleToggleTodo(todo.id)}
-                              className="h-4 w-4"
-                            />
-                            <span className="text-sm flex-1 leading-snug">
-                              {todo.text}
-                            </span>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className={`h-7 w-7 transition-all ${todo.in_progress ? 'text-red-500 opacity-100' : 'text-muted-foreground opacity-0 group-hover:opacity-100'}`}
-                              onClick={() => todo.id && handleToggleTodoInProgress(todo.id)}
-                              title={todo.in_progress ? "Marquer comme non commencé" : "Marquer comme en cours"}
-                            >
-                              <Activity className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className={`h-7 w-7 ${todo.priority ? '' : 'opacity-0 group-hover:opacity-100'} transition-opacity`}
-                              onClick={() => todo.id && handleToggleTodoPriority(todo.id)}
-                              title={todo.priority ? "Retirer la priorité" : "Marquer comme prioritaire"}
-                            >
-                              <Star className={`h-3.5 w-3.5 ${todo.priority ? 'fill-yellow-400 text-yellow-400' : ''}`} />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
-                              onClick={() => todo.id && handleDeleteTodo(todo.id)}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
-                        ))
-                      ) : (
-                        <p className="text-center text-muted-foreground text-sm py-6">Aucune tâche active</p>
-                      )}
-                    </div>
-                    {totalActiveTodosPages > 1 && (
-                      <div className="flex items-center justify-center gap-2 mt-3 pt-3 border-t">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setTodosActivePage(p => Math.max(0, p - 1))}
-                          disabled={todosActivePage === 0}
-                        >
-                          ‹
-                        </Button>
-                        <span className="text-xs text-muted-foreground">
-                          {todosActivePage + 1}/{totalActiveTodosPages}
-                        </span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setTodosActivePage(p => Math.min(totalActiveTodosPages - 1, p + 1))}
-                          disabled={todosActivePage >= totalActiveTodosPages - 1}
-                        >
-                          ›
-                        </Button>
-                      </div>
-                    )}
-                  </TabsContent>
-
-                  <TabsContent value="completed" className="mt-0">
-                    <div className="space-y-1.5 max-h-[calc(100vh-400px)] overflow-y-auto">
-                      {completedTodos.length > 0 ? (
-                        paginatedCompletedTodos.map(todo => (
-                          <div key={todo.id} className="flex items-center gap-2 p-2 border rounded hover:bg-accent/50 transition-colors group">
-                            <Checkbox
-                              checked={true}
-                              onCheckedChange={() => todo.id && handleToggleTodo(todo.id)}
-                              className="h-4 w-4"
-                            />
-                            <span className="text-sm flex-1 line-through text-muted-foreground leading-snug">
-                              {todo.text}
-                            </span>
-                            {todo.priority && (
-                              <Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400 opacity-50" />
-                            )}
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
-                              onClick={() => todo.id && handleDeleteTodo(todo.id)}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
-                        ))
-                      ) : (
-                        <p className="text-center text-muted-foreground text-sm py-6">Aucune tâche complétée</p>
-                      )}
-                    </div>
-                    {totalCompletedTodosPages > 1 && (
-                      <div className="flex items-center justify-center gap-2 mt-3 pt-3 border-t">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setTodosCompletedPage(p => Math.max(0, p - 1))}
-                          disabled={todosCompletedPage === 0}
-                        >
-                          ‹
-                        </Button>
-                        <span className="text-xs text-muted-foreground">
-                          {todosCompletedPage + 1}/{totalCompletedTodosPages}
-                        </span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setTodosCompletedPage(p => Math.min(totalCompletedTodosPages - 1, p + 1))}
-                          disabled={todosCompletedPage >= totalCompletedTodosPages - 1}
-                        >
-                          ›
-                        </Button>
-                      </div>
-                    )}
-                  </TabsContent>
-                </Tabs>
-              </CardContent>
-            </Card>
-
-            {/* RSS Box */}
-            <Card className="shadow-lg">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between gap-2">
-                  <CardTitle className="text-xl flex items-center gap-2 flex-shrink-0">
-                    <Rss className="h-5 w-5" />
-                    Flux RSS
-                  </CardTitle>
-                  <div className="flex gap-1.5 flex-shrink-0">
-                    <Button size="sm" variant="outline" onClick={handleRefreshRss}>
-                      <RefreshCw className="h-4 w-4" />
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => setAddRssFeedModal(true)}>
+              {/* Todos Box */}
+              <Card className="shadow-lg">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-xl flex items-center gap-2">
+                      <CheckSquare className="h-5 w-5" />
+                      Tâches
+                    </CardTitle>
+                    <Button size="sm" variant="outline" onClick={() => setAddTodoModal(true)}>
                       <Plus className="h-4 w-4" />
                     </Button>
                   </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2 max-h-[calc(100vh-500px)] overflow-y-auto">
-                  {rssArticles.length > 0 ? (
-                    paginatedRssArticles.map(article => (
-                      <div
-                        key={article.id}
-                        className="p-2.5 border rounded hover:bg-accent/50 transition-colors cursor-pointer"
-                        onClick={() => article.link && window.open(article.link, '_blank')}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1 min-w-0">
-                            <h4 className="font-medium text-sm line-clamp-2 mb-1">{article.title}</h4>
-                            {article.description && (
-                              <p className="text-xs text-muted-foreground line-clamp-2">
-                                {article.description.replace(/<[^>]*>/g, '')}
-                              </p>
-                            )}
-                          </div>
-                          <ExternalLink className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0 mt-0.5" />
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-center text-muted-foreground text-sm py-6">
-                      Aucun article
-                      <br />
-                      <Button
-                        variant="link"
-                        className="mt-2 text-xs"
-                        onClick={() => setAddRssFeedModal(true)}
-                      >
-                        Ajouter un flux RSS
-                      </Button>
-                    </p>
-                  )}
-                </div>
-                {totalRssPages > 1 && (
-                  <div className="flex items-center justify-center gap-2 mt-3 pt-3 border-t">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setRssPage(p => Math.max(0, p - 1))}
-                      disabled={rssPage === 0}
-                    >
-                      ‹
-                    </Button>
-                    <span className="text-xs text-muted-foreground">
-                      {rssPage + 1}/{totalRssPages}
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setRssPage(p => Math.min(totalRssPages - 1, p + 1))}
-                      disabled={rssPage >= totalRssPages - 1}
-                    >
-                      ›
-                    </Button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                </CardHeader>
+                <CardContent>
+                  <Tabs defaultValue="active" className="w-full">
+                    <TabsList className="grid grid-cols-2 w-full mb-3">
+                      <TabsTrigger value="active" className="text-xs">Actives ({todos.filter(t => !t.completed).length})</TabsTrigger>
+                      <TabsTrigger value="completed" className="text-xs">Complétées ({todos.filter(t => t.completed).length})</TabsTrigger>
+                    </TabsList>
 
-          </div>
+                    <TabsContent value="active" className="mt-0">
+                      <div className="space-y-1.5 max-h-[calc(100vh-400px)] overflow-y-auto">
+                        {activeTodos.length > 0 ? (
+                          paginatedActiveTodos.map(todo => (
+                            <div key={todo.id} className="flex items-center gap-2 p-2 border rounded hover:bg-accent/50 transition-colors group">
+                              <Checkbox
+                                checked={false}
+                                onCheckedChange={() => todo.id && handleToggleTodo(todo.id)}
+                                className="h-4 w-4"
+                              />
+                              <span className="text-sm flex-1 leading-snug">
+                                {todo.text}
+                              </span>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className={`h-7 w-7 transition-all ${todo.in_progress ? 'text-red-500 opacity-100' : 'text-muted-foreground opacity-0 group-hover:opacity-100'}`}
+                                onClick={() => todo.id && handleToggleTodoInProgress(todo.id)}
+                                title={todo.in_progress ? "Marquer comme non commencé" : "Marquer comme en cours"}
+                              >
+                                <Activity className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className={`h-7 w-7 ${todo.priority ? '' : 'opacity-0 group-hover:opacity-100'} transition-opacity`}
+                                onClick={() => todo.id && handleToggleTodoPriority(todo.id)}
+                                title={todo.priority ? "Retirer la priorité" : "Marquer comme prioritaire"}
+                              >
+                                <Star className={`h-3.5 w-3.5 ${todo.priority ? 'fill-yellow-400 text-yellow-400' : ''}`} />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={() => todo.id && handleDeleteTodo(todo.id)}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-center text-muted-foreground text-sm py-6">Aucune tâche active</p>
+                        )}
+                      </div>
+                      {totalActiveTodosPages > 1 && (
+                        <div className="flex items-center justify-center gap-2 mt-3 pt-3 border-t">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setTodosActivePage(p => Math.max(0, p - 1))}
+                            disabled={todosActivePage === 0}
+                          >
+                            ‹
+                          </Button>
+                          <span className="text-xs text-muted-foreground">
+                            {todosActivePage + 1}/{totalActiveTodosPages}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setTodosActivePage(p => Math.min(totalActiveTodosPages - 1, p + 1))}
+                            disabled={todosActivePage >= totalActiveTodosPages - 1}
+                          >
+                            ›
+                          </Button>
+                        </div>
+                      )}
+                    </TabsContent>
+
+                    <TabsContent value="completed" className="mt-0">
+                      <div className="space-y-1.5 max-h-[calc(100vh-400px)] overflow-y-auto">
+                        {completedTodos.length > 0 ? (
+                          paginatedCompletedTodos.map(todo => (
+                            <div key={todo.id} className="flex items-center gap-2 p-2 border rounded hover:bg-accent/50 transition-colors group">
+                              <Checkbox
+                                checked={true}
+                                onCheckedChange={() => todo.id && handleToggleTodo(todo.id)}
+                                className="h-4 w-4"
+                              />
+                              <span className="text-sm flex-1 line-through text-muted-foreground leading-snug">
+                                {todo.text}
+                              </span>
+                              {todo.priority && (
+                                <Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400 opacity-50" />
+                              )}
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={() => todo.id && handleDeleteTodo(todo.id)}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-center text-muted-foreground text-sm py-6">Aucune tâche complétée</p>
+                        )}
+                      </div>
+                      {totalCompletedTodosPages > 1 && (
+                        <div className="flex items-center justify-center gap-2 mt-3 pt-3 border-t">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setTodosCompletedPage(p => Math.max(0, p - 1))}
+                            disabled={todosCompletedPage === 0}
+                          >
+                            ‹
+                          </Button>
+                          <span className="text-xs text-muted-foreground">
+                            {todosCompletedPage + 1}/{totalCompletedTodosPages}
+                          </span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setTodosCompletedPage(p => Math.min(totalCompletedTodosPages - 1, p + 1))}
+                            disabled={todosCompletedPage >= totalCompletedTodosPages - 1}
+                          >
+                            ›
+                          </Button>
+                        </div>
+                      )}
+                    </TabsContent>
+                  </Tabs>
+                </CardContent>
+              </Card>
+
+              {/* RSS Box */}
+              <Card className="shadow-lg">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <CardTitle className="text-xl flex items-center gap-2 flex-shrink-0">
+                      <Rss className="h-5 w-5" />
+                      Flux RSS
+                    </CardTitle>
+                    <div className="flex gap-1.5 flex-shrink-0">
+                      <Button size="sm" variant="outline" onClick={handleRefreshRss}>
+                        <RefreshCw className="h-4 w-4" />
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => setAddRssFeedModal(true)}>
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2 max-h-[calc(100vh-500px)] overflow-y-auto">
+                    {rssArticles.length > 0 ? (
+                      paginatedRssArticles.map(article => (
+                        <div
+                          key={article.id}
+                          className="p-2.5 border rounded hover:bg-accent/50 transition-colors cursor-pointer"
+                          onClick={() => article.link && window.open(article.link, '_blank')}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <h4 className="font-medium text-sm line-clamp-2 mb-1">{article.title}</h4>
+                              {article.description && (
+                                <p className="text-xs text-muted-foreground line-clamp-2">
+                                  {article.description.replace(/<[^>]*>/g, '')}
+                                </p>
+                              )}
+                            </div>
+                            <ExternalLink className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0 mt-0.5" />
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-center text-muted-foreground text-sm py-6">
+                        Aucun article
+                        <br />
+                        <Button
+                          variant="link"
+                          className="mt-2 text-xs"
+                          onClick={() => setAddRssFeedModal(true)}
+                        >
+                          Ajouter un flux RSS
+                        </Button>
+                      </p>
+                    )}
+                  </div>
+                  {totalRssPages > 1 && (
+                    <div className="flex items-center justify-center gap-2 mt-3 pt-3 border-t">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setRssPage(p => Math.max(0, p - 1))}
+                        disabled={rssPage === 0}
+                      >
+                        ‹
+                      </Button>
+                      <span className="text-xs text-muted-foreground">
+                        {rssPage + 1}/{totalRssPages}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setRssPage(p => Math.min(totalRssPages - 1, p + 1))}
+                        disabled={rssPage >= totalRssPages - 1}
+                      >
+                        ›
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+            </div>
           </div>
         </div>
       </div>

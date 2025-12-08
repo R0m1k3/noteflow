@@ -39,6 +39,30 @@ const upload = multer({
 router.use(authenticateToken);
 
 /**
+ * GET /api/notes/counts
+ * Récupérer le nombre de notes actives et archivées
+ */
+router.get('/counts', async (req, res) => {
+  try {
+    const activeCount = await getAll(`
+      SELECT COUNT(*) as count FROM notes WHERE user_id = $1 AND archived = false
+    `, [req.user.id]);
+
+    const archivedCount = await getAll(`
+      SELECT COUNT(*) as count FROM notes WHERE user_id = $1 AND archived = true
+    `, [req.user.id]);
+
+    res.json({
+      active: parseInt(activeCount[0]?.count || 0),
+      archived: parseInt(archivedCount[0]?.count || 0)
+    });
+  } catch (error) {
+    logger.error('Erreur lors de la récupération des compteurs:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+/**
  * GET /api/notes?archived=true/false
  * Liste toutes les notes de l'utilisateur
  */

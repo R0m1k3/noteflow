@@ -31,10 +31,16 @@ export default function NotesPage() {
   const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
   const navigate = useNavigate();
 
+  const [counts, setCounts] = useState({ active: 0, archived: 0 });
+
   const loadNotes = async () => {
     try {
-      const data = await NotesService.getNotes(showArchived);
-      setNotes(data);
+      const [notesData, countsData] = await Promise.all([
+        NotesService.getNotes(showArchived),
+        NotesService.getCounts()
+      ]);
+      setNotes(notesData);
+      setCounts(countsData);
     } catch (error) {
       showError("Erreur lors du chargement des notes");
     }
@@ -184,7 +190,7 @@ export default function NotesPage() {
             }}
             className="flex-1"
           >
-            Actives ({notes.filter(n => !n.archived).length})
+            Actives ({counts.active})
           </Button>
           <Button
             variant={showArchived ? "default" : "outline"}
@@ -195,7 +201,7 @@ export default function NotesPage() {
             }}
             className="flex-1"
           >
-            Archivées ({notes.filter(n => n.archived).length})
+            Archivées ({counts.archived})
           </Button>
         </div>
 
