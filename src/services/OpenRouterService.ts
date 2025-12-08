@@ -60,6 +60,8 @@ class OpenRouterService {
    */
   async sendMessage(model: string, messages: Array<{ role: string; content: string }>): Promise<string> {
     try {
+      console.log(`[OpenRouter] Envoi requête - model: ${model}, messages: ${messages.length}`);
+
       const response = await fetch('/api/openrouter/chat', {
         method: 'POST',
         headers: {
@@ -69,15 +71,42 @@ class OpenRouterService {
         body: JSON.stringify({ model, messages })
       });
 
+      console.log(`[OpenRouter] Réponse reçue - status: ${response.status}`);
+
       if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Erreur inconnue' }));
-        throw new Error(error.error || 'Erreur lors de la communication avec l\'IA');
+        const errorData = await response.json().catch(() => ({ error: 'Erreur inconnue' }));
+        const errorMessage = errorData.error || `Erreur HTTP ${response.status}`;
+
+        console.error('[OpenRouter] Erreur:', errorMessage);
+
+        // Messages d'erreur plus clairs selon le code HTTP
+        if (response.status === 400) {
+          throw new Error(errorMessage);
+        } else if (response.status === 401) {
+          throw new Error('Clé API invalide. Vérifiez la configuration dans Paramètres.');
+        } else if (response.status === 402) {
+          throw new Error('Crédits OpenRouter épuisés. Rechargez votre compte.');
+        } else if (response.status === 429) {
+          throw new Error('Trop de requêtes. Attendez quelques instants.');
+        } else if (response.status === 502 || response.status === 503) {
+          throw new Error('Service OpenRouter temporairement indisponible. Réessayez dans quelques instants.');
+        } else {
+          throw new Error(errorMessage);
+        }
       }
 
       const data = await response.json();
-      return data.choices?.[0]?.message?.content || 'Pas de réponse';
+      const content = data.choices?.[0]?.message?.content;
+
+      if (!content) {
+        console.error('[OpenRouter] Réponse vide:', data);
+        throw new Error('Aucune réponse générée par le modèle');
+      }
+
+      console.log(`[OpenRouter] Succès - ${content.length} caractères`);
+      return content;
     } catch (error: any) {
-      console.error('Erreur lors de l\'envoi du message:', error);
+      console.error('[OpenRouter] Erreur exception:', error);
       throw error;
     }
   }

@@ -53,12 +53,14 @@ types.setTypeParser(1114, function (stringValue) {
 const DATABASE_URL = process.env.DATABASE_URL ||
   `postgresql://${process.env.PGUSER || 'noteflow'}:${process.env.PGPASSWORD || 'noteflow_secure_password_change_me'}@${process.env.PGHOST || 'localhost'}:${process.env.PGPORT || '5499'}/${process.env.PGDATABASE || 'noteflow'}`;
 
+logger.info(`PostgreSQL CONNECTION URL: ${DATABASE_URL.replace(/:[^:@]+@/, ':***@')}`);
+
 // Créer le pool de connexions PostgreSQL
 const pool = new Pool({
   connectionString: DATABASE_URL,
   max: 20, // Maximum de connexions dans le pool
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
+  connectionTimeoutMillis: 10000, // Increased from 2000 to 10000
   // IMPORTANT: Forcer le timezone à UTC pour toutes les connexions
   // Cela garantit que PostgreSQL renvoie toujours les dates en UTC
   options: '-c timezone=UTC'
@@ -124,6 +126,8 @@ async function initDatabase() {
         completed BOOLEAN DEFAULT FALSE,
         priority BOOLEAN DEFAULT FALSE,
         position INTEGER DEFAULT 0,
+        parent_id INTEGER REFERENCES note_todos(id) ON DELETE CASCADE,
+        level INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         completed_at TIMESTAMP
       )
@@ -138,6 +142,8 @@ async function initDatabase() {
         completed BOOLEAN DEFAULT FALSE,
         priority BOOLEAN DEFAULT FALSE,
         in_progress INTEGER DEFAULT 0,
+        parent_id INTEGER REFERENCES global_todos(id) ON DELETE CASCADE,
+        level INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         completed_at TIMESTAMP
       )

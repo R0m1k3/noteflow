@@ -1,4 +1,5 @@
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, useId } from "react";
+import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,7 +16,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { RichTextEditor } from "@/components/RichTextEditor";
 import {
   PlusCircle, Search, User, LogOut, Settings, ChevronDown, Plus, Archive, Trash2,
-  Image as ImageIcon, CheckSquare, FileText, Rss, ExternalLink, RefreshCw, Key, Zap, Paperclip, X, Edit, Calendar as CalendarIcon, Tag as TagIcon, MessageSquare, Send, Check, ChevronsUpDown, Star, Activity
+  Image as ImageIcon, CheckSquare, FileText, Rss, ExternalLink, RefreshCw, Key, Zap, Paperclip, X, Edit, Calendar as CalendarIcon, Tag as TagIcon, MessageSquare, Send, Check, ChevronsUpDown, Star, Activity, FileDown, LayoutGrid, List, Sparkles, BarChart3, Clock, HelpCircle
 } from "lucide-react";
 import AuthService from "@/services/AuthService";
 import AdminService from "@/services/AdminService";
@@ -31,6 +32,21 @@ import { showError, showSuccess } from "@/utils/toast";
 import { ConfirmModal } from "@/components/modals/ConfirmModal";
 import { InputModal } from "@/components/modals/InputModal";
 import { AddUserModal } from "@/components/modals/AddUserModal";
+import { compressImage, formatFileSize } from "@/utils/imageCompression";
+import { ModeToggle } from "@/components/mode-toggle";
+import { downloadNoteAsMarkdown, downloadAllNotesAsMarkdown, downloadTodosAsMarkdown } from "@/utils/markdownExport";
+import { TemplateSelector } from "@/components/TemplateSelector";
+import type { NoteTemplate } from "@/utils/noteTemplates";
+import { AdvancedSearch, type SearchFilters, type TagOption } from "@/components/AdvancedSearch";
+import { PomodoroModal } from "@/components/PomodoroModal";
+import { PomodoroTimer } from "@/components/PomodoroTimer";
+import { KanbanBoard } from "@/components/KanbanBoard";
+import { getSmartTagSuggestions } from "@/utils/smartTags";
+import { QuickCaptureWidget } from "@/components/QuickCaptureWidget";
+import { StatsDashboard } from "@/components/StatsDashboard";
+import { StatsModal } from "@/components/StatsModal";
+import { KeyboardShortcutsHelp } from "@/components/KeyboardShortcutsHelp";
+import { useKeyboardShortcuts, type KeyboardShortcut } from "@/hooks/useKeyboardShortcuts";
 
 // ===== FONCTIONS UTILITAIRES TIMEZONE EUROPE/PARIS =====
 
@@ -106,10 +122,36 @@ interface UserType {
   is_admin: boolean;
 }
 
+// Function to clean HTML content and decode entities
+const cleanHtmlContent = (html: string): string => {
+  if (!html) return '';
+
+  // Create a temporary div to decode HTML entities
+  const temp = document.createElement('div');
+  temp.innerHTML = html;
+
+  // Get text content (removes HTML tags and decodes entities)
+  let text = temp.textContent || temp.innerText || '';
+
+  // Remove any remaining HTML entity artifacts
+  text = text.replace(/&[a-z]+;?/gi, ' ').replace(/\s+/g, ' ').trim();
+
+  return text;
+};
+
 const Index = () => {
   const [user, setUser] = useState<UserType | null>(null);
   const [showAdmin, setShowAdmin] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchFilters, setSearchFilters] = useState<SearchFilters>({
+    tags: [],
+    dateFrom: undefined,
+    dateTo: undefined,
+    hasTodos: undefined,
+    hasImages: undefined,
+    hasFiles: undefined,
+    priority: undefined
+  });
   const [notes, setNotes] = useState<Note[]>([]);
   const [openNote, setOpenNote] = useState<Note | null>(null);
   const [users, setUsers] = useState<UserType[]>([]);
@@ -120,6 +162,7 @@ const Index = () => {
   const [settings, setSettings] = useState<AppSettings>({});
   const [adminTab, setAdminTab] = useState("users");
   const [showArchived, setShowArchived] = useState(false);
+  const [notesViewMode, setNotesViewMode] = useState<'list' | 'kanban'>('list');
   const [noteTags, setNoteTags] = useState<Tag[]>([]);
   const [openRouterModels, setOpenRouterModels] = useState<OpenRouterModel[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
@@ -144,11 +187,20 @@ const Index = () => {
   const [addUserModal, setAddUserModal] = useState(false);
   const [deleteUserModal, setDeleteUserModal] = useState<{ open: boolean, userId?: number }>({ open: false });
   const [changePasswordModal, setChangePasswordModal] = useState<{ open: boolean, userId?: number }>({ open: false });
+  const [templateSelectorOpen, setTemplateSelectorOpen] = useState(false);
   const [addNoteTodoModal, setAddNoteTodoModal] = useState(false);
   const [addTagModal, setAddTagModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [addEventModal, setAddEventModal] = useState(false);
   const [editEventModal, setEditEventModal] = useState<{ open: boolean, event?: CalendarEvent }>({ open: false });
+  const [showKeyboardHelp, setShowKeyboardHelp] = useState(false);
+  const [showStatsDashboard, setShowStatsDashboard] = useState(false);
+  const [showPomodoroModal, setShowPomodoroModal] = useState(false);
+
+  // Pomodoro timer states
+  const [pomodoroRunning, setPomodoroRunning] = useState(false);
+  const [pomodoroTimeLeft, setPomodoroTimeLeft] = useState(25 * 60);
+  const [pomodoroMode, setPomodoroMode] = useState<'work' | 'shortBreak' | 'longBreak'>('work');
 
   // Pagination states
   const [notesPage, setNotesPage] = useState(0);
@@ -165,6 +217,7 @@ const Index = () => {
 
   // Chatbox states
   const [chatOpen, setChatOpen] = useState(false);
+  const [chatExpandedModal, setChatExpandedModal] = useState(false);
   const [chatMessages, setChatMessages] = useState<Array<{ role: string; content: string }>>([]);
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
@@ -233,6 +286,20 @@ const Index = () => {
 
     return () => clearInterval(interval);
   }, []);
+
+  // Handle Pomodoro timer state changes
+  const handlePomodoroStateChange = (isRunning: boolean, timeLeft: number, mode: 'work' | 'shortBreak' | 'longBreak') => {
+    setPomodoroRunning(isRunning);
+    setPomodoroTimeLeft(timeLeft);
+    setPomodoroMode(mode);
+  };
+
+  // Format time for Pomodoro display
+  const formatPomodoroTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
 
   const loadNotes = async () => {
     try {
@@ -414,12 +481,32 @@ const Index = () => {
     navigate("/login");
   };
 
-  const handleCreateNote = async () => {
+  const handleCreateNote = () => {
+    setTemplateSelectorOpen(true);
+  };
+
+  const handleCreateNoteFromTemplate = async (template: NoteTemplate) => {
     try {
-      const newNote = await NotesService.createNote("Nouvelle note");
+      const title = template.name === "Note vide" ? "Nouvelle note" : template.name;
+      const newNote = await NotesService.createNote(title, template.content);
       if (newNote) {
-        setNotes([newNote, ...notes]);
-        setOpenNote(newNote);
+        // Add todos if template has any
+        if (template.todos && template.todos.length > 0) {
+          for (const todo of template.todos) {
+            await NotesService.addTodo(newNote.id!, todo.text);
+          }
+          // Reload note to get the todos
+          const notes = await NotesService.getNotes();
+          const updatedNote = notes.find(n => n.id === newNote.id);
+          if (updatedNote) {
+            setNotes([updatedNote, ...notes.filter(n => n.id !== newNote.id)]);
+            setOpenNote(updatedNote);
+          }
+        } else {
+          setNotes([newNote, ...notes]);
+          setOpenNote(newNote);
+        }
+        showSuccess("Note créée depuis le template");
       }
     } catch (error) {
       showError("Erreur lors de la création de la note");
@@ -809,12 +896,71 @@ const Index = () => {
     }
   };
 
-  const filteredNotes = notes.filter(note =>
-    (showArchived ? note.archived : !note.archived) &&
-    (searchQuery === "" ||
-      (note.title && note.title.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (note.content && note.content.toLowerCase().includes(searchQuery.toLowerCase())))
-  );
+  // Extract unique tags from all notes
+  const availableTags: TagOption[] = Array.from(
+    new Map(
+      notes.flatMap(note =>
+        (note.tags || []).map(tag => [tag.name, { id: tag.id!, name: tag.name }])
+      )
+    ).values()
+  ).sort((a, b) => a.name.localeCompare(b.name));
+
+  const filteredNotes = notes.filter(note => {
+    // Archived filter
+    if (showArchived ? !note.archived : note.archived) return false;
+
+    // Text search
+    if (searchQuery !== "" &&
+      !(note.title && note.title.toLowerCase().includes(searchQuery.toLowerCase())) &&
+      !(note.content && note.content.toLowerCase().includes(searchQuery.toLowerCase()))) {
+      return false;
+    }
+
+    // Tags filter
+    if (searchFilters.tags.length > 0) {
+      const noteTags = (note.tags || []).map(t => t.name);
+      if (!searchFilters.tags.some(filterTag => noteTags.includes(filterTag))) {
+        return false;
+      }
+    }
+
+    // Date range filter
+    if (searchFilters.dateFrom || searchFilters.dateTo) {
+      const noteDate = new Date(note.updated_at || note.created_at || 0);
+      if (searchFilters.dateFrom) {
+        const fromDate = new Date(searchFilters.dateFrom);
+        fromDate.setHours(0, 0, 0, 0);
+        if (noteDate < fromDate) return false;
+      }
+      if (searchFilters.dateTo) {
+        const toDate = new Date(searchFilters.dateTo);
+        toDate.setHours(23, 59, 59, 999);
+        if (noteDate > toDate) return false;
+      }
+    }
+
+    // Has todos filter
+    if (searchFilters.hasTodos && (!note.todos || note.todos.length === 0)) {
+      return false;
+    }
+
+    // Has images filter
+    if (searchFilters.hasImages && (!note.images || note.images.length === 0)) {
+      return false;
+    }
+
+    // Has files filter
+    if (searchFilters.hasFiles && (!note.files || note.files.length === 0)) {
+      return false;
+    }
+
+    // Priority filter
+    if (searchFilters.priority && !note.priority) {
+      return false;
+    }
+
+    return true;
+  });
 
   // Pagination for notes
   const totalNotesPages = Math.ceil(filteredNotes.length / NOTES_PER_PAGE);
@@ -826,7 +972,7 @@ const Index = () => {
   // Reset page when changing filters or search
   useEffect(() => {
     setNotesPage(0);
-  }, [showArchived, searchQuery]);
+  }, [showArchived, searchQuery, searchFilters]);
 
   useEffect(() => {
     setTodosActivePage(0);
@@ -840,6 +986,66 @@ const Index = () => {
   useEffect(() => {
     setCalendarPage(0);
   }, [calendarEvents.length]);
+
+  // Define keyboard shortcuts
+  const keyboardShortcuts: KeyboardShortcut[] = [
+    {
+      key: 'n',
+      ctrl: true,
+      description: 'Nouvelle note',
+      handler: () => !showAdmin && handleCreateNote()
+    },
+    {
+      key: 'k',
+      ctrl: true,
+      description: 'Rechercher',
+      handler: () => {
+        const searchInput = document.querySelector('input[type="search"]') as HTMLInputElement;
+        if (searchInput) searchInput.focus();
+      }
+    },
+    {
+      key: 'q',
+      ctrl: true,
+      description: 'Capture rapide',
+      handler: () => {
+        const captureButton = document.querySelector('[title="Capture rapide (Ctrl+Q)"]') as HTMLButtonElement;
+        if (captureButton) captureButton.click();
+      }
+    },
+    {
+      key: 'Escape',
+      description: 'Fermer note/modal',
+      handler: () => {
+        if (openNote) setOpenNote(null);
+        else if (showAdmin) setShowAdmin(false);
+        else if (showKeyboardHelp) setShowKeyboardHelp(false);
+      },
+      preventDefault: false
+    },
+    {
+      key: 'e',
+      ctrl: true,
+      description: 'Archiver note',
+      handler: async () => {
+        if (openNote?.id) {
+          await handleUpdateNote({ archived: !openNote.archived });
+        }
+      }
+    },
+    {
+      key: 's',
+      ctrl: true,
+      description: 'Sauvegarder (auto)',
+      handler: () => {
+        // Note: Auto-save is handled by the editor
+        showSuccess('Auto-save actif');
+      }
+    }
+  ];
+
+  // Register keyboard shortcuts
+  useKeyboardShortcuts(keyboardShortcuts, !showAdmin);
 
   // Pagination for todos
   const activeTodos = todos.filter(t => !t.completed);
@@ -928,6 +1134,41 @@ const Index = () => {
                 <PlusCircle className="h-5 w-5" />
                 Nouvelle Note
               </Button>
+
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowStatsDashboard(true)}
+                title="Statistiques"
+              >
+                <BarChart3 className="h-5 w-5" />
+              </Button>
+
+              <Button
+                variant={pomodoroRunning ? "default" : "ghost"}
+                size="icon"
+                onClick={() => setShowPomodoroModal(true)}
+                title="Pomodoro Timer"
+                className="relative"
+              >
+                <Clock className="h-5 w-5" />
+                {pomodoroRunning && (
+                  <span className="absolute -bottom-1 -right-1 text-[10px] font-mono bg-primary text-primary-foreground px-1 rounded">
+                    {formatPomodoroTime(pomodoroTimeLeft)}
+                  </span>
+                )}
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowKeyboardHelp(true)}
+                title="Aide - Raccourcis clavier"
+              >
+                <HelpCircle className="h-5 w-5" />
+              </Button>
+
+              <ModeToggle />
 
               {user && (
                 <DropdownMenu>
@@ -1122,20 +1363,51 @@ const Index = () => {
                     </div>
                   </div>
 
-                  <div className="relative w-96">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-                    <Input
-                      type="search"
-                      placeholder="Rechercher dans les notes..."
-                      className="pl-10 h-12 text-base"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
+                  <div className="flex items-center gap-2">
+                    <div className="relative w-96">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                      <Input
+                        type="search"
+                        placeholder="Rechercher dans les notes..."
+                        className="pl-10 h-12 text-base"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                      />
+                    </div>
+                    <AdvancedSearch
+                      filters={searchFilters}
+                      onFiltersChange={setSearchFilters}
+                      availableTags={availableTags}
                     />
+
+                    {/* View Mode Toggle */}
+                    <div className="flex gap-1 border rounded-md p-1">
+                      <Button
+                        variant={notesViewMode === 'list' ? 'default' : 'ghost'}
+                        size="sm"
+                        onClick={() => setNotesViewMode('list')}
+                        className="gap-2"
+                      >
+                        <List className="h-4 w-4" />
+                        Liste
+                      </Button>
+                      <Button
+                        variant={notesViewMode === 'kanban' ? 'default' : 'ghost'}
+                        size="sm"
+                        onClick={() => setNotesViewMode('kanban')}
+                        className="gap-2"
+                      >
+                        <LayoutGrid className="h-4 w-4" />
+                        Kanban
+                      </Button>
+                    </div>
                   </div>
                 </div>
 
-                {/* Notes Grid - 1 column for better visibility */}
-                <div className="grid grid-cols-1 gap-4">
+                {/* Notes View - List or Kanban */}
+                {notesViewMode === 'list' ? (
+                  <>
+                  <div className="grid grid-cols-1 gap-4">
                   {filteredNotes.length > 0 ? (
                     paginatedNotes.map(note => (
                       <Card
@@ -1191,7 +1463,7 @@ const Index = () => {
                             {note.title || "Sans titre"}
                           </h3>
                           <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
-                            {note.content ? note.content.replace(/<[^>]*>/g, '') : "Note vide"}
+                            {note.content ? cleanHtmlContent(note.content) : "Note vide"}
                           </p>
                           <div className="flex gap-2 flex-wrap mb-2">
                             {note.todos && note.todos.length > 0 && (
@@ -1273,6 +1545,41 @@ const Index = () => {
                     </Button>
                   </div>
                 )}
+                </>
+                ) : (
+                  /* Kanban View */
+                  <KanbanBoard
+                    notes={filteredNotes}
+                    onNoteClick={handleOpenNote}
+                    onCreateNote={(columnId) => {
+                      setTemplateSelectorOpen(true);
+                      // TODO: Set initial tag based on columnId
+                    }}
+                    onMoveNote={async (noteId, newStatus) => {
+                      // Move note to new column by updating its status tag
+                      const note = notes.find(n => n.id === noteId);
+                      if (!note) return;
+
+                      // Remove old status tags
+                      const oldStatusTags = note.tags?.filter(tag =>
+                        ['backlog', 'todo', 'in_progress', 'review', 'done'].includes(tag.name.toLowerCase())
+                      ) || [];
+
+                      for (const tag of oldStatusTags) {
+                        if (tag.id && note.id) {
+                          await TagsService.deleteTag(note.id, tag.id);
+                        }
+                      }
+
+                      // Add new status tag
+                      if (note.id) {
+                        await TagsService.addTag(note.id, newStatus);
+                        await loadNotes(); // Refresh notes
+                        showSuccess(`Note déplacée vers ${newStatus}`);
+                      }
+                    }}
+                  />
+                )}
               </>
             ) : (
               /* Open Note Editor */
@@ -1281,6 +1588,19 @@ const Index = () => {
                   <div></div>
 
                   <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => {
+                        if (openNote) {
+                          downloadNoteAsMarkdown(openNote);
+                          showSuccess("Note exportée en Markdown");
+                        }
+                      }}
+                      title="Exporter en Markdown"
+                    >
+                      <FileDown className="h-4 w-4" />
+                    </Button>
                     <Button
                       variant="outline"
                       size="icon"
@@ -1313,7 +1633,7 @@ const Index = () => {
                 <Input
                   type="text"
                   placeholder="Titre de la note"
-                  className="text-2xl font-semibold border-none shadow-none h-auto px-0 focus-visible:ring-0"
+                  className="text-2xl font-semibold"
                   value={openNote?.title || ""}
                   onChange={(e) => handleUpdateNote({ title: e.target.value })}
                 />
@@ -1342,20 +1662,42 @@ const Index = () => {
                   <input
                     id="image-upload"
                     type="file"
-                    accept="image/*"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
                     className="hidden"
                     onChange={async (e) => {
                       if (e.target.files && e.target.files[0] && openNote?.id) {
+                        const originalFile = e.target.files[0];
+                        const originalSize = formatFileSize(originalFile.size);
+
                         try {
-                          const image = await NotesService.uploadImage(openNote.id, e.target.files[0]);
+                          // Compresser l'image avant l'upload
+                          const compressedFile = await compressImage(originalFile);
+                          const compressedSize = formatFileSize(compressedFile.size);
+
+                          // Afficher un message si l'image a été compressée
+                          if (compressedFile.size < originalFile.size) {
+                            showSuccess(`Image compressée: ${originalSize} → ${compressedSize}`);
+                          }
+
+                          // Vérifier la taille finale (5MB max après compression)
+                          const maxSize = 5 * 1024 * 1024; // 5MB
+                          if (compressedFile.size > maxSize) {
+                            showError("L'image est trop grande même après compression (max 5MB)");
+                            e.target.value = '';
+                            return;
+                          }
+
+                          const image = await NotesService.uploadImage(openNote.id, compressedFile);
                           if (image) {
                             const updatedImages = [...(openNote.images || []), image];
                             setOpenNote({ ...openNote, images: updatedImages });
-                            await handleUpdateNote({ images: updatedImages });
+                            setNotes(prev => prev.map(note => note.id === openNote.id ? { ...note, images: updatedImages } : note));
                             showSuccess("Image ajoutée");
+                          } else {
+                            showError("Erreur lors de l'upload de l'image");
                           }
                         } catch (error) {
-                          showError("Erreur lors de l'upload de l'image");
+                          showError(error instanceof Error ? error.message : "Erreur lors de l'upload de l'image");
                         }
                         e.target.value = '';
                       }
@@ -1409,6 +1751,34 @@ const Index = () => {
                   </div>
                 )}
 
+                {/* Smart Tag Suggestions */}
+                {openNote && (() => {
+                  const existingTags = noteTags.map(t => t.tag);
+                  const suggestions = getSmartTagSuggestions(openNote, notes, existingTags);
+
+                  return suggestions.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Sparkles className="h-3 w-3" />
+                        Suggestions de tags
+                      </p>
+                      <div className="flex gap-2 flex-wrap">
+                        {suggestions.map((suggestion) => (
+                          <Badge
+                            key={suggestion}
+                            variant="outline"
+                            className="text-xs px-2 py-1 gap-1 cursor-pointer hover:bg-primary hover:text-primary-foreground transition-colors"
+                            onClick={() => confirmAddTag(suggestion)}
+                          >
+                            <Plus className="h-3 w-3" />
+                            {suggestion}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {/* Todos */}
                 {openNote.todos && openNote.todos.length > 0 && (
                   <>
@@ -1421,9 +1791,14 @@ const Index = () => {
                               <Checkbox
                                 checked={todo.completed}
                                 onCheckedChange={async () => {
-                                  const updatedTodos = [...(openNote.todos || [])];
-                                  updatedTodos[index] = { ...todo, completed: !todo.completed };
-                                  await handleUpdateNote({ todos: updatedTodos });
+                                  if (!todo.id) return;
+                                  const success = await NotesService.toggleTodo(todo.id, !todo.completed);
+                                  if (success) {
+                                    const updatedTodos = [...(openNote.todos || [])];
+                                    updatedTodos[index] = { ...todo, completed: !todo.completed };
+                                    setOpenNote({ ...openNote, todos: updatedTodos });
+                                    setNotes(prev => prev.map(note => note.id === openNote.id ? { ...note, todos: updatedTodos } : note));
+                                  }
                                 }}
                               />
                               <span className={todo.completed ? "line-through text-muted-foreground flex-1 text-sm" : "flex-1 text-sm"}>
@@ -1434,9 +1809,14 @@ const Index = () => {
                                 size="icon"
                                 className="h-6 w-6"
                                 onClick={async () => {
-                                  const updatedTodos = [...(openNote.todos || [])];
-                                  updatedTodos.splice(index, 1);
-                                  await handleUpdateNote({ todos: updatedTodos });
+                                  if (!todo.id) return;
+                                  const success = await NotesService.deleteTodo(todo.id);
+                                  if (success) {
+                                    const updatedTodos = openNote.todos.filter((_, i) => i !== index);
+                                    setOpenNote({ ...openNote, todos: updatedTodos });
+                                    setNotes(prev => prev.map(note => note.id === openNote.id ? { ...note, todos: updatedTodos } : note));
+                                    showSuccess("Tâche supprimée");
+                                  }
                                 }}
                               >
                                 <Trash2 className="h-3 w-3" />
@@ -1598,8 +1978,10 @@ const Index = () => {
             )}
           </div>
 
-          {/* Right Column: Todos & RSS Boxes side by side */}
-          <div className="grid grid-cols-2 gap-6">
+          {/* Right Column: Todos & RSS */}
+          <div className="space-y-6">
+            {/* Todos & RSS Boxes side by side */}
+            <div className="grid grid-cols-2 gap-6">
             {/* Todos Box */}
             <Card className="shadow-lg">
               <CardHeader className="pb-3">
@@ -1828,6 +2210,7 @@ const Index = () => {
               </CardContent>
             </Card>
 
+          </div>
           </div>
         </div>
       </div>
@@ -2222,9 +2605,13 @@ const Index = () => {
         label="Tâche"
         placeholder="Entrez la tâche..."
         onConfirm={async (text) => {
-          if (openNote) {
-            const updatedTodos = [...(openNote.todos || []), { text, completed: false }];
-            await handleUpdateNote({ todos: updatedTodos });
+          if (openNote?.id) {
+            const newTodo = await NotesService.addTodo(openNote.id, text);
+            if (newTodo) {
+              const updatedTodos = [...(openNote.todos || []), newTodo];
+              setOpenNote({ ...openNote, todos: updatedTodos });
+              setNotes(prev => prev.map(note => note.id === openNote.id ? { ...note, todos: updatedTodos } : note));
+            }
           }
         }}
         confirmText="Ajouter"
@@ -2238,6 +2625,13 @@ const Index = () => {
         placeholder="Entrez le nom du tag..."
         onConfirm={confirmAddTag}
         confirmText="Ajouter"
+      />
+
+      {/* Template Selector */}
+      <TemplateSelector
+        open={templateSelectorOpen}
+        onOpenChange={setTemplateSelectorOpen}
+        onSelectTemplate={handleCreateNoteFromTemplate}
       />
 
       {/* Add Event Modal */}
@@ -2598,13 +2992,14 @@ const Index = () => {
       {/* AI Chatbox */}
       {!chatOpen ? (
         <Button
-          className="fixed bottom-4 right-4 h-14 w-14 rounded-full shadow-lg"
+          className="fixed bottom-4 right-4 h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-all z-40"
           onClick={() => setChatOpen(true)}
+          title="Assistant IA"
         >
           <MessageSquare className="h-6 w-6" />
         </Button>
       ) : (
-        <Card className="fixed bottom-4 right-4 w-96 h-[600px] shadow-2xl flex flex-col">
+        <Card className="fixed bottom-4 right-4 w-96 h-[600px] shadow-2xl flex flex-col z-50">
           <CardHeader className="pb-3 border-b">
             <div className="flex items-center justify-between">
               <CardTitle className="text-lg flex items-center gap-2">
@@ -2615,8 +3010,20 @@ const Index = () => {
                 <Button
                   variant="ghost"
                   size="sm"
+                  onClick={() => {
+                    setChatExpandedModal(true);
+                    setChatOpen(false);
+                  }}
+                  title="Agrandir"
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={handleClearChat}
                   disabled={chatMessages.length === 0}
+                  title="Effacer la conversation"
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
@@ -2624,6 +3031,7 @@ const Index = () => {
                   variant="ghost"
                   size="sm"
                   onClick={() => setChatOpen(false)}
+                  title="Fermer"
                 >
                   <X className="h-4 w-4" />
                 </Button>
@@ -2792,6 +3200,154 @@ const Index = () => {
         </Card>
       )}
 
+      {/* Expanded Chat Modal */}
+      <Dialog open={chatExpandedModal} onOpenChange={setChatExpandedModal}>
+        <DialogContent className="max-w-4xl h-[80vh] flex flex-col p-0">
+          <DialogHeader className="px-6 pt-6 pb-3 border-b">
+            <div className="flex items-center justify-between">
+              <DialogTitle className="text-xl flex items-center gap-2">
+                <MessageSquare className="h-6 w-6" />
+                Assistant IA
+              </DialogTitle>
+              <div className="flex gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleClearChat}
+                  disabled={chatMessages.length === 0}
+                  title="Effacer la conversation"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            <div className="mt-3 flex gap-2">
+              <Popover open={modelSelectorOpen} onOpenChange={setModelSelectorOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={modelSelectorOpen}
+                    className="flex-1 justify-between text-xs h-9"
+                    disabled={chatLoading || loadingModels}
+                  >
+                    <span className="truncate">
+                      {loadingModels ? (
+                        "Chargement des modèles..."
+                      ) : openRouterModels.length === 0 ? (
+                        user?.is_admin ? "Configurer clé API OpenRouter" : "Aucun modèle IA configuré"
+                      ) : selectedModel ? (
+                        openRouterModels.find(m => m.id === selectedModel)?.name || selectedModel
+                      ) : (
+                        "Sélectionner un modèle"
+                      )}
+                    </span>
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[500px] p-0">
+                  <Command>
+                    <CommandInput placeholder="Rechercher un modèle..." />
+                    <CommandEmpty>Aucun modèle trouvé.</CommandEmpty>
+                    <CommandList>
+                      <CommandGroup>
+                        {openRouterModels.map((model) => (
+                          <CommandItem
+                            key={model.id}
+                            value={model.id}
+                            onSelect={(currentValue) => {
+                              setSelectedModel(currentValue);
+                              setModelSelectorOpen(false);
+                            }}
+                          >
+                            <Check
+                              className={`mr-2 h-4 w-4 ${selectedModel === model.id ? "opacity-100" : "opacity-0"
+                                }`}
+                            />
+                            <div className="flex flex-col">
+                              <span className="font-medium">{model.name}</span>
+                              <span className="text-xs text-muted-foreground">{model.id}</span>
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+            {chatMessages.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-center">
+                <MessageSquare className="h-16 w-16 text-muted-foreground mb-4" />
+                <h3 className="text-lg font-semibold mb-2">Bienvenue dans l'Assistant IA</h3>
+                <p className="text-sm text-muted-foreground max-w-md">
+                  Posez vos questions et obtenez des réponses intelligentes grâce à l'IA.
+                  {openRouterModels.length === 0 && user?.is_admin && (
+                    <span className="block mt-2">Configurez une clé API OpenRouter dans les paramètres.</span>
+                  )}
+                </p>
+              </div>
+            ) : (
+              chatMessages.map((msg, idx) => (
+                <div
+                  key={idx}
+                  className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div
+                    className={`max-w-[80%] rounded-lg px-4 py-3 ${msg.role === 'user'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted'
+                      }`}
+                  >
+                    <div className="whitespace-pre-wrap">{msg.content}</div>
+                  </div>
+                </div>
+              ))
+            )}
+            {chatLoading && (
+              <div className="flex justify-start">
+                <div className="bg-muted rounded-lg px-4 py-3">
+                  <div className="flex gap-1">
+                    <span className="animate-bounce">●</span>
+                    <span className="animate-bounce delay-100">●</span>
+                    <span className="animate-bounce delay-200">●</span>
+                  </div>
+                </div>
+              </div>
+            )}
+            <div ref={chatEndRef} />
+          </div>
+
+          <div className="border-t px-6 py-4">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSendMessage();
+              }}
+              className="flex gap-2"
+            >
+              <Input
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                placeholder="Posez une question..."
+                disabled={chatLoading || !selectedModel}
+                className="flex-1"
+              />
+              <Button
+                type="submit"
+                size="icon"
+                disabled={chatLoading || !chatInput.trim() || !selectedModel}
+              >
+                <Send className="h-4 w-4" />
+              </Button>
+            </form>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Image modal for fullscreen view */}
       {selectedImage && (
         <div
@@ -2816,6 +3372,41 @@ const Index = () => {
           </div>
         </div>
       )}
+
+      {/* Keyboard Shortcuts Help Modal */}
+      <KeyboardShortcutsHelp
+        open={showKeyboardHelp}
+        onOpenChange={setShowKeyboardHelp}
+        shortcuts={keyboardShortcuts}
+      />
+
+      {/* Statistics Modal */}
+      <StatsModal
+        open={showStatsDashboard}
+        onOpenChange={setShowStatsDashboard}
+        notes={notes}
+        todos={todos}
+      />
+
+      {/* Pomodoro Timer - Always mounted in hidden div to keep timer running */}
+      <div style={{ position: 'absolute', left: '-9999px', top: '-9999px' }}>
+        <PomodoroTimer onStateChange={handlePomodoroStateChange} />
+      </div>
+
+      {/* Pomodoro Timer Modal - Shows timer controls when opened */}
+      <Dialog open={showPomodoroModal} onOpenChange={setShowPomodoroModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-2xl">Pomodoro Timer</DialogTitle>
+          </DialogHeader>
+          <div className="mt-4">
+            <PomodoroTimer onStateChange={handlePomodoroStateChange} />
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Quick Capture Widget */}
+      <QuickCaptureWidget onNoteCaptured={loadNotes} />
     </div>
   );
 };

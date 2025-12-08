@@ -143,7 +143,10 @@ router.post('/chat', authenticateToken, async (req, res) => {
   try {
     const { model, messages } = req.body;
 
+    logger.info(`[OPENROUTER CHAT] Début requête - model: "${model}", messages: ${messages?.length || 0}`);
+
     if (!model || !messages || !Array.isArray(messages)) {
+      logger.warn('[OPENROUTER CHAT] Requête invalide - modèle ou messages manquants');
       return res.status(400).json({ error: 'Modèle et messages requis' });
     }
 
@@ -151,11 +154,21 @@ router.post('/chat', authenticateToken, async (req, res) => {
     const setting = await getOne('SELECT value FROM settings WHERE key = $1', ['openrouter_api_key']);
 
     if (!setting || !setting.value) {
-      return res.status(400).json({ error: 'Clé API OpenRouter non configurée' });
+      logger.warn('[OPENROUTER CHAT] Clé API non configurée');
+      return res.status(400).json({ error: 'Clé API OpenRouter non configurée. Allez dans Paramètres pour la configurer.' });
     }
+
+    logger.info(`[OPENROUTER CHAT] Clé API trouvée, appel à OpenRouter...`);
 
     // Appeler l'API OpenRouter
     const fetch = (await import('node-fetch')).default;
+    const requestBody = {
+      model: model,
+      messages: messages
+    };
+
+    logger.info(`[OPENROUTER CHAT] Requête OpenRouter: ${JSON.stringify({ model, messageCount: messages.length })}`);
+
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -164,25 +177,40 @@ router.post('/chat', authenticateToken, async (req, res) => {
         'X-Title': 'NoteFlow',
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        model: model,
-        messages: messages
-      })
+      body: JSON.stringify(requestBody)
     });
+
+    logger.info(`[OPENROUTER CHAT] Réponse reçue - status: ${response.status} ${response.statusText}`);
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      logger.error(`Erreur API OpenRouter chat: ${response.status}`, errorData);
+      const errorMessage = errorData.error?.message || errorData.error || `Erreur ${response.status}: ${response.statusText}`;
+
+      logger.error(`[OPENROUTER CHAT] Erreur API OpenRouter:`, {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorData
+      });
+
       return res.status(response.status).json({
-        error: errorData.error?.message || 'Erreur lors de la communication avec l\'IA'
+        error: errorMessage
       });
     }
 
     const data = await response.json();
+    logger.info(`[OPENROUTER CHAT] Succès - réponse générée (${data.choices?.[0]?.message?.content?.length || 0} caractères)`);
+
     res.json(data);
   } catch (error) {
-    logger.error('Erreur lors du chat OpenRouter:', error);
-    res.status(500).json({ error: 'Erreur serveur' });
+    logger.error('[OPENROUTER CHAT] Erreur exception:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
+
+    res.status(500).json({
+      error: `Erreur serveur: ${error.message || 'Erreur inconnue'}`
+    });
   }
 });
 

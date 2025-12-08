@@ -6,6 +6,9 @@ interface Todo {
   text: string;
   completed: boolean;
   position?: number;
+  due_date?: string;
+  parent_id?: number;
+  level?: number;
 }
 
 interface Image {
@@ -36,9 +39,9 @@ export interface Note {
 }
 
 class NotesService {
-  async getNotes(): Promise<Note[]> {
+  async getNotes(archived: boolean = false): Promise<Note[]> {
     try {
-      const response = await fetch("/api/notes", {
+      const response = await fetch(`/api/notes?archived=${archived}`, {
         headers: AuthService.getHeaders()
       });
 
@@ -213,6 +216,90 @@ class NotesService {
       }
 
       showSuccess(archived ? "Note archivée" : "Note désarchivée");
+      return true;
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "Erreur serveur");
+      return false;
+    }
+  }
+
+  // Todo management methods
+  async addTodo(noteId: number, text: string, dueDate?: string): Promise<Todo | null> {
+    try {
+      const payload: any = { text };
+      if (dueDate) {
+        payload.due_date = dueDate;
+      }
+
+      const response = await fetch(`/api/notes/${noteId}/todos`, {
+        method: "POST",
+        headers: AuthService.getHeaders(),
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        throw new Error("Erreur lors de l'ajout de la tâche");
+      }
+
+      const result = await response.json();
+      showSuccess("Tâche ajoutée");
+      return result.todo || result;
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "Erreur serveur");
+      return null;
+    }
+  }
+
+  async updateTodo(todoId: number, updates: Partial<Todo>): Promise<Todo | null> {
+    try {
+      const response = await fetch(`/api/notes/todos/${todoId}`, {
+        method: "PUT",
+        headers: AuthService.getHeaders(),
+        body: JSON.stringify(updates)
+      });
+
+      if (!response.ok) {
+        throw new Error("Erreur lors de la mise à jour de la tâche");
+      }
+
+      const result = await response.json();
+      return result.todo || result;
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "Erreur serveur");
+      return null;
+    }
+  }
+
+  async toggleTodo(todoId: number, completed: boolean): Promise<boolean> {
+    try {
+      const response = await fetch(`/api/notes/todos/${todoId}`, {
+        method: "PUT",
+        headers: AuthService.getHeaders(),
+        body: JSON.stringify({ completed })
+      });
+
+      if (!response.ok) {
+        throw new Error("Erreur lors de la mise à jour de la tâche");
+      }
+
+      return true;
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "Erreur serveur");
+      return false;
+    }
+  }
+
+  async deleteTodo(todoId: number): Promise<boolean> {
+    try {
+      const response = await fetch(`/api/notes/todos/${todoId}`, {
+        method: "DELETE",
+        headers: AuthService.getHeaders()
+      });
+
+      if (!response.ok) {
+        throw new Error("Erreur lors de la suppression de la tâche");
+      }
+
       return true;
     } catch (error) {
       showError(error instanceof Error ? error.message : "Erreur serveur");

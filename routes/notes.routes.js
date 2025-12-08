@@ -45,7 +45,7 @@ router.use(authenticateToken);
 router.get('/', async (req, res) => {
   try {
     const showArchived = req.query.archived === 'true';
-    const archivedFilter = showArchived ? 1 : 0;
+    const archivedFilter = showArchived; // BOOLEAN instead of 0/1
 
     const notes = await getAll(`
       SELECT
@@ -61,7 +61,7 @@ router.get('/', async (req, res) => {
     // Charger les todos, images, fichiers et tags pour chaque note
     for (const note of notes) {
       const todos = await getAll(`
-        SELECT id, text, completed, position
+        SELECT id, text, completed, position, parent_id, level
         FROM note_todos
         WHERE note_id = $1
         ORDER BY position ASC, id ASC
@@ -274,7 +274,7 @@ router.put('/:id/archive', async (req, res) => {
 
     await runQuery(
       'UPDATE notes SET archived = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
-      [archived ? 1 : 0, req.params.id]
+      [archived, req.params.id] // BOOLEAN instead of 0/1
     );
 
     logger.info(`Note ${archived ? 'archivée' : 'désarchivée'}: ${req.params.id}`);
@@ -391,10 +391,13 @@ router.delete('/:id/image', async (req, res) => {
 
 /**
  * POST /api/notes/:id/todos
- * Ajouter un todo à une note
+ * Ajouter un todo à une note (supports subtasks via parent_id)
  */
 router.post('/:id/todos',
-  [body('text').trim().notEmpty().withMessage('Le texte est requis')],
+  [
+    body('text').trim().notEmpty().withMessage('Le texte est requis'),
+    body('parent_id').optional().isInt()
+  ],
   async (req, res) => {
     try {
       const errors = validationResult(req);
@@ -408,17 +411,27 @@ router.post('/:id/todos',
         return res.status(404).json({ error: 'Note non trouvée' });
       }
 
-      const { text } = req.body;
+      const { text, parent_id } = req.body;
+      let level = 0;
 
-      logger.info(`[CREATE TODO] Ajout todo à note ${req.params.id}: "${text}"`);
+      // Si c'est un subtask, vérifier que le parent existe et calculer le niveau
+      if (parent_id) {
+        const parent = await getOne('SELECT id, level FROM note_todos WHERE id = $1 AND note_id = $2', [parent_id, req.params.id]);
+        if (!parent) {
+          return res.status(404).json({ error: 'Todo parent non trouvé' });
+        }
+        level = (parent.level || 0) + 1;
+      }
+
+      logger.info(`[CREATE TODO] Ajout todo à note ${req.params.id}: "${text}"${parent_id ? ` (subtask of ${parent_id})` : ''}`);
 
       const result = await runQuery(`
-        INSERT INTO note_todos (note_id, text, position)
-        VALUES ($1, $2, (SELECT COALESCE(MAX(position), FALSE) + 1 FROM note_todos WHERE note_id = $3))
+        INSERT INTO note_todos (note_id, text, parent_id, level, position)
+        VALUES ($1, $2, $3, $4, (SELECT COALESCE(MAX(position), 0) + 1 FROM note_todos WHERE note_id = $5 AND COALESCE(parent_id, 0) = COALESCE($6, 0)))
         RETURNING *
-      `, [req.params.id, text, req.params.id]);
+      `, [req.params.id, text, parent_id || null, level, req.params.id, parent_id || null]);
 
-      logger.info(`[CREATE TODO] Todo créé - ID: ${result.id}, note_id: ${req.params.id}`);
+      logger.info(`[CREATE TODO] Todo créé - ID: ${result.id}, note_id: ${req.params.id}, level: ${level}`);
 
       await runQuery('UPDATE notes SET updated_at = CURRENT_TIMESTAMP WHERE id = $1', [req.params.id]);
 
@@ -426,7 +439,9 @@ router.post('/:id/todos',
         id: result.id,
         text,
         completed: false,
-        position: 0
+        position: result.position || 0,
+        parent_id: parent_id || null,
+        level: level
       });
     } catch (error) {
       logger.error('Erreur lors de l\'ajout du todo:', error);
@@ -473,7 +488,7 @@ router.put('/todos/:todoId',
       if (completed !== undefined) {
         paramCount++;
         updates.push(`completed = $${paramCount}`);
-        params.push(completed ? 1 : 0);
+        params.push(completed); // BOOLEAN instead of 0/1
       }
       if (position !== undefined) {
         paramCount++;
@@ -957,7 +972,7 @@ router.patch('/:id/priority', async (req, res) => {
       return res.status(404).json({ error: 'Note non trouvée' });
     }
 
-    await runQuery('UPDATE notes SET priority = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [priority ? 1 : 0, req.params.id]);
+    await runQuery('UPDATE notes SET priority = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [priority ? 1 : 0, req.params.id]); // notes.priority is INTEGER not BOOLEAN
 
     logger.info(`Priorité de la note ${req.params.id} modifiée: ${priority}`);
     res.json({ message: 'Priorité modifiée avec succès', priority });

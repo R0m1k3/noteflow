@@ -56,12 +56,12 @@ router.post('/',
       // Hasher le mot de passe
       const passwordHash = await bcrypt.hash(password, 12);
 
-      logger.info(`[CREATE USER] Début création - username: "${username}", is_admin: ${is_admin ? 1 : 0}`);
+      logger.info(`[CREATE USER] Début création - username: "${username}", is_admin: ${is_admin || false}`);
 
       // Créer l'utilisateur
       const result = await runQuery(
         'INSERT INTO users (username, password_hash, is_admin) VALUES ($1, $2, $3) RETURNING *',
-        [username, passwordHash, is_admin ? 1 : 0]
+        [username, passwordHash, is_admin || false] // BOOLEAN instead of 0/1
       );
 
       logger.info(`[CREATE USER] Utilisateur créé avec succès - ID: ${result.id}, username: "${username}"`);
@@ -111,7 +111,7 @@ router.put('/:id',
 
       // Mettre à jour le statut admin si fourni
       if (typeof is_admin !== 'undefined') {
-        await runQuery('UPDATE users SET is_admin = $1 WHERE id = $2', [is_admin ? 1 : 0, userId]);
+        await runQuery('UPDATE users SET is_admin = $1 WHERE id = $2', [is_admin, userId]); // BOOLEAN instead of 0/1
       }
 
       logger.info(`Utilisateur modifié: ${user.username} (ID: ${userId})`);

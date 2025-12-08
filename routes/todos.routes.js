@@ -19,7 +19,7 @@ router.get('/', async (req, res) => {
     // Essayer d'abord avec le champ priority (nouvelle version)
     try {
       const todos = await getAll(`
-        SELECT id, text, completed, priority, in_progress, created_at
+        SELECT id, text, completed, priority, in_progress, parent_id, level, created_at
         FROM global_todos
         WHERE user_id = $1
         ORDER BY priority DESC, created_at DESC
@@ -38,7 +38,7 @@ router.get('/', async (req, res) => {
       `, [req.user.id]);
 
       // Ajouter priority=false et in_progress=false par défaut pour compatibilité frontend
-      const todosWithPriority = todos.map(t => ({ ...t, priority: false, in_progress: false }));
+      const todosWithPriority = todos.map(t => ({ ...t, priority: false, in_progress: false, parent_id: null, level: 0 }));
       res.json(todosWithPriority);
     }
   } catch (error) {
@@ -49,10 +49,13 @@ router.get('/', async (req, res) => {
 
 /**
  * POST /api/todos
- * Créer un nouveau todo global
+ * Créer un nouveau todo global (supports subtasks via parent_id)
  */
 router.post('/',
-  [body('text').trim().notEmpty().withMessage('Le texte est requis')],
+  [
+    body('text').trim().notEmpty().withMessage('Le texte est requis'),
+    body('parent_id').optional().isInt()
+  ],
   async (req, res) => {
     try {
       const errors = validationResult(req);
@@ -60,17 +63,27 @@ router.post('/',
         return res.status(400).json({ error: 'Données invalides', details: errors.array() });
       }
 
-      const { text } = req.body;
+      const { text, parent_id } = req.body;
+      let level = 0;
 
-      logger.info(`[CREATE GLOBAL TODO] Début création - user_id: ${req.user.id}, text: "${text}"`);
+      // Si c'est un subtask, vérifier que le parent existe et calculer le niveau
+      if (parent_id) {
+        const parent = await getOne('SELECT id, level FROM global_todos WHERE id = $1 AND user_id = $2', [parent_id, req.user.id]);
+        if (!parent) {
+          return res.status(404).json({ error: 'Todo parent non trouvé' });
+        }
+        level = (parent.level || 0) + 1;
+      }
+
+      logger.info(`[CREATE GLOBAL TODO] Début création - user_id: ${req.user.id}, text: "${text}"${parent_id ? ` (subtask of ${parent_id})` : ''}`);
 
       const result = await runQuery(`
-        INSERT INTO global_todos (user_id, text)
-        VALUES ($1, $2)
+        INSERT INTO global_todos (user_id, text, parent_id, level)
+        VALUES ($1, $2, $3, $4)
         RETURNING *
-      `, [req.user.id, text]);
+      `, [req.user.id, text, parent_id || null, level]);
 
-      logger.info(`[CREATE GLOBAL TODO] Todo global créé avec succès - ID: ${result.id}, user: ${req.user.username}`);
+      logger.info(`[CREATE GLOBAL TODO] Todo global créé avec succès - ID: ${result.id}, user: ${req.user.username}, level: ${level}`);
 
       res.status(201).json({
         id: result.id,
@@ -78,6 +91,8 @@ router.post('/',
         completed: false,
         priority: false,
         in_progress: false,
+        parent_id: parent_id || null,
+        level: level,
         created_at: new Date().toISOString()
       });
     } catch (error) {
@@ -125,17 +140,17 @@ router.put('/:id',
       if (completed !== undefined) {
         paramCount++;
         updates.push(`completed = $${paramCount}`);
-        params.push(completed ? 1 : 0);
+        params.push(completed); // BOOLEAN instead of 0/1
       }
       if (priority !== undefined) {
         paramCount++;
         updates.push(`priority = $${paramCount}`);
-        params.push(priority ? 1 : 0);
+        params.push(priority); // BOOLEAN instead of 0/1
       }
       if (in_progress !== undefined) {
         paramCount++;
         updates.push(`in_progress = $${paramCount}`);
-        params.push(in_progress ? 1 : 0);
+        params.push(in_progress ? 1 : 0); // global_todos.in_progress is INTEGER not BOOLEAN
       }
 
       if (updates.length > 0) {
@@ -164,12 +179,12 @@ router.patch('/:id/toggle', async (req, res) => {
       return res.status(404).json({ error: 'Todo non trouvé' });
     }
 
-    const newCompleted = todo.completed ? 0 : 1;
+    const newCompleted = !todo.completed; // BOOLEAN instead of 0/1
     await runQuery('UPDATE global_todos SET completed = $1 WHERE id = $2', [newCompleted, req.params.id]);
 
     logger.info(`Todo global ${newCompleted ? 'complété' : 'réouvert'} (ID: ${req.params.id}) par ${req.user.username}`);
 
-    res.json({ message: 'Todo modifié avec succès', completed: newCompleted === 1 });
+    res.json({ message: 'Todo modifié avec succès', completed: newCompleted });
   } catch (error) {
     logger.error('Erreur lors du toggle du todo:', error);
     res.status(500).json({ error: 'Erreur serveur' });
@@ -189,12 +204,12 @@ router.patch('/:id/priority', async (req, res) => {
         return res.status(404).json({ error: 'Todo non trouvé' });
       }
 
-      const newPriority = todo.priority ? 0 : 1;
+      const newPriority = !todo.priority; // BOOLEAN instead of 0/1
       await runQuery('UPDATE global_todos SET priority = $1 WHERE id = $2', [newPriority, req.params.id]);
 
       logger.info(`Todo global ${newPriority ? 'marqué prioritaire' : 'démarqué prioritaire'} (ID: ${req.params.id}) par ${req.user.username}`);
 
-      res.json({ message: 'Priorité modifiée avec succès', priority: newPriority === 1 });
+      res.json({ message: 'Priorité modifiée avec succès', priority: newPriority });
     } catch (priorityError) {
       // Si le champ priority n'existe pas encore, retourner un message d'erreur explicite
       if (priorityError.message && priorityError.message.includes('priority')) {
@@ -225,7 +240,7 @@ router.patch('/:id/in-progress', async (req, res) => {
         return res.status(404).json({ error: 'Todo non trouvé' });
       }
 
-      const newInProgress = todo.in_progress ? 0 : 1;
+      const newInProgress = todo.in_progress ? 0 : 1; // global_todos.in_progress is INTEGER not BOOLEAN
       await runQuery('UPDATE global_todos SET in_progress = $1 WHERE id = $2', [newInProgress, req.params.id]);
 
       logger.info(`Todo global ${newInProgress ? 'marqué en cours' : 'démarqué en cours'} (ID: ${req.params.id}) par ${req.user.username}`);

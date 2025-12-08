@@ -88,7 +88,7 @@ router.put('/feeds/:id', requireAdmin, async (req, res) => {
 
     await runQuery(
       'UPDATE rss_feeds SET enabled = $1 WHERE id = $2',
-      [enabled ? 1 : 0, req.params.id]
+      [enabled, req.params.id] // BOOLEAN instead of 0/1
     );
 
     logger.info(`Flux ${enabled ? 'activé' : 'désactivé'}: ${req.params.id}`);

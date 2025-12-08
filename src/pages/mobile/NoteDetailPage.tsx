@@ -17,7 +17,8 @@ import {
   Paperclip,
   Tag as TagIcon,
   X,
-  MoreVertical
+  MoreVertical,
+  FileDown
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -27,6 +28,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import NotesService, { Note } from "@/services/NotesService";
 import { showError, showSuccess } from "@/utils/toast";
+import { compressImage, formatFileSize } from "@/utils/imageCompression";
+import { downloadNoteAsMarkdown } from "@/utils/markdownExport";
 
 export default function NoteDetailPage() {
   const { id } = useParams();
@@ -80,41 +83,76 @@ export default function NoteDetailPage() {
   };
 
   const handleAddTodo = async () => {
-    if (!note || !todoText.trim()) return;
-    const newTodo = { text: todoText, completed: false };
-    const updatedTodos = [...(note.todos || []), newTodo];
-    await updateNote({ todos: updatedTodos });
-    setTodoText("");
-    setAddTodoModal(false);
-    showSuccess("Tâche ajoutée");
+    if (!note?.id || !todoText.trim()) return;
+    const newTodo = await NotesService.addTodo(note.id, todoText.trim());
+    if (newTodo) {
+      const updatedTodos = [...(note.todos || []), newTodo];
+      setNote({ ...note, todos: updatedTodos });
+      setTodoText("");
+      setAddTodoModal(false);
+    }
   };
 
   const handleToggleTodo = async (index: number) => {
     if (!note?.todos) return;
-    const updatedTodos = [...note.todos];
-    updatedTodos[index] = { ...updatedTodos[index], completed: !updatedTodos[index].completed };
-    await updateNote({ todos: updatedTodos });
+    const todo = note.todos[index];
+    if (!todo.id) return;
+
+    const success = await NotesService.toggleTodo(todo.id, !todo.completed);
+    if (success) {
+      const updatedTodos = [...note.todos];
+      updatedTodos[index] = { ...updatedTodos[index], completed: !updatedTodos[index].completed };
+      setNote({ ...note, todos: updatedTodos });
+    }
   };
 
   const handleDeleteTodo = async (index: number) => {
     if (!note?.todos) return;
-    const updatedTodos = [...note.todos];
-    updatedTodos.splice(index, 1);
-    await updateNote({ todos: updatedTodos });
-    showSuccess("Tâche supprimée");
+    const todo = note.todos[index];
+    if (!todo.id) return;
+
+    const success = await NotesService.deleteTodo(todo.id);
+    if (success) {
+      const updatedTodos = note.todos.filter((_, i) => i !== index);
+      setNote({ ...note, todos: updatedTodos });
+      showSuccess("Tâche supprimée");
+    }
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || !e.target.files[0] || !note?.id) return;
+
+    const originalFile = e.target.files[0];
+    const originalSize = formatFileSize(originalFile.size);
+
     try {
-      const image = await NotesService.uploadImage(note.id, e.target.files[0]);
+      // Compresser l'image avant l'upload
+      const compressedFile = await compressImage(originalFile);
+      const compressedSize = formatFileSize(compressedFile.size);
+
+      // Afficher un message si l'image a été compressée
+      if (compressedFile.size < originalFile.size) {
+        showSuccess(`Image compressée: ${originalSize} → ${compressedSize}`);
+      }
+
+      // Vérifier la taille finale (5MB max après compression)
+      const maxSize = 5 * 1024 * 1024; // 5MB
+      if (compressedFile.size > maxSize) {
+        showError("L'image est trop grande même après compression (max 5MB)");
+        e.target.value = '';
+        return;
+      }
+
+      const image = await NotesService.uploadImage(note.id, compressedFile);
       if (image) {
         const updatedImages = [...(note.images || []), image];
         setNote({ ...note, images: updatedImages });
         showSuccess("Image ajoutée");
+      } else {
+        showError("Erreur lors de l'upload de l'image");
       }
     } catch (error) {
-      showError("Erreur lors de l'upload");
+      showError(error instanceof Error ? error.message : "Erreur lors de l'upload");
     }
     e.target.value = '';
   };
@@ -163,6 +201,15 @@ export default function NoteDetailPage() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => {
+                if (note) {
+                  downloadNoteAsMarkdown(note);
+                  showSuccess("Note exportée en Markdown");
+                }
+              }}>
+                <FileDown className="h-4 w-4 mr-2" />
+                Exporter en Markdown
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={async () => {
                 if (note?.id) {
                   const newArchived = !note.archived;
@@ -216,7 +263,7 @@ export default function NoteDetailPage() {
           <input
             id="image-upload"
             type="file"
-            accept="image/*"
+            accept="image/jpeg,image/png,image/webp,image/gif"
             className="hidden"
             onChange={handleImageUpload}
           />
