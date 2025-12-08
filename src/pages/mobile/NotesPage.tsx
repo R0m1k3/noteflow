@@ -33,7 +33,7 @@ export default function NotesPage() {
 
   const loadNotes = async () => {
     try {
-      const data = await NotesService.getNotes();
+      const data = await NotesService.getNotes(showArchived);
       setNotes(data);
     } catch (error) {
       showError("Erreur lors du chargement des notes");
@@ -42,7 +42,7 @@ export default function NotesPage() {
 
   useEffect(() => {
     loadNotes();
-  }, []);
+  }, [showArchived]);
 
   // Extract unique tags from all notes
   const availableTags: TagOption[] = Array.from(

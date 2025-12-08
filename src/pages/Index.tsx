@@ -261,7 +261,7 @@ const Index = () => {
     const userFromAuth = AuthService.getUser();
     if (userFromAuth) {
       setUser(userFromAuth);
-      loadNotes();
+      loadNotes(); // Will use current showArchived state
       loadTodos();
       loadRssFeeds();
       loadRssArticles();
@@ -269,7 +269,14 @@ const Index = () => {
     } else {
       navigate("/login");
     }
-  }, [navigate]);
+  }, [navigate]); // Keep this for auth check
+
+  // Reload notes when showArchived changes
+  useEffect(() => {
+    if (user) {
+      loadNotes();
+    }
+  }, [showArchived]);
 
   // Auto-refresh des articles RSS toutes les 2 minutes
   useEffect(() => {
@@ -296,7 +303,7 @@ const Index = () => {
 
   const loadNotes = async () => {
     try {
-      const fetchedNotes = await NotesService.getNotes();
+      const fetchedNotes = await NotesService.getNotes(showArchived);
       if (Array.isArray(fetchedNotes)) {
         setNotes(fetchedNotes);
       }
