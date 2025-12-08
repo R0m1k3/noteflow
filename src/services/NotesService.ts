@@ -63,6 +63,23 @@ class NotesService {
     }
   }
 
+  async getCounts(): Promise<{ active: number; archived: number }> {
+    try {
+      const response = await fetch("/api/notes/counts", {
+        headers: AuthService.getHeaders()
+      });
+
+      if (!response.ok) {
+        throw new Error("Erreur lors de la récupération des compteurs");
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error("Erreur compteur:", error);
+      return { active: 0, archived: 0 };
+    }
+  }
+
   async createNote(title: string, content: string = ""): Promise<Note | null> {
     try {
       const response = await fetch("/api/notes", {
