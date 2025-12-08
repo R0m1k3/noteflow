@@ -39,9 +39,9 @@ export interface Note {
 }
 
 class NotesService {
-  async getNotes(): Promise<Note[]> {
+  async getNotes(archived: boolean = false): Promise<Note[]> {
     try {
-      const response = await fetch("/api/notes", {
+      const response = await fetch(`/api/notes?archived=${archived}`, {
         headers: AuthService.getHeaders()
       });
 
