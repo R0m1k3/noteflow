@@ -20,7 +20,7 @@ export default function NotesPage() {
 
   const loadNotes = async () => {
     try {
-      const data = await NotesService.getNotes();
+      const data = await NotesService.getNotes(showArchived);
       setNotes(data);
     } catch (error) {
       showError("Erreur lors du chargement des notes");
@@ -29,7 +29,7 @@ export default function NotesPage() {
 
   useEffect(() => {
     loadNotes();
-  }, []);
+  }, [showArchived]);
 
   const filteredNotes = notes
     .filter(note => {
@@ -129,9 +129,8 @@ export default function NotesPage() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className={`absolute -top-1 -right-1 h-8 w-8 ${
-                    note.priority ? 'opacity-100' : 'opacity-50'
-                  }`}
+                  className={`absolute -top-1 -right-1 h-8 w-8 ${note.priority ? 'opacity-100' : 'opacity-50'
+                    }`}
                   onClick={(e) => handleTogglePriority(note, e)}
                 >
                   <span className={`text-lg font-bold ${note.priority ? 'text-red-500' : 'text-muted-foreground'}`}>
