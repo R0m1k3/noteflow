@@ -19,6 +19,13 @@ export default function CalendarPage() {
   const [editEventModal, setEditEventModal] = useState<{ open: boolean; event?: CalendarEvent }>({ open: false });
   const [loading, setLoading] = useState(false);
 
+  // Form states
+  const [newEventTitle, setNewEventTitle] = useState("");
+  const [newEventDescription, setNewEventDescription] = useState("");
+  const [newEventLocation, setNewEventLocation] = useState("");
+  const [newEventStart, setNewEventStart] = useState("");
+  const [newEventEnd, setNewEventEnd] = useState("");
+
   const loadEvents = async () => {
     try {
       const data = await CalendarService.getEvents(100);
@@ -43,6 +50,92 @@ export default function CalendarPage() {
       showError("Erreur lors de la synchronisation");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const resetForm = () => {
+    setNewEventTitle("");
+    setNewEventDescription("");
+    setNewEventLocation("");
+    // Default start time: next hour
+    const now = new Date();
+    now.setMinutes(0, 0, 0);
+    now.setHours(now.getHours() + 1);
+    const end = new Date(now);
+    end.setHours(end.getHours() + 1);
+
+    // Format for datetime-local input (YYYY-MM-DDTHH:mm)
+    const formatDateTime = (date: Date) => {
+      const pad = (n: number) => n.toString().padStart(2, '0');
+      return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    };
+
+    setNewEventStart(formatDateTime(now));
+    setNewEventEnd(formatDateTime(end));
+  };
+
+  useEffect(() => {
+    if (addEventModal) {
+      resetForm();
+    }
+  }, [addEventModal]);
+
+  useEffect(() => {
+    if (editEventModal.open && editEventModal.event) {
+      const event = editEventModal.event;
+      setNewEventTitle(event.title);
+      setNewEventDescription(event.description || "");
+      setNewEventLocation(event.location || "");
+
+      const formatDateTime = (dateStr: string) => {
+        const date = new Date(dateStr);
+        const pad = (n: number) => n.toString().padStart(2, '0');
+        return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+      };
+
+      setNewEventStart(formatDateTime(event.start_time));
+      setNewEventEnd(formatDateTime(event.end_time));
+    }
+  }, [editEventModal.open]);
+
+  const handleCreateEvent = async () => {
+    if (!newEventTitle || !newEventStart || !newEventEnd) {
+      showError("Veuillez remplir les champs obligatoires");
+      return;
+    }
+
+    try {
+      await CalendarService.createEvent({
+        title: newEventTitle,
+        description: newEventDescription,
+        location: newEventLocation,
+        startDateTime: new Date(newEventStart).toISOString(),
+        endDateTime: new Date(newEventEnd).toISOString(),
+      });
+      showSuccess("Événement créé avec succès");
+      setAddEventModal(false);
+      loadEvents();
+    } catch (error) {
+      showError("Erreur lors de la création de l'événement");
+    }
+  };
+
+  const handleUpdateEvent = async () => {
+    if (!editEventModal.event || !newEventTitle || !newEventStart || !newEventEnd) return;
+
+    try {
+      await CalendarService.updateEvent(editEventModal.event.id, {
+        title: newEventTitle,
+        description: newEventDescription,
+        location: newEventLocation,
+        startDateTime: new Date(newEventStart).toISOString(),
+        endDateTime: new Date(newEventEnd).toISOString(),
+      });
+      showSuccess("Événement modifié avec succès");
+      setEditEventModal({ open: false });
+      loadEvents();
+    } catch (error) {
+      showError("Erreur lors de la modification de l'événement");
     }
   };
 
@@ -79,10 +172,9 @@ export default function CalendarPage() {
             return (
               <MobileCard
                 key={event.id}
-                className={`${
-                  isSoon ? 'border-red-500 bg-red-50 dark:bg-red-900/20' :
-                  isToday ? 'bg-red-50/50 dark:bg-red-900/10' : ''
-                }`}
+                className={`${isSoon ? 'border-red-500 bg-red-50 dark:bg-red-900/20' :
+                    isToday ? 'bg-red-50/50 dark:bg-red-900/10' : ''
+                  }`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div
@@ -158,27 +250,115 @@ export default function CalendarPage() {
       {/* FAB */}
       <MobileFAB icon={Plus} onClick={() => setAddEventModal(true)} label="Ajouter un événement" />
 
-      {/* Add Event Modal - Placeholder for now */}
+      {/* Add Event Modal */}
       <Dialog open={addEventModal} onOpenChange={setAddEventModal}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Nouvel événement</DialogTitle>
-            <DialogDescription>
-              Cette fonctionnalité sera disponible prochainement
-            </DialogDescription>
           </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Titre</Label>
+              <Input
+                placeholder="Titre de l'événement"
+                value={newEventTitle}
+                onChange={(e) => setNewEventTitle(e.target.value)}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Début</Label>
+                <Input
+                  type="datetime-local"
+                  value={newEventStart}
+                  onChange={(e) => setNewEventStart(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Fin</Label>
+                <Input
+                  type="datetime-local"
+                  value={newEventEnd}
+                  onChange={(e) => setNewEventEnd(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Lieu</Label>
+              <Input
+                placeholder="Lieu (optionnel)"
+                value={newEventLocation}
+                onChange={(e) => setNewEventLocation(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <Input
+                placeholder="Description (optionnel)"
+                value={newEventDescription}
+                onChange={(e) => setNewEventDescription(e.target.value)}
+              />
+            </div>
+            <Button className="w-full" onClick={handleCreateEvent}>
+              Créer l'événement
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 
-      {/* Edit Event Modal - Placeholder for now */}
+      {/* Edit Event Modal */}
       <Dialog open={editEventModal.open} onOpenChange={(open) => setEditEventModal({ open })}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Modifier l'événement</DialogTitle>
-            <DialogDescription>
-              Cette fonctionnalité sera disponible prochainement
-            </DialogDescription>
           </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Titre</Label>
+              <Input
+                placeholder="Titre de l'événement"
+                value={newEventTitle}
+                onChange={(e) => setNewEventTitle(e.target.value)}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Début</Label>
+                <Input
+                  type="datetime-local"
+                  value={newEventStart}
+                  onChange={(e) => setNewEventStart(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Fin</Label>
+                <Input
+                  type="datetime-local"
+                  value={newEventEnd}
+                  onChange={(e) => setNewEventEnd(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Lieu</Label>
+              <Input
+                placeholder="Lieu (optionnel)"
+                value={newEventLocation}
+                onChange={(e) => setNewEventLocation(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <Input
+                placeholder="Description (optionnel)"
+                value={newEventDescription}
+                onChange={(e) => setNewEventDescription(e.target.value)}
+              />
+            </div>
+            <Button className="w-full" onClick={handleUpdateEvent}>
+              Enregistrer les modifications
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
