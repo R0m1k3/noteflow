@@ -1,0 +1,12 @@
+{
+    "app": {
+        "title": "NoteFlow"
+    },
+    "common": {
+        "loading": "Loading...",
+        "error": "An error occurred",
+        "save": "Save",
+        "cancel": "Cancel",
+        "delete": "Delete"
+    }
+}
