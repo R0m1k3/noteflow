@@ -598,9 +598,15 @@ router.post('/sync', authenticateToken, async (req, res) => {
     logger.error('Erreur lors de la synchronisation avec Google Calendar:', error);
 
     // Si l'erreur est liée à l'authentification, renvoyer un statut 401
-    if (error.message.includes('authentifier') || error.message.includes('reconnecter')) {
+    const isAuthError =
+      error.message.includes('authentifier') ||
+      error.message.includes('reconnecter') ||
+      error.message.includes('invalid_grant') ||
+      (error.code === 401);
+
+    if (isAuthError) {
       return res.status(401).json({
-        error: error.message,
+        error: 'Erreur d\'authentification Google. Veuillez vous reconnecter.',
         needsReauth: true
       });
     }
@@ -753,6 +759,21 @@ router.post('/events', authenticateToken, async (req, res) => {
 
   } catch (error) {
     logger.error('Erreur lors de la création de l\'événement:', error);
+    // Si l'erreur est liée à l'authentification, renvoyer un statut 401
+    const isAuthError =
+      error.message.includes('authentifier') ||
+      error.message.includes('reconnecter') ||
+      error.message.includes('invalid_grant') ||
+      (error.code === 401);
+
+    if (isAuthError) {
+      return res.status(401).json({
+        error: 'Erreur d\'authentification Google. Veuillez vous reconnecter.',
+        needsReauth: true,
+        details: error.message
+      });
+    }
+
     res.status(500).json({
       error: 'Erreur lors de la création de l\'événement',
       details: error.message
@@ -865,6 +886,21 @@ router.put('/events/:id', authenticateToken, async (req, res) => {
 
   } catch (error) {
     logger.error('Erreur lors de la mise à jour de l\'événement:', error);
+    // Si l'erreur est liée à l'authentification, renvoyer un statut 401
+    const isAuthError =
+      error.message.includes('authentifier') ||
+      error.message.includes('reconnecter') ||
+      error.message.includes('invalid_grant') ||
+      (error.code === 401);
+
+    if (isAuthError) {
+      return res.status(401).json({
+        error: 'Erreur d\'authentification Google. Veuillez vous reconnecter.',
+        needsReauth: true,
+        details: error.message
+      });
+    }
+
     res.status(500).json({
       error: 'Erreur lors de la mise à jour de l\'événement',
       details: error.message
