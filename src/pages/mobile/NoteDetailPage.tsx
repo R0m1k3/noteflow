@@ -64,8 +64,8 @@ export default function NoteDetailPage() {
     if (!note) return;
     try {
       const updated = { ...note, ...updates };
-      await NotesService.updateNote(updated);
       setNote(updated);
+      await NotesService.updateNote(updated);
     } catch (error) {
       showError("Erreur lors de la sauvegarde");
     }
