@@ -39,37 +39,7 @@ export default function NoteDetailPage() {
   const [todoText, setTodoText] = useState("");
   const [deleteModal, setDeleteModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [titleInput, setTitleInput] = useState("");
-  const [isTitleInitialized, setIsTitleInitialized] = useState(false);
 
-  // Initial sync of title when note loads
-  useEffect(() => {
-    if (note && !isTitleInitialized) {
-      setTitleInput(note.title);
-      setIsTitleInitialized(true);
-    } else if (note && note.id !== parseInt(id || "0")) {
-      // Handle navigation between notes where id changes
-      setTitleInput(note.title);
-    }
-  }, [note, id, isTitleInitialized]);
-
-  // Debounced title update
-  useEffect(() => {
-    if (!note || !isTitleInitialized) return;
-
-    const timer = setTimeout(() => {
-      if (titleInput !== note.title) {
-        updateNote({ title: titleInput });
-      }
-    }, 500);
-
-    return () => clearTimeout(timer);
-  }, [titleInput, note, isTitleInitialized]);
-
-  // Reset initialization flag when id changes
-  useEffect(() => {
-    setIsTitleInitialized(false);
-  }, [id]);
 
   useEffect(() => {
     loadNote();
@@ -266,11 +236,24 @@ export default function NoteDetailPage() {
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {/* Title */}
         <Input
+          key={note.id /* Force re-mount when changing note to update defaultValue */}
           type="text"
           placeholder="Titre de la note"
           className="text-xl font-semibold border-none shadow-none px-0 focus-visible:ring-0"
-          value={titleInput}
-          onChange={(e) => setTitleInput(e.target.value)}
+          defaultValue={note.title || ""}
+          onBlur={(e) => updateNote({ title: e.target.value })}
+          onChange={(e) => {
+            // Optional: Debounced auto-save could go here if needed,
+            // but onBlur is sufficient for now and safest for "jumping cursor" issues.
+            // If we want auto-save while typing, we can implement it without binding 'value'.
+            const val = e.target.value;
+            const timer = setTimeout(() => {
+              if (val !== note.title) {
+                updateNote({ title: val });
+              }
+            }, 1000);
+            return () => clearTimeout(timer);
+          }}
         />
 
         {/* Action Buttons */}
