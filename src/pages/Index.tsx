@@ -35,8 +35,6 @@ import { AddUserModal } from "@/components/modals/AddUserModal";
 import { compressImage, formatFileSize } from "@/utils/imageCompression";
 import { ModeToggle } from "@/components/mode-toggle";
 import { downloadNoteAsMarkdown, downloadAllNotesAsMarkdown, downloadTodosAsMarkdown } from "@/utils/markdownExport";
-import { TemplateSelector } from "@/components/TemplateSelector";
-import type { NoteTemplate } from "@/utils/noteTemplates";
 import { AdvancedSearch, type SearchFilters, type TagOption } from "@/components/AdvancedSearch";
 import { PomodoroModal } from "@/components/PomodoroModal";
 import { PomodoroTimer } from "@/components/PomodoroTimer";
@@ -188,7 +186,6 @@ const Index = () => {
   const [addUserModal, setAddUserModal] = useState(false);
   const [deleteUserModal, setDeleteUserModal] = useState<{ open: boolean, userId?: number }>({ open: false });
   const [changePasswordModal, setChangePasswordModal] = useState<{ open: boolean, userId?: number }>({ open: false });
-  const [templateSelectorOpen, setTemplateSelectorOpen] = useState(false);
   const [addNoteTodoModal, setAddNoteTodoModal] = useState(false);
   const [addTagModal, setAddTagModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -487,32 +484,13 @@ const Index = () => {
     navigate("/login");
   };
 
-  const handleCreateNote = () => {
-    setTemplateSelectorOpen(true);
-  };
-
-  const handleCreateNoteFromTemplate = async (template: NoteTemplate) => {
+  const handleCreateNote = async () => {
     try {
-      const title = template.name === "Note vide" ? "Nouvelle note" : template.name;
-      const newNote = await NotesService.createNote(title, template.content);
+      const newNote = await NotesService.createNote("Nouvelle note", "");
       if (newNote) {
-        // Add todos if template has any
-        if (template.todos && template.todos.length > 0) {
-          for (const todo of template.todos) {
-            await NotesService.addTodo(newNote.id!, todo.text);
-          }
-          // Reload note to get the todos
-          const notes = await NotesService.getNotes();
-          const updatedNote = notes.find(n => n.id === newNote.id);
-          if (updatedNote) {
-            setNotes([updatedNote, ...notes.filter(n => n.id !== newNote.id)]);
-            setOpenNote(updatedNote);
-          }
-        } else {
-          setNotes([newNote, ...notes]);
-          setOpenNote(newNote);
-        }
-        showSuccess("Note créée depuis le template");
+        setNotes([newNote, ...notes]);
+        setOpenNote(newNote);
+        showSuccess("Note créée");
       }
     } catch (error) {
       showError("Erreur lors de la création de la note");
@@ -1558,7 +1536,7 @@ const Index = () => {
                     notes={filteredNotes}
                     onNoteClick={handleOpenNote}
                     onCreateNote={(columnId) => {
-                      setTemplateSelectorOpen(true);
+                      handleCreateNote();
                       // TODO: Set initial tag based on columnId
                     }}
                     onMoveNote={async (noteId, newStatus) => {
@@ -2634,11 +2612,7 @@ const Index = () => {
       />
 
       {/* Template Selector */}
-      <TemplateSelector
-        open={templateSelectorOpen}
-        onOpenChange={setTemplateSelectorOpen}
-        onSelectTemplate={handleCreateNoteFromTemplate}
-      />
+
 
       {/* Add Event Modal */}
       <Dialog open={addEventModal} onOpenChange={setAddEventModal}>
