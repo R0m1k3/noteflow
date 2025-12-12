@@ -39,6 +39,37 @@ export default function NoteDetailPage() {
   const [todoText, setTodoText] = useState("");
   const [deleteModal, setDeleteModal] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [titleInput, setTitleInput] = useState("");
+  const [isTitleInitialized, setIsTitleInitialized] = useState(false);
+
+  // Initial sync of title when note loads
+  useEffect(() => {
+    if (note && !isTitleInitialized) {
+      setTitleInput(note.title);
+      setIsTitleInitialized(true);
+    } else if (note && note.id !== parseInt(id || "0")) {
+      // Handle navigation between notes where id changes
+      setTitleInput(note.title);
+    }
+  }, [note, id, isTitleInitialized]);
+
+  // Debounced title update
+  useEffect(() => {
+    if (!note || !isTitleInitialized) return;
+
+    const timer = setTimeout(() => {
+      if (titleInput !== note.title) {
+        updateNote({ title: titleInput });
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [titleInput, note, isTitleInitialized]);
+
+  // Reset initialization flag when id changes
+  useEffect(() => {
+    setIsTitleInitialized(false);
+  }, [id]);
 
   useEffect(() => {
     loadNote();
@@ -238,8 +269,8 @@ export default function NoteDetailPage() {
           type="text"
           placeholder="Titre de la note"
           className="text-xl font-semibold border-none shadow-none px-0 focus-visible:ring-0"
-          value={note.title || ""}
-          onChange={(e) => updateNote({ title: e.target.value })}
+          value={titleInput}
+          onChange={(e) => setTitleInput(e.target.value)}
         />
 
         {/* Action Buttons */}
