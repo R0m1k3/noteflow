@@ -123,9 +123,20 @@ async function initDatabase() {
         archived BOOLEAN DEFAULT FALSE,
         archived_at TIMESTAMP,
         priority INTEGER DEFAULT 0,
+        created_via VARCHAR(20) DEFAULT 'web',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
+    `);
+
+    // Migration: ajouter la colonne created_via si elle n'existe pas
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'notes' AND column_name = 'created_via') THEN
+          ALTER TABLE notes ADD COLUMN created_via VARCHAR(20) DEFAULT 'web';
+        END IF;
+      END $$;
     `);
 
     // Table note_todos

@@ -74,7 +74,7 @@ router.get('/', async (req, res) => {
     const notes = await getAll(`
       SELECT
         n.id, n.title, n.content, n.image_filename, n.archived, n.priority,
-        n.created_at, n.updated_at,
+        n.created_via, n.created_at, n.updated_at,
         (SELECT COUNT(*) FROM note_todos WHERE note_id = n.id) as todos_count,
         (SELECT COUNT(*) FROM note_todos WHERE note_id = n.id AND completed = TRUE) as todos_completed
       FROM notes n
@@ -242,10 +242,10 @@ router.post('/full',
 
       logger.info(`[CREATE NOTE FULL] Début création - user_id: ${req.user.id}, title: "${title}", todos: ${todos.length}, tags: ${tags.length}`);
 
-      // 1. Créer la note
+      // 1. Créer la note (marquée comme créée via API)
       const noteResult = await runQuery(`
-        INSERT INTO notes (user_id, title, content)
-        VALUES ($1, $2, $3)
+        INSERT INTO notes (user_id, title, content, created_via)
+        VALUES ($1, $2, $3, 'api')
         RETURNING *
       `, [req.user.id, title, content || '']);
 
@@ -325,6 +325,7 @@ router.post('/full',
         image_filename: null,
         archived: false,
         priority: 0,
+        created_via: 'api',
         todos: createdTodos,
         tags: createdTags,
         images: [],
