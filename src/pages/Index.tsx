@@ -1397,7 +1397,7 @@ const Index = () => {
                         paginatedNotes.map(note => (
                           <Card
                             key={note.id}
-                            className="cursor-pointer hover:shadow-md transition-all group relative"
+                            className={`cursor-pointer hover:shadow-md transition-all group relative ${note.created_via === 'api' ? 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-900' : ''}`}
                             onClick={() => handleOpenNote(note)}
                           >
                             <CardContent className="p-4">
@@ -1451,6 +1451,12 @@ const Index = () => {
                                 {note.content ? cleanHtmlContent(note.content) : "Note vide"}
                               </p>
                               <div className="flex gap-2 flex-wrap mb-2">
+                                {note.created_via === 'api' && (
+                                  <Badge className="bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300 text-xs">
+                                    <Zap className="h-3 w-3 mr-1" />
+                                    API
+                                  </Badge>
+                                )}
                                 {note.todos && note.todos.length > 0 && (
                                   <Badge variant="secondary">
                                     <CheckSquare className="h-3 w-3 mr-1" />

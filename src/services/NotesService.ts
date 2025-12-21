@@ -29,6 +29,7 @@ export interface Note {
   title: string;
   content: string;
   archived?: boolean;
+  created_via?: 'web' | 'api';
   created_at?: string;
   updated_at?: string;
   todos: Todo[];
