@@ -5,6 +5,7 @@ interface User {
   id: number;
   username: string;
   is_admin: boolean;
+  has_api_key?: boolean;
   created_at?: string;
 }
 
@@ -132,6 +133,70 @@ class AdminService {
         success: false,
         message: error instanceof Error ? error.message : "Erreur serveur"
       };
+    }
+  }
+
+  /**
+   * Récupérer la clé API d'un utilisateur (génère si n'existe pas)
+   */
+  async getApiKey(userId: number): Promise<{ api_key: string; generated: boolean } | null> {
+    try {
+      const response = await fetch(`/api/users/${userId}/api-key`, {
+        headers: AuthService.getHeaders()
+      });
+
+      if (!response.ok) {
+        throw new Error("Erreur lors de la récupération de la clé API");
+      }
+
+      return await response.json();
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "Erreur serveur");
+      return null;
+    }
+  }
+
+  /**
+   * Régénérer la clé API d'un utilisateur
+   */
+  async regenerateApiKey(userId: number): Promise<{ api_key: string } | null> {
+    try {
+      const response = await fetch(`/api/users/${userId}/api-key/regenerate`, {
+        method: "POST",
+        headers: AuthService.getHeaders()
+      });
+
+      if (!response.ok) {
+        throw new Error("Erreur lors de la régénération de la clé API");
+      }
+
+      showSuccess("Clé API régénérée avec succès");
+      return await response.json();
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "Erreur serveur");
+      return null;
+    }
+  }
+
+  /**
+   * Révoquer la clé API d'un utilisateur
+   */
+  async revokeApiKey(userId: number): Promise<boolean> {
+    try {
+      const response = await fetch(`/api/users/${userId}/api-key`, {
+        method: "DELETE",
+        headers: AuthService.getHeaders()
+      });
+
+      if (!response.ok) {
+        throw new Error("Erreur lors de la révocation de la clé API");
+      }
+
+      showSuccess("Clé API révoquée avec succès");
+      return true;
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "Erreur serveur");
+      return false;
     }
   }
 }

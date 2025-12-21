@@ -97,8 +97,19 @@ async function initDatabase() {
         username VARCHAR(255) UNIQUE NOT NULL,
         password_hash VARCHAR(255) NOT NULL,
         is_admin BOOLEAN DEFAULT FALSE,
+        api_key VARCHAR(64) UNIQUE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
+    `);
+
+    // Migration: ajouter la colonne api_key si elle n'existe pas
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'api_key') THEN
+          ALTER TABLE users ADD COLUMN api_key VARCHAR(64) UNIQUE;
+        END IF;
+      END $$;
     `);
 
     // Table notes

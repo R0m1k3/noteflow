@@ -2,11 +2,20 @@
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
+const crypto = require('crypto');
 const { body, validationResult } = require('express-validator');
 
 const { getAll, getOne, runQuery } = require('../config/database');
 const { authenticateToken, requireAdmin } = require('../middleware/auth');
 const logger = require('../config/logger');
+
+/**
+ * Génère une clé API sécurisée
+ * Format: nf_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX (48 caractères hex)
+ */
+function generateApiKey() {
+  return 'nf_' + crypto.randomBytes(24).toString('hex');
+}
 
 // Toutes les routes nécessitent authentification et droits admin
 router.use(authenticateToken);
@@ -14,16 +23,99 @@ router.use(requireAdmin);
 
 /**
  * GET /api/users
- * Liste tous les utilisateurs
+ * Liste tous les utilisateurs (avec indication si clé API existe)
  */
 router.get('/', async (req, res) => {
   try {
     const users = await getAll(
-      'SELECT id, username, is_admin, created_at FROM users ORDER BY created_at DESC'
+      'SELECT id, username, is_admin, api_key, created_at FROM users ORDER BY created_at DESC'
     );
-    res.json(users);
+    // Ne pas exposer la clé complète, juste indiquer si elle existe
+    const usersWithApiKeyStatus = users.map(u => ({
+      ...u,
+      has_api_key: !!u.api_key,
+      api_key: undefined // Ne pas envoyer la clé dans la liste
+    }));
+    res.json(usersWithApiKeyStatus);
   } catch (error) {
     logger.error('Erreur lors de la récupération des utilisateurs:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+/**
+ * GET /api/users/:id/api-key
+ * Récupérer la clé API d'un utilisateur (génère si n'existe pas)
+ */
+router.get('/:id/api-key', async (req, res) => {
+  try {
+    const userId = req.params.id;
+
+    const user = await getOne('SELECT id, username, api_key FROM users WHERE id = $1', [userId]);
+    if (!user) {
+      return res.status(404).json({ error: 'Utilisateur non trouvé' });
+    }
+
+    // Si pas de clé API, en générer une
+    if (!user.api_key) {
+      const newApiKey = generateApiKey();
+      await runQuery('UPDATE users SET api_key = $1 WHERE id = $2', [newApiKey, userId]);
+      logger.info(`[API KEY] Clé API générée pour ${user.username} (ID: ${userId})`);
+      return res.json({ api_key: newApiKey, generated: true });
+    }
+
+    res.json({ api_key: user.api_key, generated: false });
+  } catch (error) {
+    logger.error('Erreur lors de la récupération de la clé API:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+/**
+ * POST /api/users/:id/api-key/regenerate
+ * Régénérer la clé API d'un utilisateur
+ */
+router.post('/:id/api-key/regenerate', async (req, res) => {
+  try {
+    const userId = req.params.id;
+
+    const user = await getOne('SELECT id, username FROM users WHERE id = $1', [userId]);
+    if (!user) {
+      return res.status(404).json({ error: 'Utilisateur non trouvé' });
+    }
+
+    const newApiKey = generateApiKey();
+    await runQuery('UPDATE users SET api_key = $1 WHERE id = $2', [newApiKey, userId]);
+
+    logger.info(`[API KEY] Clé API régénérée pour ${user.username} (ID: ${userId})`);
+
+    res.json({ api_key: newApiKey, message: 'Clé API régénérée avec succès' });
+  } catch (error) {
+    logger.error('Erreur lors de la régénération de la clé API:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+/**
+ * DELETE /api/users/:id/api-key
+ * Révoquer la clé API d'un utilisateur
+ */
+router.delete('/:id/api-key', async (req, res) => {
+  try {
+    const userId = req.params.id;
+
+    const user = await getOne('SELECT id, username FROM users WHERE id = $1', [userId]);
+    if (!user) {
+      return res.status(404).json({ error: 'Utilisateur non trouvé' });
+    }
+
+    await runQuery('UPDATE users SET api_key = NULL WHERE id = $1', [userId]);
+
+    logger.info(`[API KEY] Clé API révoquée pour ${user.username} (ID: ${userId})`);
+
+    res.json({ message: 'Clé API révoquée avec succès' });
+  } catch (error) {
+    logger.error('Erreur lors de la révocation de la clé API:', error);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });

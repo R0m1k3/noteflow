@@ -194,7 +194,7 @@ const Index = () => {
   const [showKeyboardHelp, setShowKeyboardHelp] = useState(false);
   const [showStatsDashboard, setShowStatsDashboard] = useState(false);
   const [showPomodoroModal, setShowPomodoroModal] = useState(false);
-  const [apiInfoModal, setApiInfoModal] = useState<{ open: boolean; user?: UserType }>({ open: false });
+  const [apiInfoModal, setApiInfoModal] = useState<{ open: boolean; user?: UserType; apiKey?: string; loading?: boolean }>({ open: false });
 
   // Pomodoro timer states
   const [pomodoroRunning, setPomodoroRunning] = useState(false);
@@ -2262,7 +2262,15 @@ const Index = () => {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => setApiInfoModal({ open: true, user: u })}
+                          onClick={async () => {
+                            setApiInfoModal({ open: true, user: u, loading: true });
+                            const result = await AdminService.getApiKey(u.id);
+                            if (result) {
+                              setApiInfoModal({ open: true, user: u, apiKey: result.api_key, loading: false });
+                            } else {
+                              setApiInfoModal({ open: true, user: u, loading: false });
+                            }
+                          }}
                         >
                           <Zap className="h-4 w-4 mr-2" />
                           API
@@ -2615,25 +2623,116 @@ const Index = () => {
               Informations API - {apiInfoModal.user?.username}
             </DialogTitle>
             <DialogDescription>
-              Détails de connexion et exemples d'utilisation de l'API
+              Clé API permanente et exemples d'utilisation
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-6 mt-4">
-            {/* Connexion */}
-            <div className="space-y-2">
-              <h3 className="font-semibold text-lg">1. Authentification</h3>
-              <p className="text-sm text-muted-foreground">
-                Obtenez un token JWT en vous connectant avec vos identifiants :
-              </p>
+            {/* Clé API permanente */}
+            <div className="space-y-3">
+              <h3 className="font-semibold text-lg flex items-center gap-2">
+                <Key className="h-5 w-5" />
+                Clé API (permanente)
+              </h3>
+
+              {apiInfoModal.loading ? (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                  Chargement...
+                </div>
+              ) : apiInfoModal.apiKey ? (
+                <div className="space-y-3">
+                  <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                    <p className="text-xs text-green-700 dark:text-green-300 mb-2 font-medium">
+                      Clé API active - Ne la partagez jamais !
+                    </p>
+                    <code className="block p-2 bg-white dark:bg-gray-800 border rounded text-sm font-mono break-all select-all">
+                      {apiInfoModal.apiKey}
+                    </code>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        navigator.clipboard.writeText(apiInfoModal.apiKey || '');
+                        showSuccess("Clé API copiée !");
+                      }}
+                    >
+                      Copier
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
+                        if (apiInfoModal.user) {
+                          const result = await AdminService.regenerateApiKey(apiInfoModal.user.id);
+                          if (result) {
+                            setApiInfoModal({ ...apiInfoModal, apiKey: result.api_key });
+                          }
+                        }
+                      }}
+                    >
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Régénérer
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={async () => {
+                        if (apiInfoModal.user) {
+                          const success = await AdminService.revokeApiKey(apiInfoModal.user.id);
+                          if (success) {
+                            setApiInfoModal({ ...apiInfoModal, apiKey: undefined });
+                            loadUsers();
+                          }
+                        }
+                      }}
+                    >
+                      Révoquer
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3 bg-muted rounded-lg">
+                  <p className="text-sm text-muted-foreground mb-2">
+                    Aucune clé API. Cliquez pour en générer une.
+                  </p>
+                  <Button
+                    size="sm"
+                    onClick={async () => {
+                      if (apiInfoModal.user) {
+                        setApiInfoModal({ ...apiInfoModal, loading: true });
+                        const result = await AdminService.getApiKey(apiInfoModal.user.id);
+                        if (result) {
+                          setApiInfoModal({ ...apiInfoModal, apiKey: result.api_key, loading: false });
+                          loadUsers();
+                        }
+                      }
+                    }}
+                  >
+                    <Key className="h-4 w-4 mr-2" />
+                    Générer une clé API
+                  </Button>
+                </div>
+              )}
+
               <div className="bg-muted p-3 rounded-lg font-mono text-sm overflow-x-auto">
+                <p className="text-xs text-muted-foreground mb-2 font-sans">Utilisation avec curl :</p>
+                <pre>{`curl ${window.location.origin}/api/notes \\
+  -H "X-API-Key: ${apiInfoModal.apiKey || 'VOTRE_CLE_API'}"`}</pre>
+              </div>
+            </div>
+
+            {/* Alternative JWT */}
+            <div className="space-y-2 border-t pt-4">
+              <h3 className="font-semibold text-sm text-muted-foreground">Alternative : Token JWT (expire après 24h)</h3>
+              <div className="bg-muted p-3 rounded-lg font-mono text-xs overflow-x-auto">
                 <pre>{`curl -X POST ${window.location.origin}/api/auth/login \\
   -H "Content-Type: application/json" \\
-  -d '{"username": "${apiInfoModal.user?.username}", "password": "VOTRE_MOT_DE_PASSE"}'`}</pre>
+  -d '{"username": "${apiInfoModal.user?.username}", "password": "MOT_DE_PASSE"}'`}</pre>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Réponse : <code className="bg-muted px-1 rounded">{`{"token": "eyJhbG...", "user": {...}}`}</code>
-              </p>
             </div>
 
             {/* Endpoints */}
@@ -2709,10 +2808,10 @@ const Index = () => {
             <div className="space-y-2">
               <h3 className="font-semibold text-lg">3. Exemple complet (curl)</h3>
               <div className="bg-muted p-3 rounded-lg font-mono text-sm overflow-x-auto">
-                <pre>{`# Créer une note avec tâches
+                <pre>{`# Créer une note avec tâches (clé API permanente)
 curl -X POST ${window.location.origin}/api/notes/full \\
   -H "Content-Type: application/json" \\
-  -H "Authorization: Bearer VOTRE_TOKEN" \\
+  -H "X-API-Key: ${apiInfoModal.apiKey || 'VOTRE_CLE_API'}" \\
   -d '{
     "title": "Liste de courses",
     "content": "Pour le weekend",
@@ -2727,13 +2826,14 @@ curl -X POST ${window.location.origin}/api/notes/full \\
             </div>
 
             {/* Info importante */}
-            <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-              <p className="text-sm font-semibold text-yellow-900 dark:text-yellow-200 mb-1">
-                ⚠️ Important
+            <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+              <p className="text-sm font-semibold text-green-900 dark:text-green-200 mb-1">
+                ✓ Clé API permanente
               </p>
-              <ul className="text-xs text-yellow-800 dark:text-yellow-300 space-y-1">
-                <li>• Le token expire après <strong>24 heures</strong></li>
-                <li>• Utilisez le header <code className="bg-yellow-100 dark:bg-yellow-800 px-1 rounded">Authorization: Bearer TOKEN</code></li>
+              <ul className="text-xs text-green-800 dark:text-green-300 space-y-1">
+                <li>• La clé API <strong>n'expire jamais</strong> (sauf si révoquée)</li>
+                <li>• Utilisez le header <code className="bg-green-100 dark:bg-green-800 px-1 rounded">X-API-Key: VOTRE_CLE</code></li>
+                <li>• Gardez votre clé secrète - ne la partagez jamais</li>
                 <li>• Les données sont isolées par utilisateur</li>
               </ul>
             </div>
