@@ -194,6 +194,7 @@ const Index = () => {
   const [showKeyboardHelp, setShowKeyboardHelp] = useState(false);
   const [showStatsDashboard, setShowStatsDashboard] = useState(false);
   const [showPomodoroModal, setShowPomodoroModal] = useState(false);
+  const [apiInfoModal, setApiInfoModal] = useState<{ open: boolean; user?: UserType; apiKey?: string; loading?: boolean }>({ open: false });
 
   // Pomodoro timer states
   const [pomodoroRunning, setPomodoroRunning] = useState(false);
@@ -2261,6 +2262,22 @@ const Index = () => {
                         <Button
                           variant="outline"
                           size="sm"
+                          onClick={async () => {
+                            setApiInfoModal({ open: true, user: u, loading: true });
+                            const result = await AdminService.getApiKey(u.id);
+                            if (result) {
+                              setApiInfoModal({ open: true, user: u, apiKey: result.api_key, loading: false });
+                            } else {
+                              setApiInfoModal({ open: true, user: u, loading: false });
+                            }
+                          }}
+                        >
+                          <Zap className="h-4 w-4 mr-2" />
+                          API
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
                           onClick={() => setChangePasswordModal({ open: true, userId: u.id })}
                         >
                           <Key className="h-4 w-4 mr-2" />
@@ -2596,6 +2613,239 @@ const Index = () => {
         confirmText="Modifier"
         type="password"
       />
+
+      {/* API Info Modal */}
+      <Dialog open={apiInfoModal.open} onOpenChange={(open) => setApiInfoModal({ open })}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Zap className="h-5 w-5" />
+              Informations API - {apiInfoModal.user?.username}
+            </DialogTitle>
+            <DialogDescription>
+              Clé API permanente et exemples d'utilisation
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6 mt-4">
+            {/* Clé API permanente */}
+            <div className="space-y-3">
+              <h3 className="font-semibold text-lg flex items-center gap-2">
+                <Key className="h-5 w-5" />
+                Clé API (permanente)
+              </h3>
+
+              {apiInfoModal.loading ? (
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                  Chargement...
+                </div>
+              ) : apiInfoModal.apiKey ? (
+                <div className="space-y-3">
+                  <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                    <p className="text-xs text-green-700 dark:text-green-300 mb-2 font-medium">
+                      Clé API active - Ne la partagez jamais !
+                    </p>
+                    <code className="block p-2 bg-white dark:bg-gray-800 border rounded text-sm font-mono break-all select-all">
+                      {apiInfoModal.apiKey}
+                    </code>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        navigator.clipboard.writeText(apiInfoModal.apiKey || '');
+                        showSuccess("Clé API copiée !");
+                      }}
+                    >
+                      Copier
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
+                        if (apiInfoModal.user) {
+                          const result = await AdminService.regenerateApiKey(apiInfoModal.user.id);
+                          if (result) {
+                            setApiInfoModal({ ...apiInfoModal, apiKey: result.api_key });
+                          }
+                        }
+                      }}
+                    >
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Régénérer
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={async () => {
+                        if (apiInfoModal.user) {
+                          const success = await AdminService.revokeApiKey(apiInfoModal.user.id);
+                          if (success) {
+                            setApiInfoModal({ ...apiInfoModal, apiKey: undefined });
+                            loadUsers();
+                          }
+                        }
+                      }}
+                    >
+                      Révoquer
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3 bg-muted rounded-lg">
+                  <p className="text-sm text-muted-foreground mb-2">
+                    Aucune clé API. Cliquez pour en générer une.
+                  </p>
+                  <Button
+                    size="sm"
+                    onClick={async () => {
+                      if (apiInfoModal.user) {
+                        setApiInfoModal({ ...apiInfoModal, loading: true });
+                        const result = await AdminService.getApiKey(apiInfoModal.user.id);
+                        if (result) {
+                          setApiInfoModal({ ...apiInfoModal, apiKey: result.api_key, loading: false });
+                          loadUsers();
+                        }
+                      }
+                    }}
+                  >
+                    <Key className="h-4 w-4 mr-2" />
+                    Générer une clé API
+                  </Button>
+                </div>
+              )}
+
+              <div className="bg-muted p-3 rounded-lg font-mono text-sm overflow-x-auto">
+                <p className="text-xs text-muted-foreground mb-2 font-sans">Utilisation avec curl :</p>
+                <pre>{`curl ${window.location.origin}/api/notes \\
+  -H "X-API-Key: ${apiInfoModal.apiKey || 'VOTRE_CLE_API'}"`}</pre>
+              </div>
+            </div>
+
+            {/* Alternative JWT */}
+            <div className="space-y-2 border-t pt-4">
+              <h3 className="font-semibold text-sm text-muted-foreground">Alternative : Token JWT (expire après 24h)</h3>
+              <div className="bg-muted p-3 rounded-lg font-mono text-xs overflow-x-auto">
+                <pre>{`curl -X POST ${window.location.origin}/api/auth/login \\
+  -H "Content-Type: application/json" \\
+  -d '{"username": "${apiInfoModal.user?.username}", "password": "MOT_DE_PASSE"}'`}</pre>
+              </div>
+            </div>
+
+            {/* Endpoints */}
+            <div className="space-y-2">
+              <h3 className="font-semibold text-lg">2. Endpoints disponibles</h3>
+              <div className="space-y-3">
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Badge className="bg-green-600">POST</Badge>
+                      <code className="text-sm">/api/notes/full</code>
+                    </div>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      Créer une note complète avec titre, contenu, tâches et tags
+                    </p>
+                    <div className="bg-muted p-2 rounded text-xs font-mono overflow-x-auto">
+                      <pre>{`{
+  "title": "Ma note",
+  "content": "Contenu de la note",
+  "todos": [
+    { "text": "Tâche 1", "priority": true },
+    { "text": "Tâche 2", "subtasks": [{ "text": "Sous-tâche" }] }
+  ],
+  "tags": ["important", "travail"]
+}`}</pre>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Badge className="bg-blue-600">PUT</Badge>
+                      <code className="text-sm">/api/notes/:id/full</code>
+                    </div>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      Mettre à jour une note avec option de remplacement des tâches/tags
+                    </p>
+                    <div className="bg-muted p-2 rounded text-xs font-mono overflow-x-auto">
+                      <pre>{`{
+  "title": "Nouveau titre",
+  "todos": [{ "text": "Nouvelle tâche" }],
+  "replace_todos": true,
+  "replace_tags": false
+}`}</pre>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Badge className="bg-green-600">POST</Badge>
+                      <code className="text-sm">/api/notes/:id/todos/batch</code>
+                    </div>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      Ajouter plusieurs tâches en lot à une note existante
+                    </p>
+                    <div className="bg-muted p-2 rounded text-xs font-mono overflow-x-auto">
+                      <pre>{`{
+  "todos": [
+    { "text": "Tâche 1" },
+    { "text": "Tâche 2", "priority": true }
+  ]
+}`}</pre>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+
+            {/* Exemple complet */}
+            <div className="space-y-2">
+              <h3 className="font-semibold text-lg">3. Exemple complet (curl)</h3>
+              <div className="bg-muted p-3 rounded-lg font-mono text-sm overflow-x-auto">
+                <pre>{`# Créer une note avec tâches (clé API permanente)
+curl -X POST ${window.location.origin}/api/notes/full \\
+  -H "Content-Type: application/json" \\
+  -H "X-API-Key: ${apiInfoModal.apiKey || 'VOTRE_CLE_API'}" \\
+  -d '{
+    "title": "Liste de courses",
+    "content": "Pour le weekend",
+    "todos": [
+      { "text": "Pain" },
+      { "text": "Lait" },
+      { "text": "Fruits" }
+    ],
+    "tags": ["courses"]
+  }'`}</pre>
+              </div>
+            </div>
+
+            {/* Info importante */}
+            <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+              <p className="text-sm font-semibold text-green-900 dark:text-green-200 mb-1">
+                ✓ Clé API permanente
+              </p>
+              <ul className="text-xs text-green-800 dark:text-green-300 space-y-1">
+                <li>• La clé API <strong>n'expire jamais</strong> (sauf si révoquée)</li>
+                <li>• Utilisez le header <code className="bg-green-100 dark:bg-green-800 px-1 rounded">X-API-Key: VOTRE_CLE</code></li>
+                <li>• Gardez votre clé secrète - ne la partagez jamais</li>
+                <li>• Les données sont isolées par utilisateur</li>
+              </ul>
+            </div>
+
+            {/* URL de base */}
+            <div className="p-3 bg-muted rounded-lg">
+              <p className="text-sm font-medium mb-1">URL de base de l'API</p>
+              <code className="text-sm text-primary">{window.location.origin}/api</code>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <InputModal
         open={addNoteTodoModal}

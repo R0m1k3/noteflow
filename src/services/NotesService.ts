@@ -323,6 +323,130 @@ class NotesService {
       return false;
     }
   }
+
+  /**
+   * Créer une note complète avec titre, contenu, tâches et tags en une seule requête
+   */
+  async createNoteFull(data: {
+    title: string;
+    content?: string;
+    todos?: Array<{
+      text: string;
+      completed?: boolean;
+      priority?: boolean;
+      subtasks?: Array<{ text: string; completed?: boolean; priority?: boolean }>;
+    }>;
+    tags?: string[];
+  }): Promise<Note | null> {
+    try {
+      const response = await fetch("/api/notes/full", {
+        method: "POST",
+        headers: AuthService.getHeaders(),
+        body: JSON.stringify(data)
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Erreur lors de la création de la note");
+      }
+
+      showSuccess("Note créée avec succès");
+      const note = await response.json();
+      return {
+        ...note,
+        todos: note.todos || [],
+        images: note.images || [],
+        tags: note.tags || []
+      };
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "Erreur serveur");
+      return null;
+    }
+  }
+
+  /**
+   * Mettre à jour une note complète avec titre, contenu, tâches et tags
+   * @param replace_todos - Si true, remplace toutes les tâches existantes
+   * @param replace_tags - Si true, remplace tous les tags existants
+   */
+  async updateNoteFull(
+    noteId: number,
+    data: {
+      title?: string;
+      content?: string;
+      todos?: Array<{
+        text: string;
+        completed?: boolean;
+        priority?: boolean;
+        subtasks?: Array<{ text: string; completed?: boolean; priority?: boolean }>;
+      }>;
+      tags?: string[];
+      replace_todos?: boolean;
+      replace_tags?: boolean;
+    }
+  ): Promise<Note | null> {
+    try {
+      const response = await fetch(`/api/notes/${noteId}/full`, {
+        method: "PUT",
+        headers: AuthService.getHeaders(),
+        body: JSON.stringify(data)
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Erreur lors de la mise à jour de la note");
+      }
+
+      const result = await response.json();
+      showSuccess("Note mise à jour avec succès");
+
+      if (result.note) {
+        return {
+          ...result.note,
+          todos: result.note.todos || [],
+          images: result.note.images || [],
+          tags: result.note.tags || []
+        };
+      }
+      return null;
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "Erreur serveur");
+      return null;
+    }
+  }
+
+  /**
+   * Ajouter plusieurs tâches à une note en une seule requête
+   */
+  async addTodosBatch(
+    noteId: number,
+    todos: Array<{
+      text: string;
+      completed?: boolean;
+      priority?: boolean;
+      subtasks?: Array<{ text: string; completed?: boolean; priority?: boolean }>;
+    }>
+  ): Promise<Todo[] | null> {
+    try {
+      const response = await fetch(`/api/notes/${noteId}/todos/batch`, {
+        method: "POST",
+        headers: AuthService.getHeaders(),
+        body: JSON.stringify({ todos })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Erreur lors de l'ajout des tâches");
+      }
+
+      const result = await response.json();
+      showSuccess(`${result.todos?.length || 0} tâche(s) ajoutée(s)`);
+      return result.todos || [];
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "Erreur serveur");
+      return null;
+    }
+  }
 }
 
 export default new NotesService();
