@@ -221,6 +221,385 @@ router.post('/',
 );
 
 /**
+ * POST /api/notes/full
+ * Créer une note complète avec tâches et tags en une seule requête
+ */
+router.post('/full',
+  [
+    body('title').trim().notEmpty().withMessage('Le titre est requis'),
+    body('content').optional(),
+    body('todos').optional().isArray(),
+    body('tags').optional().isArray()
+  ],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ error: 'Données invalides', details: errors.array() });
+      }
+
+      const { title, content, todos = [], tags = [] } = req.body;
+
+      logger.info(`[CREATE NOTE FULL] Début création - user_id: ${req.user.id}, title: "${title}", todos: ${todos.length}, tags: ${tags.length}`);
+
+      // 1. Créer la note
+      const noteResult = await runQuery(`
+        INSERT INTO notes (user_id, title, content)
+        VALUES ($1, $2, $3)
+        RETURNING *
+      `, [req.user.id, title, content || '']);
+
+      const noteId = noteResult.id;
+      const createdTodos = [];
+      const createdTags = [];
+
+      // 2. Créer les todos (avec support des subtasks)
+      const createTodosRecursive = async (todoList, parentId = null, level = 0) => {
+        let position = 0;
+        for (const todo of todoList) {
+          position++;
+          const todoResult = await runQuery(`
+            INSERT INTO note_todos (note_id, text, completed, priority, position, parent_id, level)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            RETURNING *
+          `, [
+            noteId,
+            todo.text,
+            todo.completed || false,
+            todo.priority || false,
+            position,
+            parentId,
+            level
+          ]);
+
+          const createdTodo = {
+            id: todoResult.id,
+            text: todoResult.text,
+            completed: todoResult.completed,
+            priority: todoResult.priority,
+            position: todoResult.position,
+            parent_id: todoResult.parent_id,
+            level: todoResult.level
+          };
+
+          // Traiter les subtasks si présents
+          if (todo.subtasks && Array.isArray(todo.subtasks) && todo.subtasks.length > 0) {
+            createdTodo.subtasks = [];
+            const subtasks = await createTodosRecursive(todo.subtasks, todoResult.id, level + 1);
+            createdTodo.subtasks = subtasks;
+          }
+
+          createdTodos.push(createdTodo);
+        }
+        return createdTodos.filter(t => t.parent_id === parentId);
+      };
+
+      await createTodosRecursive(todos);
+
+      // 3. Créer les tags
+      for (const tag of tags) {
+        const tagName = typeof tag === 'string' ? tag.trim().toLowerCase() : tag.name?.trim().toLowerCase();
+        if (tagName) {
+          try {
+            const tagResult = await runQuery(`
+              INSERT INTO note_tags (note_id, tag)
+              VALUES ($1, $2)
+              RETURNING *
+            `, [noteId, tagName]);
+            createdTags.push({ id: tagResult.id, name: tagResult.tag });
+          } catch (err) {
+            // Ignorer les doublons
+            if (!err.message?.includes('UNIQUE')) {
+              throw err;
+            }
+          }
+        }
+      }
+
+      logger.info(`[CREATE NOTE FULL] Note créée avec succès - ID: ${noteId}, todos: ${createdTodos.length}, tags: ${createdTags.length}`);
+
+      res.status(201).json({
+        id: noteId,
+        title,
+        content: content || '',
+        image_filename: null,
+        archived: false,
+        priority: 0,
+        todos: createdTodos,
+        tags: createdTags,
+        images: [],
+        files: [],
+        created_at: noteResult.created_at,
+        updated_at: noteResult.updated_at
+      });
+    } catch (error) {
+      logger.error('Erreur lors de la création de la note complète:', error);
+      res.status(500).json({ error: 'Erreur serveur' });
+    }
+  }
+);
+
+/**
+ * PUT /api/notes/:id/full
+ * Mise à jour complète d'une note avec ses tâches et tags
+ */
+router.put('/:id/full',
+  [
+    body('title').optional().trim().notEmpty(),
+    body('content').optional(),
+    body('todos').optional().isArray(),
+    body('tags').optional().isArray(),
+    body('replace_todos').optional().isBoolean(),
+    body('replace_tags').optional().isBoolean()
+  ],
+  async (req, res) => {
+    try {
+      const { title, content, todos, tags, replace_todos = false, replace_tags = false } = req.body;
+      const noteId = req.params.id;
+
+      // Vérifier que la note appartient à l'utilisateur
+      const note = await getOne('SELECT id FROM notes WHERE id = $1 AND user_id = $2', [noteId, req.user.id]);
+      if (!note) {
+        return res.status(404).json({ error: 'Note non trouvée' });
+      }
+
+      logger.info(`[UPDATE NOTE FULL] Mise à jour - note_id: ${noteId}, replace_todos: ${replace_todos}, replace_tags: ${replace_tags}`);
+
+      // 1. Mettre à jour la note
+      const updates = [];
+      const params = [];
+      let paramCount = 0;
+
+      if (title !== undefined) {
+        paramCount++;
+        updates.push(`title = $${paramCount}`);
+        params.push(title);
+      }
+      if (content !== undefined) {
+        paramCount++;
+        updates.push(`content = $${paramCount}`);
+        params.push(content);
+      }
+
+      if (updates.length > 0) {
+        updates.push('updated_at = CURRENT_TIMESTAMP');
+        paramCount++;
+        params.push(noteId);
+        await runQuery(`UPDATE notes SET ${updates.join(', ')} WHERE id = $${paramCount}`, params);
+      }
+
+      const createdTodos = [];
+      const createdTags = [];
+
+      // 2. Gérer les todos
+      if (todos !== undefined) {
+        if (replace_todos) {
+          // Supprimer tous les todos existants
+          await runQuery('DELETE FROM note_todos WHERE note_id = $1', [noteId]);
+        }
+
+        // Créer les nouveaux todos
+        const createTodosRecursive = async (todoList, parentId = null, level = 0) => {
+          let position = 0;
+          for (const todo of todoList) {
+            position++;
+            const todoResult = await runQuery(`
+              INSERT INTO note_todos (note_id, text, completed, priority, position, parent_id, level)
+              VALUES ($1, $2, $3, $4, $5, $6, $7)
+              RETURNING *
+            `, [
+              noteId,
+              todo.text,
+              todo.completed || false,
+              todo.priority || false,
+              position,
+              parentId,
+              level
+            ]);
+
+            const createdTodo = {
+              id: todoResult.id,
+              text: todoResult.text,
+              completed: todoResult.completed,
+              priority: todoResult.priority,
+              position: todoResult.position,
+              parent_id: todoResult.parent_id,
+              level: todoResult.level
+            };
+
+            if (todo.subtasks && Array.isArray(todo.subtasks) && todo.subtasks.length > 0) {
+              createdTodo.subtasks = [];
+              await createTodosRecursive(todo.subtasks, todoResult.id, level + 1);
+            }
+
+            createdTodos.push(createdTodo);
+          }
+        };
+
+        await createTodosRecursive(todos);
+      }
+
+      // 3. Gérer les tags
+      if (tags !== undefined) {
+        if (replace_tags) {
+          // Supprimer tous les tags existants
+          await runQuery('DELETE FROM note_tags WHERE note_id = $1', [noteId]);
+        }
+
+        // Créer les nouveaux tags
+        for (const tag of tags) {
+          const tagName = typeof tag === 'string' ? tag.trim().toLowerCase() : tag.name?.trim().toLowerCase();
+          if (tagName) {
+            try {
+              const tagResult = await runQuery(`
+                INSERT INTO note_tags (note_id, tag)
+                VALUES ($1, $2)
+                RETURNING *
+              `, [noteId, tagName]);
+              createdTags.push({ id: tagResult.id, name: tagResult.tag });
+            } catch (err) {
+              if (!err.message?.includes('UNIQUE')) {
+                throw err;
+              }
+            }
+          }
+        }
+      }
+
+      // Mettre à jour updated_at
+      await runQuery('UPDATE notes SET updated_at = CURRENT_TIMESTAMP WHERE id = $1', [noteId]);
+
+      // Récupérer la note mise à jour
+      const updatedNote = await getOne(`
+        SELECT id, title, content, image_filename, archived, priority, created_at, updated_at
+        FROM notes WHERE id = $1
+      `, [noteId]);
+
+      // Récupérer tous les todos de la note
+      const allTodos = await getAll(`
+        SELECT id, text, completed, priority, position, parent_id, level
+        FROM note_todos WHERE note_id = $1
+        ORDER BY position ASC, id ASC
+      `, [noteId]);
+
+      // Récupérer tous les tags de la note
+      const allTags = await getAll(`
+        SELECT id, tag as name FROM note_tags WHERE note_id = $1
+        ORDER BY tag ASC
+      `, [noteId]);
+
+      logger.info(`[UPDATE NOTE FULL] Mise à jour réussie - note_id: ${noteId}`);
+
+      res.json({
+        message: 'Note mise à jour avec succès',
+        note: {
+          ...updatedNote,
+          todos: allTodos || [],
+          tags: allTags || []
+        }
+      });
+    } catch (error) {
+      logger.error('Erreur lors de la mise à jour complète de la note:', error);
+      res.status(500).json({ error: 'Erreur serveur' });
+    }
+  }
+);
+
+/**
+ * POST /api/notes/:id/todos/batch
+ * Ajouter plusieurs tâches à une note en une seule requête
+ */
+router.post('/:id/todos/batch',
+  [
+    body('todos').isArray({ min: 1 }).withMessage('Au moins une tâche est requise'),
+    body('todos.*.text').trim().notEmpty().withMessage('Le texte de chaque tâche est requis')
+  ],
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ error: 'Données invalides', details: errors.array() });
+      }
+
+      const noteId = req.params.id;
+      const { todos } = req.body;
+
+      // Vérifier que la note appartient à l'utilisateur
+      const note = await getOne('SELECT id FROM notes WHERE id = $1 AND user_id = $2', [noteId, req.user.id]);
+      if (!note) {
+        return res.status(404).json({ error: 'Note non trouvée' });
+      }
+
+      logger.info(`[CREATE TODOS BATCH] Ajout de ${todos.length} tâches à la note ${noteId}`);
+
+      const createdTodos = [];
+
+      // Créer les todos récursivement
+      const createTodosRecursive = async (todoList, parentId = null, level = 0) => {
+        // Récupérer la position max actuelle
+        const maxPosResult = await getOne(`
+          SELECT COALESCE(MAX(position), 0) as max_pos
+          FROM note_todos
+          WHERE note_id = $1 AND COALESCE(parent_id, 0) = COALESCE($2, 0)
+        `, [noteId, parentId]);
+        let position = maxPosResult?.max_pos || 0;
+
+        for (const todo of todoList) {
+          position++;
+          const todoResult = await runQuery(`
+            INSERT INTO note_todos (note_id, text, completed, priority, position, parent_id, level)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            RETURNING *
+          `, [
+            noteId,
+            todo.text,
+            todo.completed || false,
+            todo.priority || false,
+            position,
+            parentId,
+            level
+          ]);
+
+          const createdTodo = {
+            id: todoResult.id,
+            text: todoResult.text,
+            completed: todoResult.completed,
+            priority: todoResult.priority,
+            position: todoResult.position,
+            parent_id: todoResult.parent_id,
+            level: todoResult.level
+          };
+
+          // Traiter les subtasks si présents
+          if (todo.subtasks && Array.isArray(todo.subtasks) && todo.subtasks.length > 0) {
+            createdTodo.subtasks = await createTodosRecursive(todo.subtasks, todoResult.id, level + 1);
+          }
+
+          createdTodos.push(createdTodo);
+        }
+
+        return createdTodos.filter(t => t.parent_id === parentId);
+      };
+
+      await createTodosRecursive(todos);
+
+      // Mettre à jour updated_at de la note
+      await runQuery('UPDATE notes SET updated_at = CURRENT_TIMESTAMP WHERE id = $1', [noteId]);
+
+      logger.info(`[CREATE TODOS BATCH] ${createdTodos.length} tâches créées pour la note ${noteId}`);
+
+      res.status(201).json({
+        message: `${createdTodos.length} tâche(s) ajoutée(s) avec succès`,
+        todos: createdTodos
+      });
+    } catch (error) {
+      logger.error('Erreur lors de l\'ajout des tâches en lot:', error);
+      res.status(500).json({ error: 'Erreur serveur' });
+    }
+  }
+);
+
+/**
  * PUT /api/notes/:id
  * Modifier une note
  */
