@@ -194,6 +194,7 @@ const Index = () => {
   const [showKeyboardHelp, setShowKeyboardHelp] = useState(false);
   const [showStatsDashboard, setShowStatsDashboard] = useState(false);
   const [showPomodoroModal, setShowPomodoroModal] = useState(false);
+  const [apiInfoModal, setApiInfoModal] = useState<{ open: boolean; user?: UserType }>({ open: false });
 
   // Pomodoro timer states
   const [pomodoroRunning, setPomodoroRunning] = useState(false);
@@ -2261,6 +2262,14 @@ const Index = () => {
                         <Button
                           variant="outline"
                           size="sm"
+                          onClick={() => setApiInfoModal({ open: true, user: u })}
+                        >
+                          <Zap className="h-4 w-4 mr-2" />
+                          API
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
                           onClick={() => setChangePasswordModal({ open: true, userId: u.id })}
                         >
                           <Key className="h-4 w-4 mr-2" />
@@ -2596,6 +2605,147 @@ const Index = () => {
         confirmText="Modifier"
         type="password"
       />
+
+      {/* API Info Modal */}
+      <Dialog open={apiInfoModal.open} onOpenChange={(open) => setApiInfoModal({ open })}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Zap className="h-5 w-5" />
+              Informations API - {apiInfoModal.user?.username}
+            </DialogTitle>
+            <DialogDescription>
+              Détails de connexion et exemples d'utilisation de l'API
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6 mt-4">
+            {/* Connexion */}
+            <div className="space-y-2">
+              <h3 className="font-semibold text-lg">1. Authentification</h3>
+              <p className="text-sm text-muted-foreground">
+                Obtenez un token JWT en vous connectant avec vos identifiants :
+              </p>
+              <div className="bg-muted p-3 rounded-lg font-mono text-sm overflow-x-auto">
+                <pre>{`curl -X POST ${window.location.origin}/api/auth/login \\
+  -H "Content-Type: application/json" \\
+  -d '{"username": "${apiInfoModal.user?.username}", "password": "VOTRE_MOT_DE_PASSE"}'`}</pre>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Réponse : <code className="bg-muted px-1 rounded">{`{"token": "eyJhbG...", "user": {...}}`}</code>
+              </p>
+            </div>
+
+            {/* Endpoints */}
+            <div className="space-y-2">
+              <h3 className="font-semibold text-lg">2. Endpoints disponibles</h3>
+              <div className="space-y-3">
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Badge className="bg-green-600">POST</Badge>
+                      <code className="text-sm">/api/notes/full</code>
+                    </div>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      Créer une note complète avec titre, contenu, tâches et tags
+                    </p>
+                    <div className="bg-muted p-2 rounded text-xs font-mono overflow-x-auto">
+                      <pre>{`{
+  "title": "Ma note",
+  "content": "Contenu de la note",
+  "todos": [
+    { "text": "Tâche 1", "priority": true },
+    { "text": "Tâche 2", "subtasks": [{ "text": "Sous-tâche" }] }
+  ],
+  "tags": ["important", "travail"]
+}`}</pre>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Badge className="bg-blue-600">PUT</Badge>
+                      <code className="text-sm">/api/notes/:id/full</code>
+                    </div>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      Mettre à jour une note avec option de remplacement des tâches/tags
+                    </p>
+                    <div className="bg-muted p-2 rounded text-xs font-mono overflow-x-auto">
+                      <pre>{`{
+  "title": "Nouveau titre",
+  "todos": [{ "text": "Nouvelle tâche" }],
+  "replace_todos": true,
+  "replace_tags": false
+}`}</pre>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Badge className="bg-green-600">POST</Badge>
+                      <code className="text-sm">/api/notes/:id/todos/batch</code>
+                    </div>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      Ajouter plusieurs tâches en lot à une note existante
+                    </p>
+                    <div className="bg-muted p-2 rounded text-xs font-mono overflow-x-auto">
+                      <pre>{`{
+  "todos": [
+    { "text": "Tâche 1" },
+    { "text": "Tâche 2", "priority": true }
+  ]
+}`}</pre>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+
+            {/* Exemple complet */}
+            <div className="space-y-2">
+              <h3 className="font-semibold text-lg">3. Exemple complet (curl)</h3>
+              <div className="bg-muted p-3 rounded-lg font-mono text-sm overflow-x-auto">
+                <pre>{`# Créer une note avec tâches
+curl -X POST ${window.location.origin}/api/notes/full \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer VOTRE_TOKEN" \\
+  -d '{
+    "title": "Liste de courses",
+    "content": "Pour le weekend",
+    "todos": [
+      { "text": "Pain" },
+      { "text": "Lait" },
+      { "text": "Fruits" }
+    ],
+    "tags": ["courses"]
+  }'`}</pre>
+              </div>
+            </div>
+
+            {/* Info importante */}
+            <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+              <p className="text-sm font-semibold text-yellow-900 dark:text-yellow-200 mb-1">
+                ⚠️ Important
+              </p>
+              <ul className="text-xs text-yellow-800 dark:text-yellow-300 space-y-1">
+                <li>• Le token expire après <strong>24 heures</strong></li>
+                <li>• Utilisez le header <code className="bg-yellow-100 dark:bg-yellow-800 px-1 rounded">Authorization: Bearer TOKEN</code></li>
+                <li>• Les données sont isolées par utilisateur</li>
+              </ul>
+            </div>
+
+            {/* URL de base */}
+            <div className="p-3 bg-muted rounded-lg">
+              <p className="text-sm font-medium mb-1">URL de base de l'API</p>
+              <code className="text-sm text-primary">{window.location.origin}/api</code>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <InputModal
         open={addNoteTodoModal}
