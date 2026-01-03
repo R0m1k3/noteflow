@@ -45,8 +45,11 @@ class RssService {
     try {
       const response = await axios.post(`${this.baseURL}/feeds`, { url, title }, this.getAuthHeader());
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error adding RSS feed:', error);
+      if (error.response && error.response.data && error.response.data.error) {
+        throw new Error(error.response.data.error);
+      }
       throw error;
     }
   }

@@ -4,6 +4,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 
 interface PomodoroModalProps {
@@ -18,6 +19,9 @@ export function PomodoroModal({ open, onOpenChange, children }: PomodoroModalPro
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="text-2xl">Pomodoro Timer</DialogTitle>
+          <DialogDescription className="sr-only">
+            Gérez vos sessions de travail et de pause.
+          </DialogDescription>
         </DialogHeader>
         <div className="mt-4">
           {children}

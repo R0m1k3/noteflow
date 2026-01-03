@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { MobileFAB } from "@/components/mobile/MobileFAB";
 import { MobileCard } from "@/components/mobile/MobileCard";
@@ -57,8 +57,8 @@ export default function RssPage() {
       setFeedTitle("");
       setAddFeedModal(false);
       await handleRefresh();
-    } catch (error) {
-      showError("Erreur lors de l'ajout du flux");
+    } catch (error: any) {
+      showError(error.message || "Erreur lors de l'ajout du flux");
     }
   };
 
@@ -155,6 +155,9 @@ export default function RssPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Ajouter un flux RSS</DialogTitle>
+            <DialogDescription className="sr-only">
+              Saisissez l'URL du flux RSS à ajouter.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
