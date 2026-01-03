@@ -668,8 +668,8 @@ const Index = () => {
         showSuccess("Flux RSS ajouté");
         loadRssArticles();
       }
-    } catch (error) {
-      showError("Erreur lors de l'ajout du flux");
+    } catch (error: any) {
+      showError(error.message || "Erreur lors de l'ajout du flux");
     }
   };
 
