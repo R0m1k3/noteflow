@@ -51,7 +51,42 @@ router.post('/feeds', requireAdmin, async (req, res) => {
 
     // Tester le flux
     try {
-      const feed = await parser.parseURL(url);
+      let feed;
+
+      // Essai 1: Parser direct
+      try {
+        feed = await parser.parseURL(url);
+      } catch (directError) {
+        logger.warn(`[RSS] Parser direct échoué pour ${url}: ${directError.message}, tentative avec axios...`);
+
+        // Essai 2: Fetch avec axios puis parse le contenu
+        const axiosResponse = await axios.get(url, {
+          timeout: 30000,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+            'Accept-Language': 'fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+            'Cache-Control': 'max-age=0'
+          },
+          responseType: 'text',
+          validateStatus: () => true
+        });
+
+        if (axiosResponse.status !== 200) {
+          logger.error(`[RSS] Axios fetch failed with status ${axiosResponse.status} for ${url}`);
+          throw new Error(`HTTP ${axiosResponse.status}`);
+        }
+
+        // Parser le contenu XML récupéré
+        feed = await parser.parseString(axiosResponse.data);
+      }
 
       logger.info(`[CREATE RSS FEED] Ajout flux - url: "${url}", title: "${feed.title || url}"`);
 
