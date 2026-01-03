@@ -47,8 +47,17 @@ class RssService {
       return response.data;
     } catch (error: any) {
       console.error('Error adding RSS feed:', error);
-      if (error.response && error.response.data && error.response.data.error) {
-        throw new Error(error.response.data.error);
+      if (error.response) {
+        console.error('Backend Response Status:', error.response.status);
+        console.error('Backend Response Data:', error.response.data);
+
+        const data = error.response.data;
+        if (data) {
+          const errorMessage = data.error || data.message || (typeof data === 'string' ? data : JSON.stringify(data));
+          if (errorMessage) {
+            throw new Error(errorMessage);
+          }
+        }
       }
       throw error;
     }
