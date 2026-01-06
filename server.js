@@ -51,9 +51,11 @@ app.use(helmet({
   }
 }));
 
-// CORS - À ajuster selon vos besoins
+// CORS - Sécurisé par défaut en production
+// En production: CORS_ORIGIN doit être défini explicitement ou les requêtes cross-origin sont rejetées
+// En développement: tout est autorisé par défaut
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || '*',
+  origin: process.env.CORS_ORIGIN || (process.env.NODE_ENV === 'production' ? false : '*'),
   credentials: true
 }));
 
@@ -92,6 +94,7 @@ app.use('/api/auth', require('./routes/auth.routes'));
 app.use('/api/users', require('./routes/users.routes'));
 app.use('/api/notes', require('./routes/notes.routes'));
 app.use('/api/todos', require('./routes/todos.routes'));
+app.use('/api/recurring-todos', require('./routes/recurring-todos.routes'));
 app.use('/api/settings', require('./routes/settings.routes'));
 app.use('/api/rss', require('./routes/rss.routes'));
 app.use('/api/calendar', require('./routes/calendar.routes'));
@@ -151,6 +154,11 @@ async function startServer() {
     const cleanupScheduler = require('./services/cleanup-scheduler');
     cleanupScheduler.startScheduler();
     logger.info('✓ Scheduler de purge automatique démarré');
+
+    // Démarrer le scheduler de tâches récurrentes
+    const recurringTodosScheduler = require('./src/cron/scheduler');
+    recurringTodosScheduler.startScheduler();
+    logger.info('✓ Scheduler de tâches récurrentes démarré');
 
     // Démarrer le serveur
     app.listen(PORT, '0.0.0.0', () => {
