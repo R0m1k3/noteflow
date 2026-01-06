@@ -171,6 +171,24 @@ async function initDatabase() {
       )
     `);
 
+    // Table recurring_todos (tâches récurrentes)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS recurring_todos (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        text TEXT NOT NULL,
+        recurrence_type VARCHAR(20) NOT NULL,
+        recurrence_interval INTEGER DEFAULT 1,
+        day_of_week INTEGER,
+        day_of_month INTEGER,
+        priority BOOLEAN DEFAULT FALSE,
+        next_occurrence DATE NOT NULL,
+        last_generated DATE,
+        enabled BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     // Table note_images
     await client.query(`
       CREATE TABLE IF NOT EXISTS note_images (
@@ -302,6 +320,8 @@ async function initDatabase() {
     await client.query('CREATE INDEX IF NOT EXISTS idx_rss_articles_date ON rss_articles(pub_date DESC)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_calendar_events_user ON calendar_events(user_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_calendar_events_start ON calendar_events(start_time)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_recurring_todos_user ON recurring_todos(user_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_recurring_todos_next ON recurring_todos(next_occurrence)');
 
     logger.info('✓ Tables PostgreSQL créées avec succès');
 

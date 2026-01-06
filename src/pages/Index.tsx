@@ -45,6 +45,7 @@ import { StatsDashboard } from "@/components/StatsDashboard";
 import { StatsModal } from "@/components/StatsModal";
 import { KeyboardShortcutsHelp } from "@/components/KeyboardShortcutsHelp";
 import { useKeyboardShortcuts, type KeyboardShortcut } from "@/hooks/useKeyboardShortcuts";
+import { RecurringTodosAdmin } from "@/components/admin/RecurringTodosAdmin";
 
 // ===== FONCTIONS UTILITAIRES TIMEZONE EUROPE/PARIS =====
 
@@ -2232,11 +2233,12 @@ const Index = () => {
           </DialogHeader>
 
           <Tabs value={adminTab} onValueChange={setAdminTab}>
-            <TabsList className="grid grid-cols-5 w-full">
+            <TabsList className="grid grid-cols-6 w-full">
               <TabsTrigger value="users">Utilisateurs</TabsTrigger>
               <TabsTrigger value="rss">Flux RSS</TabsTrigger>
               <TabsTrigger value="calendar">Google Calendar</TabsTrigger>
               <TabsTrigger value="openrouter">OpenRouter</TabsTrigger>
+              <TabsTrigger value="recurring">Récurrentes</TabsTrigger>
               <TabsTrigger value="settings">Paramètres</TabsTrigger>
             </TabsList>
 
@@ -2504,6 +2506,10 @@ const Index = () => {
                   </div>
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            <TabsContent value="recurring" className="mt-4">
+              <RecurringTodosAdmin />
             </TabsContent>
 
             <TabsContent value="settings" className="mt-4">
