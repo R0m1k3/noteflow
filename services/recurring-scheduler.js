@@ -1,8 +1,8 @@
-const recurringTodosController = require('../../controllers/recurringTodosController');
-const logger = require('../../config/logger');
+const recurringTodosController = require('../controllers/recurringTodosController');
+const logger = require('../config/logger');
 
 function startScheduler() {
-    logger.info('Démarrage du planificateur de tâches...');
+    logger.info('Démarrage du planificateur de tâches récurrentes...');
 
     // Vérification toutes les heures
     setInterval(async () => {

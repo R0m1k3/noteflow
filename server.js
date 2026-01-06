@@ -156,7 +156,7 @@ async function startServer() {
     logger.info('✓ Scheduler de purge automatique démarré');
 
     // Démarrer le scheduler de tâches récurrentes
-    const recurringTodosScheduler = require('./src/cron/scheduler');
+    const recurringTodosScheduler = require('./services/recurring-scheduler');
     recurringTodosScheduler.startScheduler();
     logger.info('✓ Scheduler de tâches récurrentes démarré');
 
