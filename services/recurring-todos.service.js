@@ -1,7 +1,7 @@
 const { getAll, runQuery } = require('../config/database');
 const logger = require('../config/logger');
 
-class RecurringTodosController {
+class RecurringTodosService {
     /**
      * Génère les tâches à partir des modèles récurrents.
      * @param {number|null} userId - ID de l'utilisateur pour filtrer (optionnel). Si null, traite tous les utilisateurs.
@@ -68,10 +68,10 @@ class RecurringTodosController {
 
             return { generated: generatedCount };
         } catch (error) {
-            logger.error('Erreur dans RecurringTodosController.generateTodos:', error);
+            logger.error('Erreur dans RecurringTodosService.generateTodos:', error);
             throw error;
         }
     }
 }
 
-module.exports = new RecurringTodosController();
+module.exports = new RecurringTodosService();

@@ -1,4 +1,4 @@
-const recurringTodosController = require('../controllers/recurringTodosController');
+const recurringTodosService = require('./recurring-todos.service');
 const logger = require('../config/logger');
 
 function startScheduler() {
@@ -8,7 +8,7 @@ function startScheduler() {
     setInterval(async () => {
         try {
             logger.debug('Vérification périodique des tâches récurrentes...');
-            const result = await recurringTodosController.generateTodos(); // All users
+            const result = await recurringTodosService.generateTodos(); // All users
             if (result.generated > 0) {
                 logger.info(`Tâches récurrentes auto-générées: ${result.generated}`);
             }
@@ -20,7 +20,7 @@ function startScheduler() {
     // Allow start check after a slight delay to ensure DB is ready
     setTimeout(async () => {
         try {
-            const result = await recurringTodosController.generateTodos();
+            const result = await recurringTodosService.generateTodos();
             if (result.generated > 0) {
                 logger.info(`Tâches récurrentes auto-générées (démarrage): ${result.generated}`);
             } else {
