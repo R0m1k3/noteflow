@@ -198,8 +198,8 @@ router.delete('/:id', async (req, res) => {
  */
 router.post('/generate', async (req, res) => {
     try {
-        const recurringTodosController = require('../controllers/recurringTodosController');
-        const result = await recurringTodosController.generateTodos(req.user.id);
+        const recurringTodosService = require('../services/recurring-todos.service');
+        const result = await recurringTodosService.generateTodos(req.user.id);
         res.json({
             message: `${result.generated} tâche(s) générée(s)`,
             generated: result.generated
