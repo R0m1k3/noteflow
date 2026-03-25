@@ -2813,6 +2813,27 @@ const Index = () => {
                     </div>
                   </CardContent>
                 </Card>
+
+                <Card>
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Badge className="bg-green-600">POST</Badge>
+                      <code className="text-sm">/api/tasks</code>
+                      <span className="text-xs text-muted-foreground ml-2">(Alias de /api/todos)</span>
+                    </div>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      Créer une tâche générale avec priorité, progression et date d'échéance
+                    </p>
+                    <div className="bg-muted p-2 rounded text-xs font-mono overflow-x-auto">
+                      <pre>{`{
+  "text": "Ma tâche importante",
+  "priority": true,
+  "in_progress": false,
+  "due_date": "2024-12-31T23:59:59Z"
+}`}</pre>
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
             </div>
 
@@ -2820,19 +2841,24 @@ const Index = () => {
             <div className="space-y-2">
               <h3 className="font-semibold text-lg">3. Exemple complet (curl)</h3>
               <div className="bg-muted p-3 rounded-lg font-mono text-sm overflow-x-auto">
-                <pre>{`# Créer une note avec tâches (clé API permanente)
-curl -X POST ${window.location.origin}/api/notes/full \\
+                <p className="text-xs text-muted-foreground mb-2 font-sans"># Créer une note avec tâches :</p>
+                <pre className="mb-4">{`curl -X POST ${window.location.origin}/api/notes/full \\
   -H "Content-Type: application/json" \\
   -H "X-API-Key: ${apiInfoModal.apiKey || 'VOTRE_CLE_API'}" \\
   -d '{
     "title": "Liste de courses",
     "content": "Pour le weekend",
-    "todos": [
-      { "text": "Pain" },
-      { "text": "Lait" },
-      { "text": "Fruits" }
-    ],
+    "todos": [{ "text": "Pain" }, { "text": "Lait" }],
     "tags": ["courses"]
+  }'`}</pre>
+                <p className="text-xs text-muted-foreground mb-2 font-sans"># Créer une tâche générale prioritaire :</p>
+                <pre>{`curl -X POST ${window.location.origin}/api/tasks \\
+  -H "Content-Type: application/json" \\
+  -H "X-API-Key: ${apiInfoModal.apiKey || 'VOTRE_CLE_API'}" \\
+  -d '{
+    "text": "Finaliser le rapport",
+    "priority": true,
+    "due_date": "2024-10-25T17:00:00Z"
   }'`}</pre>
               </div>
             </div>

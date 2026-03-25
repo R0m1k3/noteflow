@@ -29,10 +29,16 @@ Application web moderne de gestion de notes et de tâches, Dockerisée, avec aut
 - Attribution des droits administrateur
 - Interface dédiée pour les admins
 
+## Architecture
+
+- **Frontend**: React 18, Vite, Tailwind CSS, Shadcn UI
+- **Backend**: Node.js, Express
+- **Base de Données**: PostgreSQL 16 (recommandé)
+
 ## 🛠️ Stack Technique
 
 - **Backend** : Node.js 20 + Express
-- **Base de données** : SQLite3
+- **Base de données** : PostgreSQL 16
 - **Authentification** : JWT + bcrypt
 - **Frontend** : React 19 + TypeScript + Vite
 - **UI Components** : shadcn/ui + Tailwind CSS
@@ -224,12 +230,19 @@ PUT    /api/notes/todos/:todoId
 DELETE /api/notes/todos/:todoId
 ```
 
-### Todos Globaux
+### Tâches (Todos Globaux)
 ```
-GET    /api/todos
-POST   /api/todos
-PUT    /api/todos/:id
-DELETE /api/todos/:id
+GET    /api/todos          # Liste toutes les tâches
+POST   /api/todos          # Créer une tâche (text, priority, due_date, parent_id)
+PUT    /api/todos/:id      # Modifier une tâche
+PATCH  /api/todos/:id/toggle      # Basculer l'état complété
+PATCH  /api/todos/:id/priority    # Basculer la priorité
+PATCH  /api/todos/:id/in-progress # Basculer l'état "en cours"
+DELETE /api/todos/:id      # Supprimer une tâche
+
+# Alias sémantique (recommandé pour les intégrations externes)
+POST   /api/tasks          # Identique à POST /api/todos
+GET    /api/tasks          # Identique à GET /api/todos
 ```
 
 ## 🔒 Sécurité

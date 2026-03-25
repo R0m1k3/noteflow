@@ -19,10 +19,10 @@ router.get('/', async (req, res) => {
     // Essayer d'abord avec le champ priority (nouvelle version)
     try {
       const todos = await getAll(`
-        SELECT id, text, completed, priority, in_progress, parent_id, level, created_at
+        SELECT id, text, completed, priority, in_progress, parent_id, level, due_date, created_at
         FROM global_todos
         WHERE user_id = $1
-        ORDER BY priority DESC, created_at DESC
+        ORDER BY priority DESC, due_date ASC NULLS LAST, created_at DESC
       `, [req.user.id]);
 
       res.json(todos);
@@ -54,7 +54,10 @@ router.get('/', async (req, res) => {
 router.post('/',
   [
     body('text').trim().notEmpty().withMessage('Le texte est requis'),
-    body('parent_id').optional().isInt()
+    body('parent_id').optional().isInt(),
+    body('priority').optional().isBoolean(),
+    body('in_progress').optional().isBoolean(),
+    body('due_date').optional().isISO8601()
   ],
   async (req, res) => {
     try {
@@ -63,7 +66,7 @@ router.post('/',
         return res.status(400).json({ error: 'Données invalides', details: errors.array() });
       }
 
-      const { text, parent_id } = req.body;
+      const { text, parent_id, priority = false, in_progress = false, due_date = null } = req.body;
       let level = 0;
 
       // Si c'est un subtask, vérifier que le parent existe et calculer le niveau
@@ -78,10 +81,10 @@ router.post('/',
       logger.info(`[CREATE GLOBAL TODO] Début création - user_id: ${req.user.id}, text: "${text}"${parent_id ? ` (subtask of ${parent_id})` : ''}`);
 
       const result = await runQuery(`
-        INSERT INTO global_todos (user_id, text, parent_id, level)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO global_todos (user_id, text, parent_id, level, priority, in_progress, due_date)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         RETURNING *
-      `, [req.user.id, text, parent_id || null, level]);
+      `, [req.user.id, text, parent_id || null, level, priority, in_progress ? 1 : 0, due_date]);
 
       logger.info(`[CREATE GLOBAL TODO] Todo global créé avec succès - ID: ${result.id}, user: ${req.user.username}, level: ${level}`);
 
@@ -89,10 +92,11 @@ router.post('/',
         id: result.id,
         text,
         completed: false,
-        priority: false,
-        in_progress: false,
+        priority: priority,
+        in_progress: !!in_progress,
         parent_id: parent_id || null,
         level: level,
+        due_date: due_date,
         created_at: new Date().toISOString()
       });
     } catch (error) {
@@ -111,7 +115,8 @@ router.put('/:id',
     body('text').optional().trim().notEmpty(),
     body('completed').optional().isBoolean(),
     body('priority').optional().isBoolean(),
-    body('in_progress').optional().isBoolean()
+    body('in_progress').optional().isBoolean(),
+    body('due_date').optional().isISO8601().nullable()
   ],
   async (req, res) => {
     try {
@@ -120,7 +125,7 @@ router.put('/:id',
         return res.status(400).json({ error: 'Données invalides', details: errors.array() });
       }
 
-      const { text, completed, priority, in_progress } = req.body;
+      const { text, completed, priority, in_progress, due_date } = req.body;
 
       // Vérifier que le todo appartient à l'utilisateur
       const todo = await getOne('SELECT id FROM global_todos WHERE id = $1 AND user_id = $2', [req.params.id, req.user.id]);
@@ -151,6 +156,11 @@ router.put('/:id',
         paramCount++;
         updates.push(`in_progress = $${paramCount}`);
         params.push(in_progress ? 1 : 0); // global_todos.in_progress is INTEGER not BOOLEAN
+      }
+      if (due_date !== undefined) {
+        paramCount++;
+        updates.push(`due_date = $${paramCount}`);
+        params.push(due_date);
       }
 
       if (updates.length > 0) {
