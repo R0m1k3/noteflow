@@ -164,11 +164,32 @@ async function initDatabase() {
         completed BOOLEAN DEFAULT FALSE,
         priority BOOLEAN DEFAULT FALSE,
         in_progress INTEGER DEFAULT 0,
+        due_date DATE,
         parent_id INTEGER REFERENCES global_todos(id) ON DELETE CASCADE,
         level INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         completed_at TIMESTAMP
       )
+    `);
+
+    // Migration: ajouter les colonnes manquantes à global_todos si elles n'existent pas
+    await client.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'global_todos' AND column_name = 'priority') THEN
+          ALTER TABLE global_todos ADD COLUMN priority BOOLEAN DEFAULT FALSE;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'global_todos' AND column_name = 'in_progress') THEN
+          ALTER TABLE global_todos ADD COLUMN in_progress INTEGER DEFAULT 0;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'global_todos' AND column_name = 'due_date') THEN
+          ALTER TABLE global_todos ADD COLUMN due_date DATE;
+        END IF;
+        IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'global_todos' AND column_name = 'parent_id') THEN
+          ALTER TABLE global_todos ADD COLUMN parent_id INTEGER REFERENCES global_todos(id) ON DELETE CASCADE;
+          ALTER TABLE global_todos ADD COLUMN level INTEGER DEFAULT 0;
+        END IF;
+      END $$;
     `);
 
     // Table recurring_todos (tâches récurrentes)

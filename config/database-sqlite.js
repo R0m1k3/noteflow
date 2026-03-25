@@ -57,7 +57,10 @@ function initDatabase() {
             note_id INTEGER NOT NULL,
             text TEXT NOT NULL,
             completed BOOLEAN DEFAULT 0,
+            priority BOOLEAN DEFAULT 0,
             position INTEGER DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            completed_at DATETIME,
             FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE
           )
         `);
@@ -69,7 +72,11 @@ function initDatabase() {
             user_id INTEGER NOT NULL,
             text TEXT NOT NULL,
             completed BOOLEAN DEFAULT 0,
+            priority BOOLEAN DEFAULT 0,
+            in_progress INTEGER DEFAULT 0,
+            due_date DATETIME,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            completed_at DATETIME,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
           )
         `);
@@ -283,6 +290,54 @@ function initDatabase() {
                 });
               }
             });
+          }
+        });
+
+        // Migration pour global_todos
+        db.all("PRAGMA table_info(global_todos)", (err, columns) => {
+          if (err) {
+            logger.error('Erreur lors de la vérification de la structure de la table global_todos:', err);
+            return;
+          }
+
+          const hasPriority = columns.some(col => col.name === 'priority');
+          const hasInProgress = columns.some(col => col.name === 'in_progress');
+          const hasDueDate = columns.some(col => col.name === 'due_date');
+          const hasCompletedAt = columns.some(col => col.name === 'completed_at');
+
+          if (!hasPriority) {
+            logger.info('Migration SQLITE: Ajout de la colonne priority à global_todos...');
+            db.run('ALTER TABLE global_todos ADD COLUMN priority BOOLEAN DEFAULT 0');
+          }
+          if (!hasInProgress) {
+            logger.info('Migration SQLITE: Ajout de la colonne in_progress à global_todos...');
+            db.run('ALTER TABLE global_todos ADD COLUMN in_progress INTEGER DEFAULT 0');
+          }
+          if (!hasDueDate) {
+            logger.info('Migration SQLITE: Ajout de la colonne due_date à global_todos...');
+            db.run('ALTER TABLE global_todos ADD COLUMN due_date DATETIME');
+          }
+          if (!hasCompletedAt) {
+            logger.info('Migration SQLITE: Ajout de la colonne completed_at à global_todos...');
+            db.run('ALTER TABLE global_todos ADD COLUMN completed_at DATETIME');
+          }
+        });
+
+        // Migration pour note_todos
+        db.all("PRAGMA table_info(note_todos)", (err, columns) => {
+          if (err) return;
+          const hasPriority = columns.some(col => col.name === 'priority');
+          const hasCreatedAt = columns.some(col => col.name === 'created_at');
+          const hasCompletedAt = columns.some(col => col.name === 'completed_at');
+
+          if (!hasPriority) {
+            db.run('ALTER TABLE note_todos ADD COLUMN priority BOOLEAN DEFAULT 0');
+          }
+          if (!hasCreatedAt) {
+            db.run('ALTER TABLE note_todos ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP');
+          }
+          if (!hasCompletedAt) {
+            db.run('ALTER TABLE note_todos ADD COLUMN completed_at DATETIME');
           }
         });
 

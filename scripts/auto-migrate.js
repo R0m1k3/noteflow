@@ -5,11 +5,12 @@
  * S'exécute au démarrage de l'application pour mettre à jour le schéma
  */
 
+require('dotenv').config();
 const { Pool } = require('pg');
 const logger = require('../config/logger');
 
 const DATABASE_URL = process.env.DATABASE_URL ||
-  `postgresql://${process.env.PGUSER || 'noteflow'}:${process.env.PGPASSWORD || 'noteflow_secure_password_change_me'}@${process.env.PGHOST || 'postgres'}:${process.env.PGPORT || '5499'}/${process.env.PGDATABASE || 'noteflow'}`;
+  `postgresql://${process.env.PGUSER || 'noteflow'}:${process.env.PGPASSWORD || 'noteflow_secure_password_change_me'}@${process.env.PGHOST || 'localhost'}:${process.env.PGPORT || '5499'}/${process.env.PGDATABASE || 'noteflow'}`;
 
 async function autoMigrate() {
   const pool = new Pool({ connectionString: DATABASE_URL });
@@ -232,6 +233,20 @@ async function autoMigrate() {
       if (globalTodosLevelExists.rows.length === 0) {
         logger.info('  → Ajout du champ level à global_todos');
         await client.query(`ALTER TABLE global_todos ADD COLUMN level INTEGER DEFAULT 0`);
+      }
+
+      // Migration 5: Champ due_date pour les tâches globales
+      logger.info('  Vérification: champ due_date pour global_todos...');
+
+      const globalTodosDueDateExists = await client.query(`
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name='global_todos' AND column_name='due_date'
+      `);
+
+      if (globalTodosDueDateExists.rows.length === 0) {
+        logger.info('  → Ajout du champ due_date à global_todos');
+        await client.query('ALTER TABLE global_todos ADD COLUMN due_date DATE');
       }
 
       await client.query('COMMIT');
