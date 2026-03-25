@@ -54,10 +54,10 @@ router.get('/', async (req, res) => {
 router.post('/',
   [
     body('text').trim().notEmpty().withMessage('Le texte est requis'),
-    body('parent_id').optional().isInt(),
-    body('priority').optional().isBoolean(),
-    body('in_progress').optional().isBoolean(),
-    body('due_date').optional().isISO8601()
+    body('parent_id').optional({ values: 'null' }).isInt(),
+    body('priority').optional({ values: 'null' }).isBoolean(),
+    body('in_progress').optional({ values: 'null' }).isBoolean(),
+    body('due_date').optional({ values: 'null' }).isISO8601()
   ],
   async (req, res) => {
     try {
@@ -112,11 +112,11 @@ router.post('/',
  */
 router.put('/:id',
   [
-    body('text').optional().trim().notEmpty(),
-    body('completed').optional().isBoolean(),
-    body('priority').optional().isBoolean(),
-    body('in_progress').optional().isBoolean(),
-    body('due_date').optional().isISO8601().nullable()
+    body('text').optional({ values: 'null' }).trim().notEmpty(),
+    body('completed').optional({ values: 'null' }).isBoolean(),
+    body('priority').optional({ values: 'null' }).isBoolean(),
+    body('in_progress').optional({ values: 'null' }).isBoolean(),
+    body('due_date').optional({ values: 'null' }).isISO8601()
   ],
   async (req, res) => {
     try {
