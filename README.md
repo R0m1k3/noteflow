@@ -76,6 +76,7 @@ cp .env.example .env
 Éditer le fichier `.env` :
 ```env
 PORT=2222
+POSTGRES_PASSWORD=<mot_de_passe_fort>
 JWT_SECRET=<générer_une_clé_secrète_forte>
 NODE_ENV=production
 ```
@@ -113,13 +114,23 @@ npm run server:dev
 npm run typecheck
 ```
 
-### Identifiants par défaut
-```
-Username: admin
-Password: admin
-```
+### Identifiants initiaux
 
-**⚠️ IMPORTANT** : Changez immédiatement le mot de passe admin en production !
+Lors de la première installation (base vide), un compte `admin` est créé :
+- avec le mot de passe défini dans `ADMIN_PASSWORD`, ou
+- à défaut, avec un mot de passe aléatoire affiché **une seule fois** dans les logs (`docker-compose logs notes-app`).
+
+Changez ce mot de passe après la première connexion. Les comptes existants ne sont pas modifiés.
+
+### Sécurité / variables obligatoires
+
+| Variable | Obligatoire | Description |
+|----------|-------------|-------------|
+| `POSTGRES_PASSWORD` | Oui (docker-compose refuse de démarrer sinon) | Mot de passe de la base PostgreSQL. Pour une installation existante, reprendre la valeur déjà utilisée (anciennement `noteflow_secure_password_change_me` par défaut) puis la changer. |
+| `JWT_SECRET` | Recommandé | Secret de signature des tokens. Si absent, un secret aléatoire est généré et stocké en base (table `app_secrets`). L'ancienne valeur par défaut publique est ignorée. |
+| `ADMIN_PASSWORD` | Non | Mot de passe du compte `admin` créé à la première installation. |
+
+Le port PostgreSQL n'est plus publié sur l'hôte : la base n'est accessible que via le réseau Docker.
 
 ## 🐳 Commandes Docker
 

@@ -10,12 +10,11 @@ services:
     environment:
       POSTGRES_DB: noteflow
       POSTGRES_USER: noteflow
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-noteflow_secure_password_change_me}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Définissez POSTGRES_PASSWORD dans .env}
       POSTGRES_INITDB_ARGS: "--encoding=UTF8"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5499:5499"
+    # Pas de publication du port PostgreSQL : accessible uniquement via le réseau Docker
     networks:
       - nginx_default
     healthcheck:
@@ -40,11 +39,14 @@ services:
       - ./data:/app/data-sqlite:ro  # Mount SQLite DB for migration (read-only)
     environment:
       - NODE_ENV=production
-      - JWT_SECRET=${JWT_SECRET:-change_me_in_production_please_use_strong_secret}
+      # Si JWT_SECRET est vide, un secret aléatoire est généré et persisté en base
+      - JWT_SECRET=${JWT_SECRET:-}
+      # Mot de passe du compte admin créé à la première installation (aléatoire et affiché dans les logs si vide)
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
       - PORT=2222
       - UPLOADS_PATH=/app/public/uploads
       # PostgreSQL connection
-      - DATABASE_URL=postgresql://noteflow:${POSTGRES_PASSWORD:-noteflow_secure_password_change_me}@postgres:5499/noteflow
+      - DATABASE_URL=postgresql://noteflow:${POSTGRES_PASSWORD:?Définissez POSTGRES_PASSWORD dans .env}@postgres:5499/noteflow
       - DB_TYPE=postgres
     networks:
       - nginx_default
