@@ -11,6 +11,7 @@ const fs = require('fs');
 
 const logger = require('./config/logger');
 const { initDatabase } = require('./config/database');
+const { initJwtSecret } = require('./middleware/auth');
 
 // Créer l'application Express
 const app = express();
@@ -141,6 +142,9 @@ async function startServer() {
     await initDatabase();
     logger.info('✓ Base de données initialisée avec succès');
 
+    // Initialiser le secret JWT (variable d'environnement ou secret aléatoire persisté)
+    await initJwtSecret();
+
     // Exécuter les migrations automatiques
     const { autoMigrate } = require('./scripts/auto-migrate');
     await autoMigrate();
@@ -168,13 +172,6 @@ async function startServer() {
       logger.info(`✓ Environnement: ${process.env.NODE_ENV || 'development'}`);
       logger.info(`✓ URL: http://localhost:${PORT}`);
       logger.info('═════════════════════════════════════════════');
-
-      if (process.env.NODE_ENV !== 'production') {
-        logger.info('Credentials par défaut:');
-        logger.info('  Username: admin');
-        logger.info('  Password: admin');
-        logger.info('═════════════════════════════════════════════');
-      }
     });
   } catch (error) {
     logger.error('Erreur lors du démarrage du serveur:', error);
