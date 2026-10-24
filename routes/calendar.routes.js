@@ -1,6 +1,7 @@
 // Routes pour Google Calendar avec OAuth 2.0
 const express = require('express');
 const router = express.Router();
+const crypto = require('crypto');
 const { google } = require('googleapis');
 const { getAll, getOne, runQuery } = require('../config/database');
 const { authenticateToken, requireAdmin } = require('../middleware/auth');
@@ -9,6 +10,74 @@ const timezoneLogger = require('../services/timezone-logger');
 
 // Scopes Google Calendar requis (lecture ET écriture)
 const SCOPES = ['https://www.googleapis.com/auth/calendar'];
+
+// États OAuth en attente : nonce aléatoire -> { userId, expiresAt }
+// Le paramètre "state" n'est plus l'identifiant utilisateur mais un nonce à usage unique
+const OAUTH_STATE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+const pendingOAuthStates = new Map();
+
+function purgeExpiredOAuthStates() {
+  const now = Date.now();
+  for (const [nonce, entry] of pendingOAuthStates) {
+    if (entry.expiresAt <= now) {
+      pendingOAuthStates.delete(nonce);
+    }
+  }
+}
+
+function createOAuthState(userId) {
+  purgeExpiredOAuthStates();
+  const nonce = crypto.randomBytes(32).toString('hex');
+  pendingOAuthStates.set(nonce, { userId, expiresAt: Date.now() + OAUTH_STATE_TTL_MS });
+  return nonce;
+}
+
+/**
+ * Consommer un nonce OAuth (usage unique) et retourner l'utilisateur associé
+ */
+function consumeOAuthState(nonce) {
+  purgeExpiredOAuthStates();
+  if (typeof nonce !== 'string' || !pendingOAuthStates.has(nonce)) {
+    return null;
+  }
+  const entry = pendingOAuthStates.get(nonce);
+  pendingOAuthStates.delete(nonce);
+  return entry.expiresAt > Date.now() ? entry.userId : null;
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
+ * Envoyer la page de retour OAuth (popup) avec un script autorisé par nonce CSP
+ */
+function sendOAuthPopupPage(res, status, { message, title, details }) {
+  const scriptNonce = crypto.randomBytes(16).toString('base64');
+  res.setHeader(
+    'Content-Security-Policy',
+    `default-src 'none'; script-src 'nonce-${scriptNonce}'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`
+  );
+  res.status(status).send(`
+      <html>
+        <body>
+          <h1>${escapeHtml(title)}</h1>
+          <p>${escapeHtml(details)}</p>
+          <script nonce="${scriptNonce}">
+            if (window.opener) {
+              window.opener.postMessage(${JSON.stringify(message).replace(/</g, '\\u003c')}, '*');
+            }
+            ${status === 200 ? 'window.close();' : ''}
+          </script>
+        </body>
+      </html>
+    `);
+}
 
 /**
  * Types d'authentification supportés
@@ -114,7 +183,7 @@ async function getCalendarClient(userId = null) {
  * Forcer le type d'authentification à OAuth2
  * ATTENTION : Route sans authentification, à supprimer après utilisation
  */
-router.get('/force-oauth2', async (req, res) => {
+router.get('/force-oauth2', authenticateToken, requireAdmin, async (req, res) => {
   try {
     await runQuery("INSERT OR REPLACE INTO settings (key, value) VALUES ('google_auth_type', 'oauth2')", []);
     const check = await getOne("SELECT value FROM settings WHERE key = 'google_auth_type'");
@@ -137,7 +206,7 @@ router.get('/auth-url', authenticateToken, async (req, res) => {
       access_type: 'offline',
       scope: SCOPES,
       prompt: 'select_account consent', // Force le choix du compte ET le prompt pour obtenir refresh_token
-      state: req.user.id.toString() // Pour identifier l'utilisateur au retour
+      state: createOAuthState(req.user.id) // Nonce à usage unique lié à l'utilisateur
     });
 
     res.json({ authUrl });
@@ -162,9 +231,10 @@ router.get('/oauth-callback', async (req, res) => {
       return res.status(400).send('Code d\'autorisation manquant');
     }
 
-    const userId = parseInt(state);
+    const userId = consumeOAuthState(state);
     if (!userId) {
-      return res.status(400).send('État utilisateur invalide');
+      logger.warn('Callback OAuth avec un paramètre state invalide ou expiré');
+      return res.status(400).send('État OAuth invalide ou expiré, veuillez relancer la connexion');
     }
 
     const oauth2Client = await getOAuth2Client();
@@ -210,31 +280,18 @@ router.get('/oauth-callback', async (req, res) => {
     logger.info(`Tokens OAuth sauvegardés pour l'utilisateur ${userId}`);
 
     // Rediriger vers l'application avec un message de succès
-    res.send(`
-      <html>
-        <body>
-          <script>
-            window.opener.postMessage({ type: 'google-auth-success' }, '*');
-            window.close();
-          </script>
-          <h1>Authentification réussie!</h1>
-          <p>Vous pouvez fermer cette fenêtre et retourner à l'application.</p>
-        </body>
-      </html>
-    `);
+    sendOAuthPopupPage(res, 200, {
+      message: { type: 'google-auth-success' },
+      title: 'Authentification réussie!',
+      details: 'Vous pouvez fermer cette fenêtre et retourner à l\'application.'
+    });
   } catch (error) {
     logger.error('Erreur lors du callback OAuth:', error);
-    res.status(500).send(`
-      <html>
-        <body>
-          <h1>Erreur d'authentification</h1>
-          <p>${error.message}</p>
-          <script>
-            window.opener.postMessage({ type: 'google-auth-error', error: '${error.message}' }, '*');
-          </script>
-        </body>
-      </html>
-    `);
+    sendOAuthPopupPage(res, 500, {
+      message: { type: 'google-auth-error', error: error.message },
+      title: 'Erreur d\'authentification',
+      details: error.message
+    });
   }
 });
 
