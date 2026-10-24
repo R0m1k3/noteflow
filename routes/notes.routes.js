@@ -4,11 +4,77 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const { body, validationResult } = require('express-validator');
 
 const { getAll, getOne, runQuery } = require('../config/database');
 const { authenticateToken } = require('../middleware/auth');
 const logger = require('../config/logger');
+
+// Extensions autorisées pour les images, dérivées du type MIME vérifié
+const IMAGE_EXTENSIONS = {
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/webp': '.webp',
+  'image/gif': '.gif'
+};
+
+/**
+ * Générer un nom de fichier stocké aléatoire (jamais dérivé du nom fourni par le client)
+ */
+function randomStoredName(extension = '') {
+  return `${Date.now()}-${crypto.randomBytes(16).toString('hex')}${extension}`;
+}
+
+/**
+ * Détecter le type réel d'une image à partir de ses premiers octets (magic bytes)
+ */
+function detectImageType(filePath) {
+  const fd = fs.openSync(filePath, 'r');
+  const header = Buffer.alloc(12);
+  try {
+    fs.readSync(fd, header, 0, 12, 0);
+  } finally {
+    fs.closeSync(fd);
+  }
+
+  if (header[0] === 0xff && header[1] === 0xd8 && header[2] === 0xff) return 'image/jpeg';
+  if (header.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return 'image/png';
+  const ascii6 = header.toString('ascii', 0, 6);
+  if (ascii6 === 'GIF87a' || ascii6 === 'GIF89a') return 'image/gif';
+  if (header.toString('ascii', 0, 4) === 'RIFF' && header.toString('ascii', 8, 12) === 'WEBP') return 'image/webp';
+  return null;
+}
+
+/**
+ * Middleware : vérifier le contenu réel de l'image uploadée et forcer une extension sûre
+ */
+function verifyUploadedImage(req, res, next) {
+  if (!req.file) return next();
+
+  let detectedType = null;
+  try {
+    detectedType = detectImageType(req.file.path);
+  } catch (error) {
+    logger.error('Erreur lors de la vérification de l\'image:', error);
+  }
+
+  if (!detectedType) {
+    if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    return res.status(400).json({ error: 'Type de fichier non autorisé. Utilisez JPEG, PNG, WebP ou GIF.' });
+  }
+
+  const extension = IMAGE_EXTENSIONS[detectedType];
+  if (path.extname(req.file.filename) !== extension) {
+    const newFilename = randomStoredName(extension);
+    const newPath = path.join(path.dirname(req.file.path), newFilename);
+    fs.renameSync(req.file.path, newPath);
+    req.file.filename = newFilename;
+    req.file.path = newPath;
+  }
+  req.file.mimetype = detectedType;
+  next();
+}
 
 // Configuration de multer pour l'upload d'images
 const storage = multer.diskStorage({
@@ -17,8 +83,7 @@ const storage = multer.diskStorage({
     cb(null, uploadsDir);
   },
   filename: (req, file, cb) => {
-    const uniqueName = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}${path.extname(file.originalname)}`;
-    cb(null, uniqueName);
+    cb(null, randomStoredName(IMAGE_EXTENSIONS[file.mimetype] || ''));
   }
 });
 
@@ -724,7 +789,7 @@ router.delete('/:id', async (req, res) => {
  * POST /api/notes/:id/image
  * Ajouter une image à une note
  */
-router.post('/:id/image', upload.single('image'), async (req, res) => {
+router.post('/:id/image', upload.single('image'), verifyUploadedImage, async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'Aucune image fournie' });
@@ -984,8 +1049,7 @@ const imageStorage = multer.diskStorage({
     cb(null, imagesDir);
   },
   filename: (req, file, cb) => {
-    const uniqueName = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}${path.extname(file.originalname)}`;
-    cb(null, uniqueName);
+    cb(null, randomStoredName(IMAGE_EXTENSIONS[file.mimetype] || ''));
   }
 });
 
@@ -1006,7 +1070,7 @@ const imageUpload = multer({
  * POST /api/notes/:id/images
  * Ajouter une image à une note
  */
-router.post('/:id/images', imageUpload.single('image'), async (req, res) => {
+router.post('/:id/images', imageUpload.single('image'), verifyUploadedImage, async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'Aucune image fournie' });
@@ -1129,8 +1193,8 @@ const fileStorage = multer.diskStorage({
     cb(null, filesDir);
   },
   filename: (req, file, cb) => {
-    const uniqueName = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}-${file.originalname}`;
-    cb(null, uniqueName);
+    // Nom stocké aléatoire sans extension : le nom d'origine n'est utilisé qu'au téléchargement
+    cb(null, randomStoredName());
   }
 });
 
@@ -1239,6 +1303,8 @@ router.get('/files/:fileId/download', async (req, res) => {
       return res.status(404).json({ error: 'Fichier physique non trouvé' });
     }
 
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Security-Policy', 'sandbox');
     res.download(filePath, file.original_name);
   } catch (error) {
     logger.error('Erreur lors du téléchargement du fichier:', error);

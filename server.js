@@ -10,7 +10,7 @@ const path = require('path');
 const fs = require('fs');
 
 const logger = require('./config/logger');
-const { initDatabase } = require('./config/database');
+const { initDatabase, getOne } = require('./config/database');
 const { initJwtSecret } = require('./middleware/auth');
 
 // Créer l'application Express
@@ -43,7 +43,7 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", "data:", "blob:"],
       fontSrc: ["'self'"],
@@ -76,8 +76,41 @@ const authLimiter = rateLimit({
 app.use('/api/auth', authLimiter);
 
 // Servir les fichiers statiques
+// En-têtes de sécurité pour le contenu uploadé par les utilisateurs :
+// jamais interprété comme une page active (pas de sniffing MIME, CSP sandbox)
+function setUploadSecurityHeaders(res) {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Content-Security-Policy', 'sandbox');
+}
+
+// Pièces jointes : toujours servies en téléchargement (Content-Disposition: attachment)
+// avec leur nom d'origine
+app.get('/uploads/files/:filename', async (req, res, next) => {
+  try {
+    const filename = path.basename(req.params.filename);
+    const filePath = path.join(uploadsDir, 'files', filename);
+    const file = await getOne('SELECT original_name FROM note_files WHERE filename = $1', [filename]);
+
+    if (!file || !fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'Fichier non trouvé' });
+    }
+
+    setUploadSecurityHeaders(res);
+    res.download(filePath, file.original_name || filename);
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Servir les uploads depuis public/uploads
-app.use('/uploads', express.static(uploadsDir));
+app.use('/uploads', express.static(uploadsDir, {
+  setHeaders: (res, filePath) => {
+    setUploadSecurityHeaders(res);
+    if (filePath.startsWith(path.join(uploadsDir, 'files') + path.sep)) {
+      res.setHeader('Content-Disposition', 'attachment');
+    }
+  }
+}));
 // Servir l'application React depuis dist/
 app.use(express.static(path.join(__dirname, 'dist')));
 
