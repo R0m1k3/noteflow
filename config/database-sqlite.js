@@ -3,6 +3,7 @@ const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const bcrypt = require('bcrypt');
 const logger = require('./logger');
+const { getInitialAdminPassword, logInitialAdmin } = require('./initial-admin');
 
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, '../data/notes.db');
 
@@ -372,8 +373,8 @@ function initDatabase() {
 
           if (row.count === 0) {
             // Créer l'utilisateur admin par défaut
-            const defaultPassword = 'admin';
-            const passwordHash = await bcrypt.hash(defaultPassword, 12);
+            const initialAdmin = getInitialAdminPassword();
+            const passwordHash = await bcrypt.hash(initialAdmin.password, 12);
 
             db.run(
               'INSERT INTO users (username, password_hash, is_admin) VALUES (?, ?, ?)',
@@ -383,8 +384,7 @@ function initDatabase() {
                   logger.error('Erreur lors de la création de l\'utilisateur admin:', err);
                   reject(err);
                 } else {
-                  logger.info('✓ Utilisateur admin créé (username: admin, password: admin)');
-                  logger.warn('⚠️  IMPORTANT: Changez le mot de passe admin en production!');
+                  logInitialAdmin(initialAdmin);
                   resolve();
                 }
               }

@@ -2,6 +2,7 @@
 const { Pool, types } = require('pg');
 const bcrypt = require('bcrypt');
 const logger = require('./logger');
+const { getInitialAdminPassword, logInitialAdmin } = require('./initial-admin');
 const timezoneLogger = require('../services/timezone-logger');
 
 // IMPORTANT: Parser personnalisé pour TIMESTAMPTZ
@@ -350,16 +351,15 @@ async function initDatabase() {
     const usersCount = await client.query('SELECT COUNT(*) as count FROM users');
 
     if (usersCount.rows[0].count === '0') {
-      const defaultPassword = 'admin';
-      const passwordHash = await bcrypt.hash(defaultPassword, 12);
+      const initialAdmin = getInitialAdminPassword();
+      const passwordHash = await bcrypt.hash(initialAdmin.password, 12);
 
       await client.query(
         'INSERT INTO users (username, password_hash, is_admin) VALUES ($1, $2, $3)',
         ['admin', passwordHash, true]
       );
 
-      logger.info('✓ Utilisateur admin créé (username: admin, password: admin)');
-      logger.warn('⚠️  IMPORTANT: Changez le mot de passe admin en production!');
+      logInitialAdmin(initialAdmin);
     } else {
       logger.info('✓ Base de données déjà initialisée');
     }
